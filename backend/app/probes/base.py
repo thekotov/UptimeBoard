@@ -1,0 +1,41 @@
+"""Probe executors with a common interface.
+
+Each executor takes a host and the probe's config dict and returns a
+:class:`ProbeOutcome`. Executors are synchronous so they can run inside the
+APScheduler worker thread pool without an event loop.
+"""
+
+from dataclasses import dataclass
+
+from app.models.monitoring import STATUS_DOWN, STATUS_UP
+
+
+@dataclass
+class ProbeOutcome:
+    status: str
+    latency_ms: float | None = None
+    error: str | None = None
+
+
+def run_probe(probe_type: str, host: str, config: dict, timeout_sec: int) -> ProbeOutcome:
+    """Dispatch to the executor matching ``probe_type``."""
+    from app.probes import http as http_probe
+    from app.probes import icmp as icmp_probe
+    from app.probes import tcp as tcp_probe
+    from app.probes import tls as tls_probe
+
+    try:
+        if probe_type == "http":
+            return http_probe.execute(host, config, timeout_sec)
+        if probe_type == "tcp":
+            return tcp_probe.execute(host, config, timeout_sec)
+        if probe_type == "icmp":
+            return icmp_probe.execute(host, config, timeout_sec)
+        if probe_type == "tls":
+            return tls_probe.execute(host, config, timeout_sec)
+        return ProbeOutcome(status=STATUS_DOWN, error=f"unknown probe type: {probe_type}")
+    except Exception as exc:  # noqa: BLE001 - any executor failure is a down result
+        return ProbeOutcome(status=STATUS_DOWN, error=str(exc))
+
+
+__all__ = ["ProbeOutcome", "run_probe", "STATUS_UP", "STATUS_DOWN"]

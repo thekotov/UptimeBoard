@@ -1,0 +1,322 @@
+import { useState } from "react";
+import { api, type Probe, type ProbeType, testProbe } from "../../api/client";
+import { RefreshIcon } from "../../components/Icons";
+import { useI18n } from "../../i18n";
+import { useToast } from "../../toast";
+
+const num = (v: unknown, fallback: number): number => {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+};
+
+const headersToText = (h: unknown): string =>
+  h && typeof h === "object"
+    ? Object.entries(h as Record<string, string>).map(([k, v]) => `${k}: ${v}`).join("\n")
+    : "";
+
+const textToHeaders = (s: string): Record<string, string> => {
+  const out: Record<string, string> = {};
+  for (const line of s.split("\n")) {
+    const i = line.indexOf(":");
+    if (i > 0) out[line.slice(0, i).trim()] = line.slice(i + 1).trim();
+  }
+  return out;
+};
+
+export function ProbeForm({
+  serverId,
+  probe,
+  onSaved,
+  onCancel,
+}: {
+  serverId?: number;
+  probe?: Probe;
+  onSaved: () => void;
+  onCancel?: () => void;
+}) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const editing = probe != null;
+  const cfg = (probe?.config ?? {}) as Record<string, any>;
+
+  const [type, setType] = useState<ProbeType>(probe?.type ?? "http");
+  const [name, setName] = useState(probe?.name ?? "");
+  const [interval, setInterval] = useState(probe?.interval_sec ?? 60);
+  const [timeout, setTimeoutSec] = useState(probe?.timeout_sec ?? 10);
+  const [enabled, setEnabled] = useState(probe?.enabled ?? true);
+  const [failureThreshold, setFailureThreshold] = useState(probe?.failure_threshold ?? 1);
+  const [latencyDegraded, setLatencyDegraded] = useState<number | "">(probe?.latency_degraded_ms ?? "");
+  // http
+  const [url, setUrl] = useState(cfg.url ?? "");
+  const [method, setMethod] = useState<string>(cfg.method ?? "GET");
+  const [expectedStatus, setExpectedStatus] = useState(num(cfg.expected_status, 200));
+  const [bodySubstr, setBodySubstr] = useState(cfg.expected_body_substr ?? "");
+  const [followRedirects, setFollowRedirects] = useState<boolean>(cfg.follow_redirects ?? true);
+  const [headers, setHeaders] = useState(headersToText(cfg.headers));
+  const [basicUser, setBasicUser] = useState(cfg.basic_user ?? "");
+  const [basicPass, setBasicPass] = useState(cfg.basic_pass ?? "");
+  const [bearer, setBearer] = useState(cfg.bearer_token ?? "");
+  const [bodyRegex, setBodyRegex] = useState(cfg.expected_body_regex ?? "");
+  const [jsonPath, setJsonPath] = useState(cfg.json_path ?? "");
+  const [jsonExpected, setJsonExpected] = useState(cfg.json_expected ?? "");
+  // tcp / tls / icmp / heartbeat
+  const [port, setPort] = useState(num(cfg.port, 443));
+  const [count, setCount] = useState(num(cfg.count, 3));
+  const [packetSize, setPacketSize] = useState(num(cfg.packet_size, 56));
+  const [warnDays, setWarnDays] = useState(num(cfg.warn_days, 14));
+  const [grace, setGrace] = useState(num(cfg.grace_sec, 60));
+  const [busy, setBusy] = useState(false);
+  const [testing, setTesting] = useState(false);
+
+  const buildConfig = (): Record<string, unknown> => {
+    if (type === "http") {
+      const c: Record<string, unknown> = {
+        url, method, expected_status: Number(expectedStatus), follow_redirects: followRedirects,
+      };
+      if (bodySubstr.trim()) c.expected_body_substr = bodySubstr.trim();
+      if (bodyRegex.trim()) c.expected_body_regex = bodyRegex.trim();
+      const h = textToHeaders(headers);
+      if (Object.keys(h).length) c.headers = h;
+      if (basicUser.trim()) { c.basic_user = basicUser.trim(); c.basic_pass = basicPass; }
+      if (bearer.trim()) c.bearer_token = bearer.trim();
+      if (jsonPath.trim()) { c.json_path = jsonPath.trim(); if (jsonExpected !== "") c.json_expected = jsonExpected; }
+      return c;
+    }
+    if (type === "tcp") return { port: Number(port) };
+    if (type === "tls") return { port: Number(port), warn_days: Number(warnDays) };
+    if (type === "heartbeat") return { ...cfg, grace_sec: Number(grace) }; // keep token
+    return { count: Number(count), packet_size: Number(packetSize) };
+  };
+
+  const commonPayload = () => ({
+    name: name || type.toUpperCase(),
+    interval_sec: Number(interval),
+    timeout_sec: Number(timeout),
+    enabled,
+    failure_threshold: Number(failureThreshold),
+    latency_degraded_ms: latencyDegraded === "" ? null : Number(latencyDegraded),
+    config: editing ? { ...cfg, ...buildConfig() } : buildConfig(),
+  });
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      if (editing) await api.patch(`/admin/probes/${probe!.id}`, commonPayload());
+      else await api.post("/admin/probes", { server_id: serverId, type, ...commonPayload() });
+      toast.success(t("toast.saved"));
+      onSaved();
+    } catch {
+      toast.error(t("toast.error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runTest = async () => {
+    setTesting(true);
+    try {
+      const res = await testProbe({
+        type, server_id: editing ? probe!.server_id : serverId,
+        timeout_sec: Number(timeout), config: buildConfig(),
+      });
+      const lat = res.latency_ms != null ? ` (${res.latency_ms.toFixed(0)} ${t("dash.ms")})` : "";
+      toast.show(`${t(`status.${res.status}`)}${lat}${res.error ? " — " + res.error : ""}`,
+        res.status === "up" ? "success" : "error");
+    } catch {
+      toast.error(t("probe.checkFail"));
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const hasLatency = type === "http" || type === "tcp" || type === "tls";
+  const pingUrl = cfg.token ? `${location.origin}/api/ping/${cfg.token}` : null;
+
+  // inline validation
+  const urlInvalid = type === "http" && url.trim() !== "" && !/^https?:\/\//i.test(url.trim());
+  const portInvalid = (type === "tcp" || type === "tls") && !(port >= 1 && port <= 65535);
+  const formInvalid = urlInvalid || portInvalid;
+
+  return (
+    <form onSubmit={submit} className="form-grid">
+      <div>
+        <label>{t("probe.type")}</label>
+        <select value={type} onChange={(e) => setType(e.target.value as ProbeType)}
+          disabled={editing} title={editing ? t("probe.typeLocked") : undefined}>
+          <option value="http">HTTP</option>
+          <option value="tcp">TCP</option>
+          <option value="icmp">ICMP</option>
+          <option value="tls">TLS</option>
+          <option value="heartbeat">{t("probe.heartbeat")}</option>
+        </select>
+      </div>
+      <div>
+        <label>{t("probe.name")}</label>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("optional")} />
+      </div>
+
+      {type === "http" && (
+        <>
+          <div className="full">
+            <label>{t("probe.url")}</label>
+            <input className={urlInvalid ? "invalid" : ""} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://host/health" />
+            {urlInvalid && <div className="field-msg err">{t("valid.url")}</div>}
+          </div>
+          <div>
+            <label>{t("probe.method")}</label>
+            <select value={method} onChange={(e) => setMethod(e.target.value)}>
+              <option value="GET">GET</option>
+              <option value="HEAD">HEAD</option>
+              <option value="POST">POST</option>
+            </select>
+          </div>
+          <div>
+            <label>{t("probe.expected")}</label>
+            <input type="number" value={expectedStatus} onChange={(e) => setExpectedStatus(+e.target.value)} />
+          </div>
+          <details className="full advanced">
+            <summary>{t("probe.advanced")}</summary>
+            <div className="form-grid" style={{ marginTop: 10 }}>
+              <div className="full">
+                <label>{t("probe.body")}</label>
+                <input value={bodySubstr} onChange={(e) => setBodySubstr(e.target.value)} placeholder={t("optional")} />
+              </div>
+              <div className="full">
+                <label>{t("probe.bodyRegex")}</label>
+                <input value={bodyRegex} onChange={(e) => setBodyRegex(e.target.value)} placeholder={t("optional")} />
+              </div>
+              <div>
+                <label>{t("probe.jsonPath")}</label>
+                <input value={jsonPath} onChange={(e) => setJsonPath(e.target.value)} placeholder={t("optional")} />
+              </div>
+              <div>
+                <label>{t("probe.jsonExpected")}</label>
+                <input value={jsonExpected} onChange={(e) => setJsonExpected(e.target.value)} placeholder={t("optional")} />
+              </div>
+              <div className="full">
+                <label>{t("probe.headers")}</label>
+                <textarea rows={2} value={headers} onChange={(e) => setHeaders(e.target.value)} placeholder="Authorization: Bearer …" />
+              </div>
+              <div>
+                <label>{t("probe.basicUser")}</label>
+                <input value={basicUser} onChange={(e) => setBasicUser(e.target.value)} placeholder={t("optional")} />
+              </div>
+              <div>
+                <label>{t("probe.basicPass")}</label>
+                <input type="password" value={basicPass} onChange={(e) => setBasicPass(e.target.value)} placeholder={t("optional")} />
+              </div>
+              <div className="full">
+                <label>{t("probe.bearer")}</label>
+                <input value={bearer} onChange={(e) => setBearer(e.target.value)} placeholder={t("optional")} />
+              </div>
+              <label className="check-cell full">
+                <input type="checkbox" checked={followRedirects} onChange={(e) => setFollowRedirects(e.target.checked)} /> {t("probe.redirects")}
+              </label>
+            </div>
+          </details>
+        </>
+      )}
+      {type === "tcp" && (
+        <div>
+          <label>{t("probe.port")}</label>
+          <input type="number" value={port} onChange={(e) => setPort(+e.target.value)} />
+        </div>
+      )}
+      {type === "tls" && (
+        <>
+          <div>
+            <label>{t("probe.port")}</label>
+            <input className={portInvalid ? "invalid" : ""} type="number" value={port} onChange={(e) => setPort(+e.target.value)} />
+            {portInvalid && <div className="field-msg err">{t("valid.port")}</div>}
+          </div>
+          <div>
+            <label>{t("probe.warnDays")}</label>
+            <input type="number" value={warnDays} onChange={(e) => setWarnDays(+e.target.value)} />
+          </div>
+        </>
+      )}
+      {type === "icmp" && (
+        <>
+          <div>
+            <label>{t("probe.count")}</label>
+            <input type="number" value={count} onChange={(e) => setCount(+e.target.value)} />
+          </div>
+          <div>
+            <label>{t("probe.packetSize")}</label>
+            <input type="number" value={packetSize} onChange={(e) => setPacketSize(+e.target.value)} />
+          </div>
+        </>
+      )}
+      {type === "heartbeat" && (
+        <>
+          <div>
+            <label>{t("probe.grace")}</label>
+            <input type="number" value={grace} onChange={(e) => setGrace(+e.target.value)} />
+          </div>
+          <div className="full">
+            {pingUrl ? (
+              <>
+                <label>{t("probe.pushUrl")}</label>
+                <div className="inline">
+                  <input readOnly value={pingUrl} onFocus={(e) => e.currentTarget.select()} />
+                  <button type="button" className="secondary btn-sm" onClick={() => {
+                    navigator.clipboard?.writeText(pingUrl); toast.success(t("io.copied"));
+                  }}>🔗</button>
+                </div>
+              </>
+            ) : (
+              <div className="hint">{t("probe.pushHint")}</div>
+            )}
+          </div>
+        </>
+      )}
+
+      <div>
+        <label>{type === "heartbeat" ? t("probe.period") : t("probe.interval")}</label>
+        <input type="number" value={interval} onChange={(e) => setInterval(+e.target.value)} />
+      </div>
+      {type !== "heartbeat" && (
+        <div>
+          <label>{t("probe.timeout")}</label>
+          <input type="number" value={timeout} onChange={(e) => setTimeoutSec(+e.target.value)} />
+        </div>
+      )}
+      <div>
+        <label>{t("probe.failureThreshold")}</label>
+        <input type="number" min={1} value={failureThreshold} onChange={(e) => setFailureThreshold(+e.target.value)} />
+      </div>
+      {hasLatency && (
+        <div>
+          <label>{t("probe.latencyDegraded")}</label>
+          <input type="number" value={latencyDegraded}
+            onChange={(e) => setLatencyDegraded(e.target.value === "" ? "" : +e.target.value)} placeholder={t("optional")} />
+        </div>
+      )}
+      <label className="check-cell full">
+        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> {t("probe.enabled")}
+      </label>
+
+      <div className="form-actions">
+        {type !== "heartbeat" && (
+          <button type="button" className="secondary btn-sm" onClick={runTest} disabled={testing}>
+            <RefreshIcon size={14} /> {testing ? t("probe.testing") : t("probe.test")}
+          </button>
+        )}
+        <span style={{ flex: 1 }} />
+        {onCancel && (
+          <button type="button" className="ghost" onClick={onCancel} disabled={busy}>{t("cancel")}</button>
+        )}
+        <button disabled={busy || formInvalid}>{editing ? t("save") : t("probe.add")}</button>
+      </div>
+    </form>
+  );
+}
+
+export function probeSummary(p: Probe): string {
+  if (p.type === "http") return `${p.config.url ?? ""} → ${p.config.expected_status ?? 200}`;
+  if (p.type === "tcp") return `port ${p.config.port ?? "?"}`;
+  if (p.type === "tls") return `TLS :${p.config.port ?? 443}`;
+  if (p.type === "heartbeat") return "push / heartbeat";
+  return `${p.config.count ?? 3} ping`;
+}
