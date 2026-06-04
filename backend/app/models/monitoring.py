@@ -88,6 +88,9 @@ class Server(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     host: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Optional free-text note describing the server's purpose. Shown small on the
+    # public dashboard in place of the host/IP when set.
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
     order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     service: Mapped["Service"] = relationship(back_populates="servers")

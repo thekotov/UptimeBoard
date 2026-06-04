@@ -105,6 +105,7 @@ def build_page_status(db: Session, page: Page) -> PageStatus:
                     id=server.id,
                     name=server.name,
                     host=mask_host(server.host) if page.mask_ip else server.host,
+                    note=server.note,
                     status=server_status,
                     probes=probe_statuses,
                 )

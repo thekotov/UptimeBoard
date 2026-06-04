@@ -277,6 +277,9 @@ const ru: Dict = {
   "editor.confirmDeleteService": "Удалить сервис?",
   "editor.newServerName": "Имя сервера",
   "editor.host": "Хост / адрес",
+  "editor.note": "Комментарий (назначение)",
+  "editor.notePlaceholder": "напр. Балансировщик для PayPal",
+  "editor.noteHint": "Показывается на дашборде вместо адреса, если задан.",
   "editor.addServer": "Добавить сервер",
   "editor.confirmDeleteServer": "Удалить сервер?",
   "editor.noServers": "В сервисе пока нет серверов.",
@@ -592,6 +595,9 @@ const en: Dict = {
   "editor.confirmDeleteService": "Delete service?",
   "editor.newServerName": "Server name",
   "editor.host": "Host / address",
+  "editor.note": "Note (purpose)",
+  "editor.notePlaceholder": "e.g. PayPal load balancer",
+  "editor.noteHint": "Shown on the dashboard in place of the address when set.",
   "editor.addServer": "Add server",
   "editor.confirmDeleteServer": "Delete server?",
   "editor.noServers": "No servers yet.",
@@ -725,6 +731,57 @@ export function formatDuration(sec: number | null, lang: Lang): string {
   if (h > 0) return `${h}${u.h} ${m}${u.m}`;
   if (m > 0) return `${m}${u.m}`;
   return `${s}${u.s}`;
+}
+
+/** Playful "all systems up" headlines, one pool per language. The very first
+ *  entry is the neutral default; the rest are the fun ones. */
+export const UP_HEADLINES: Record<Lang, string[]> = {
+  ru: [
+    "Все системы работают штатно",
+    "Все системы в норме",
+    "Полный порядок",
+    "Всё зелёное 🟢",
+    "Всё работает, можно пить кофе ☕",
+    "Полёт нормальный 🚀",
+    "Тишина в эфире — это хорошо",
+    "Ни одного пожара 🔥 (это хорошо)",
+    "Все живы, всё крутится",
+    "Серверы спят спокойно 😴",
+    "Дежурный скучает — отличный знак",
+    "Аптайм гордится собой",
+    "Полный штиль ⛵",
+    "Системы мурлычут 🐱",
+    "Алертов нет — пейджер молчит 📟",
+    "200 OK по всем фронтам",
+    "Uptime: да. Проблемы: нет",
+    "Можно не смотреть в этот дашборд",
+  ],
+  en: [
+    "All systems operational",
+    "Everything's green 🟢",
+    "All good here",
+    "Smooth sailing ⛵",
+    "Time for a coffee ☕",
+    "All systems go 🚀",
+    "No fires today 🔥",
+    "Servers sleeping soundly 😴",
+    "On-call is bored — great sign",
+    "Uptime is proud of itself",
+    "Pager's quiet 📟",
+    "200 OK across the board",
+    "Uptime: yes. Problems: no",
+    "Nothing to see here",
+  ],
+};
+
+/** Pick an "all up" headline that depends on the current time rather than on page
+ *  reloads: it stays stable within each hour and rotates pseudo-randomly as the
+ *  hour changes (the hash keeps consecutive hours from just stepping through in order). */
+export function pickUpHeadline(lang: Lang, now: number = Date.now()): string {
+  const list = UP_HEADLINES[lang] ?? UP_HEADLINES.ru;
+  const hourBucket = Math.floor(now / 3_600_000);
+  const hash = Math.abs(Math.imul(hourBucket ^ 0x9e3779b9, 0x85ebca6b));
+  return list[hash % list.length];
 }
 
 /** Localised relative time, e.g. "2 минуты назад" / "2 minutes ago". */

@@ -97,6 +97,7 @@ class ProbeTest(BaseModel):
 class ServerBase(BaseModel):
     name: str
     host: str
+    note: str | None = None
     order: int = 0
 
 
@@ -107,6 +108,7 @@ class ServerCreate(ServerBase):
 class ServerUpdate(BaseModel):
     name: str | None = None
     host: str | None = None
+    note: str | None = None
     order: int | None = None
 
 

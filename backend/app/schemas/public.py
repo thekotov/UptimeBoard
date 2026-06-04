@@ -32,6 +32,7 @@ class ServerStatus(BaseModel):
     id: int
     name: str
     host: str
+    note: str | None = None
     status: str
     probes: list[ProbeStatus] = []
 

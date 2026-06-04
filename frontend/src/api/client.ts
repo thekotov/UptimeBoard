@@ -66,6 +66,7 @@ export interface ServerStatus {
   id: number;
   name: string;
   host: string;
+  note: string | null;
   status: Status;
   probes: ProbeStatus[];
 }
@@ -134,6 +135,7 @@ export interface Server {
   service_id: number;
   name: string;
   host: string;
+  note: string | null;
   order: number;
   probes: Probe[];
 }

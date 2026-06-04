@@ -5,7 +5,7 @@ import { LangSwitch } from "../../components/LangSwitch";
 import { SkeletonDashboard } from "../../components/Skeleton";
 import { StatusBadge, StatusDot } from "../../components/StatusBadge";
 import { Timeline } from "../../components/Timeline";
-import { relativeShort, relativeTime, useI18n } from "../../i18n";
+import { pickUpHeadline, relativeShort, relativeTime, useI18n } from "../../i18n";
 import { ThemeSwitch } from "../../theme";
 import { useStatusTab } from "../../useStatusTab";
 import { Incidents } from "./Incidents";
@@ -329,7 +329,9 @@ export function Dashboard() {
           {STATUS_GLYPH[page.status]}
         </span>
         <div className="stack">
-          <span className="title">{t(`overall.${page.status}`)}</span>
+          <span className="title">
+            {page.status === "up" ? pickUpHeadline(lang) : t(`overall.${page.status}`)}
+          </span>
           <span className="sub">
             {page.status === "up"
               ? t("overall.subAllUp", { total: page.services.length })
@@ -491,7 +493,11 @@ export function Dashboard() {
                       <span className={`chev ${srvCollapsed ? "" : "open"}`}>▶</span>
                       <StatusDot status={server.status} />
                       <strong>{server.name}</strong>
-                      <span className="muted small">{server.host}</span>
+                      {server.note ? (
+                        <span className="muted small srv-note" title={server.note}>{server.note}</span>
+                      ) : (
+                        <span className="muted small">{server.host}</span>
+                      )}
                       <span className="count-pill">{server.probes.length}</span>
                     </div>
                     <div className="inline">

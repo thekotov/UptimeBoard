@@ -272,6 +272,12 @@ input.invalid, textarea.invalid { border-color: var(--down); box-shadow: 0 0 0 3
 .server.srv-down { border-left: 3px solid var(--down); }
 .server.srv-degraded { border-left: 3px solid var(--degraded); }
 
+/* server purpose note (shown in place of the host) — prose, truncated if long */
+.srv-note, .server-note {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  max-width: 32ch; min-width: 0;
+}
+
 /* probes live in a recessed well beneath the server header — clearly nested, not in the same stack */
 .probe-list {
   margin: 0;

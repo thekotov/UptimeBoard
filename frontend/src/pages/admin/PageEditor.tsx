@@ -485,6 +485,7 @@ export function PageEditor() {
                           </strong>
                         )}
                         <span className="muted small">{server.host}</span>
+                        {server.note && <span className="muted small server-note" title={server.note}>· {server.note}</span>}
                       </div>
                       <div className="row-actions">
                         <button className="secondary btn-sm" onClick={() => setModal({ kind: "probe-add", serverId: server.id })}>
@@ -935,14 +936,16 @@ function ServerForm({ serviceId, server, onSaved, onCancel }: { serviceId?: numb
   const toast = useToast();
   const [name, setName] = useState(server?.name ?? "");
   const [host, setHost] = useState(server?.host ?? "");
+  const [note, setNote] = useState(server?.note ?? "");
   const [busy, setBusy] = useState(false);
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim() || !host.trim()) return;
     setBusy(true);
+    const payload = { name: name.trim(), host: host.trim(), note: note.trim() || null };
     try {
-      if (server) await api.patch(`/admin/servers/${server.id}`, { name: name.trim(), host: host.trim() });
-      else await api.post("/admin/servers", { service_id: serviceId, name: name.trim(), host: host.trim() });
+      if (server) await api.patch(`/admin/servers/${server.id}`, payload);
+      else await api.post("/admin/servers", { service_id: serviceId, ...payload });
       toast.success(t("toast.saved"));
       onSaved();
     } catch {
@@ -960,6 +963,11 @@ function ServerForm({ serviceId, server, onSaved, onCancel }: { serviceId?: numb
       <div>
         <label>{t("editor.host")}</label>
         <input value={host} onChange={(e) => setHost(e.target.value)} placeholder="example.com" />
+      </div>
+      <div className="full">
+        <label>{t("editor.note")}</label>
+        <input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("editor.notePlaceholder")} maxLength={255} />
+        <div className="hint">{t("editor.noteHint")}</div>
       </div>
       <div className="form-actions">
         <button type="button" className="ghost" onClick={onCancel} disabled={busy}>{t("cancel")}</button>

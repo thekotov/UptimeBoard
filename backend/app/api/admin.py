@@ -303,7 +303,7 @@ def clone_probe(probe_id: int, db: Session = Depends(get_db)):
 @router.post("/servers/{server_id}/clone", response_model=ServerOut, status_code=201)
 def clone_server(server_id: int, db: Session = Depends(get_db)):
     src = _get_or_404(db, Server, server_id)
-    clone = Server(service_id=src.service_id, name=f"{src.name} (copy)", host=src.host, order=src.order)
+    clone = Server(service_id=src.service_id, name=f"{src.name} (copy)", host=src.host, note=src.note, order=src.order)
     clone.probes = [_clone_probe(p) for p in src.probes]
     db.add(clone)
     db.commit()
@@ -324,7 +324,7 @@ def clone_service(service_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Service not found")
     clone = Service(page_id=src.page_id, name=f"{src.name} (copy)", order=src.order)
     clone.servers = [
-        Server(name=s.name, host=s.host, order=s.order, probes=[_clone_probe(p) for p in s.probes])
+        Server(name=s.name, host=s.host, note=s.note, order=s.order, probes=[_clone_probe(p) for p in s.probes])
         for s in src.servers
     ]
     db.add(clone)
@@ -364,7 +364,7 @@ def clone_page(page_id: int, db: Session = Depends(get_db)):
         Service(
             name=svc.name, order=svc.order,
             servers=[
-                Server(name=s.name, host=s.host, order=s.order,
+                Server(name=s.name, host=s.host, note=s.note, order=s.order,
                        probes=[_clone_probe(p) for p in s.probes])
                 for s in svc.servers
             ],
@@ -414,7 +414,7 @@ def export_page(page_id: int, db: Session = Depends(get_db)):
                 "name": svc.name, "order": svc.order,
                 "servers": [
                     {
-                        "name": s.name, "host": s.host, "order": s.order,
+                        "name": s.name, "host": s.host, "note": s.note, "order": s.order,
                         "probes": [
                             {
                                 "name": p.name, "type": p.type, "interval_sec": p.interval_sec,
@@ -459,7 +459,8 @@ def import_page(payload: dict = Body(...), db: Session = Depends(get_db)):
             name=svc.get("name", "Service"), order=svc.get("order", 0),
             servers=[
                 Server(
-                    name=s.get("name", "server"), host=s.get("host", ""), order=s.get("order", 0),
+                    name=s.get("name", "server"), host=s.get("host", ""),
+                    note=s.get("note"), order=s.get("order", 0),
                     probes=[
                         Probe(
                             name=p.get("name", "probe"), type=p.get("type", "http"),
