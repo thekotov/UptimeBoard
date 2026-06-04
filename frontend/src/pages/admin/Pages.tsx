@@ -132,6 +132,9 @@ export function Pages() {
                   <tr key={p.id}>
                     <td>
                       <Link to={`/admin/pages/${p.id}`}>{p.title}</Link>
+                      {p.is_private && (
+                        <span title={t("editor.private")} style={{ marginLeft: 6 }}>🔒</span>
+                      )}
                     </td>
                     <td className="muted">
                       <a href={`/status/${p.slug}`} target="_blank">

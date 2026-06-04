@@ -734,6 +734,7 @@ function PageForm({ page, onSaved, onCancel }: { page: PageDetail; onSaved: () =
   const [slug, setSlug] = useState(page.slug);
   const [description, setDescription] = useState(page.description ?? "");
   const [group, setGroup] = useState(page.group_name ?? "");
+  const [isPrivate, setIsPrivate] = useState(page.is_private);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const slugState = useSlugCheck(slug, page.id);
@@ -746,6 +747,7 @@ function PageForm({ page, onSaved, onCancel }: { page: PageDetail; onSaved: () =
     try {
       await api.patch(`/admin/pages/${page.id}`, {
         title, slug, description: description.trim() || null, group_name: group.trim() || null,
+        is_private: isPrivate,
       });
       toast.success(t("toast.saved"));
       onSaved();
@@ -778,6 +780,12 @@ function PageForm({ page, onSaved, onCancel }: { page: PageDetail; onSaved: () =
       <div className="full">
         <label>{t("editor.group")}</label>
         <input value={group} onChange={(e) => setGroup(e.target.value)} placeholder={t("optional")} />
+      </div>
+      <div className="full">
+        <label className="check-cell full">
+          <input type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} /> {t("editor.private")}
+        </label>
+        <div className="muted" style={{ fontSize: "0.85em" }}>{t("editor.privateHint")}</div>
       </div>
       {error && <div className="error full">{error}</div>}
       <div className="form-actions">

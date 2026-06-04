@@ -36,12 +36,53 @@ _RANGES = {
 _TIMELINE_BUCKETS = 90
 
 
+def _series_points(results: list, since: datetime, window: timedelta, n_buckets: int) -> list[dict]:
+    """Build timeline series points for a single probe's ordered results.
+
+    When a probe has fewer checks than display cells, emit one point per check
+    so a recent recovery shows up immediately (green on the right) instead of
+    being hidden inside one `worst()`-coloured bucket. Only once there are more
+    checks than cells do we downsample into fixed-width buckets to keep the
+    payload bounded.
+    """
+    if len(results) <= n_buckets:
+        return [
+            {
+                "checked_at": r.checked_at.isoformat(),
+                "status": r.status,
+                "latency_ms": r.latency_ms,
+            }
+            for r in results
+        ]
+
+    bucket_width = window / n_buckets
+    buckets: dict[int, list] = {}
+    for r in results:
+        idx = max(0, min(n_buckets - 1, int((r.checked_at - since) / bucket_width)))
+        buckets.setdefault(idx, []).append(r)
+    points: list[dict] = []
+    for idx in sorted(buckets):
+        group = buckets[idx]
+        latencies = [g.latency_ms for g in group if g.latency_ms is not None]
+        points.append(
+            {
+                "checked_at": (since + bucket_width * idx).isoformat(),
+                "status": worst([g.status for g in group]),
+                "latency_ms": (sum(latencies) / len(latencies)) if latencies else None,
+            }
+        )
+    return points
+
+
 @router.get("/pages", response_model=list[PageListItem])
 def list_public_pages(db: Session = Depends(get_db)):
-    """Directory of published pages (for the public home/index)."""
+    """Directory of published pages (for the public home/index).
+
+    Private pages are excluded here but remain reachable via direct link.
+    """
     return (
         db.query(Page)
-        .filter(Page.is_published.is_(True))
+        .filter(Page.is_published.is_(True), Page.is_private.is_(False))
         .order_by(Page.group_name.nulls_last(), Page.title)
         .all()
     )
@@ -70,7 +111,6 @@ def get_timeline(
     window = _RANGES.get(range, _RANGES["24h"])
     now = datetime.now(timezone.utc)
     since = now - window
-    bucket_width = window / _TIMELINE_BUCKETS
 
     probe_ids = [
         row[0]
@@ -101,26 +141,7 @@ def get_timeline(
         total = len(results)
         up = sum(1 for r in results if r.status == "up")
         uptime_pct = (up / total * 100) if total else 0.0
-
-        # Downsample raw results into fixed-width buckets so the payload size is
-        # independent of how frequently the probe runs.
-        buckets: dict[int, list[ProbeResult]] = {}
-        for r in results:
-            idx = int((r.checked_at - since) / bucket_width)
-            idx = max(0, min(_TIMELINE_BUCKETS - 1, idx))
-            buckets.setdefault(idx, []).append(r)
-
-        points = []
-        for idx in sorted(buckets):
-            group = buckets[idx]
-            latencies = [g.latency_ms for g in group if g.latency_ms is not None]
-            points.append(
-                {
-                    "checked_at": (since + bucket_width * idx).isoformat(),
-                    "status": worst([g.status for g in group]),
-                    "latency_ms": (sum(latencies) / len(latencies)) if latencies else None,
-                }
-            )
+        points = _series_points(results, since, window, _TIMELINE_BUCKETS)
         result.append(
             ProbeUptime(probe_id=pid, uptime_pct=round(uptime_pct, 2), total=total, points=points)
         )
@@ -190,7 +211,6 @@ def get_probe_history(
     now = datetime.now(timezone.utc)
     since = now - window
     n_buckets = 120
-    bucket_width = window / n_buckets
 
     results = (
         db.query(ProbeResult)
@@ -202,21 +222,7 @@ def get_probe_history(
     up = sum(1 for r in results if r.status == "up")
     uptime_pct = (up / total * 100) if total else 0.0
 
-    buckets: dict[int, list[ProbeResult]] = {}
-    for r in results:
-        idx = max(0, min(n_buckets - 1, int((r.checked_at - since) / bucket_width)))
-        buckets.setdefault(idx, []).append(r)
-    points = []
-    for idx in sorted(buckets):
-        group = buckets[idx]
-        lats = [g.latency_ms for g in group if g.latency_ms is not None]
-        points.append(
-            {
-                "checked_at": (since + bucket_width * idx).isoformat(),
-                "status": worst([g.status for g in group]),
-                "latency_ms": (sum(lats) / len(lats)) if lats else None,
-            }
-        )
+    points = _series_points(results, since, window, n_buckets)
 
     recent = [
         {

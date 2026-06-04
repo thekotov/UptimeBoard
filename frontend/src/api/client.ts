@@ -100,6 +100,7 @@ export interface Page {
   description: string | null;
   group_name: string | null;
   is_published: boolean;
+  is_private: boolean;
 }
 export type ProbeType = "icmp" | "tcp" | "http" | "tls" | "heartbeat";
 

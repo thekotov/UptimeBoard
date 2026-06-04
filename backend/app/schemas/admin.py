@@ -142,6 +142,7 @@ class PageBase(BaseModel):
     description: str | None = None
     group_name: str | None = Field(default=None, max_length=128)
     is_published: bool = True
+    is_private: bool = False
 
 
 class PageCreate(PageBase):
@@ -154,6 +155,7 @@ class PageUpdate(BaseModel):
     description: str | None = None
     group_name: str | None = Field(default=None, max_length=128)
     is_published: bool | None = None
+    is_private: bool | None = None
 
 
 class PageOut(PageBase):

@@ -35,6 +35,9 @@ class Page(Base):
     # Optional one-level folder/group label for organising many pages.
     group_name: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     is_published: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Private pages are hidden from the public directory but still reachable
+    # via their direct /status/<slug> link.
+    is_private: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
