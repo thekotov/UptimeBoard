@@ -495,6 +495,8 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .dir-item .name { font-weight: 600; display: flex; align-items: center; gap: 9px; }
 
 .collapse-head { cursor: pointer; user-select: none; }
+/* when a service is collapsed its head is the card's only row — drop the trailing gap */
+.card-head:last-child { margin-bottom: 0; }
 .chev { display: inline-block; width: 12px; color: var(--faint); transition: transform .12s; font-size: 10px; }
 .chev.open { transform: rotate(90deg); }
 .count-pill {
@@ -661,6 +663,11 @@ button:focus:not(:focus-visible) { outline: none; }
   .card-head { flex-wrap: wrap; }
   /* drag handles are awkward on touch — hide them on phones */
   .grip { display: none; }
+
+  /* services are collapsed by default on phones — make the expand affordance obvious:
+     a clear accent chevron + the hidden-server count pill read as "tap to open" */
+  .card-head .chev { color: var(--accent); font-size: 12px; width: 14px; }
+  .card-head .svc-count { background: var(--accent-soft); color: var(--accent); }
 }
 
 @media (max-width: 560px) {

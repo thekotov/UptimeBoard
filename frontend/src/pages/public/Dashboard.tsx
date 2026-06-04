@@ -21,6 +21,7 @@ interface UptimeEntry {
 const RANGES: TimeRange[] = ["15m", "24h", "7d", "30d", "90d"];
 
 const isProblem = (st: Status) => st === "down" || st === "degraded";
+const MOBILE_QUERY = "(max-width: 640px)";
 const STATUS_GLYPH: Record<Status, string> = { up: "✓", degraded: "!", down: "✕", unknown: "?", paused: "⏸" };
 const SEV: Record<string, number> = { down: 4, degraded: 3, unknown: 2, paused: 1, up: 0, maintenance: -1 };
 type Pt = { checked_at: string; status: string; latency_ms: number | null };
@@ -88,6 +89,10 @@ export function Dashboard() {
   const [flashIds, setFlashIds] = useState<Set<number>>(new Set());
   const [liveMsg, setLiveMsg] = useState("");
   const [, setTick] = useState(0);
+  // phones get a denser, collapsed-by-default layout (matches the 640px CSS breakpoint)
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.matchMedia(MOBILE_QUERY).matches
+  );
   const prevStatus = useRef<Map<number, Status>>(new Map());
   const didInitCollapse = useRef(false);
 
@@ -125,12 +130,14 @@ export function Dashboard() {
     }
     if (!didInitCollapse.current) {
       didInitCollapse.current = true;
-      // "Expanded" pages open everything; "collapsed" pages fold healthy blocks
-      // (problem services/servers stay open so issues are visible immediately).
+      // Problem services/servers always stay open so issues are visible immediately.
+      // Phones fold every healthy service by default (regardless of page settings) to
+      // keep the list scannable; desktop only folds when it's a "collapsed" page with many.
+      const mobile = window.matchMedia(MOBILE_QUERY).matches;
+      if (mobile || (page.default_collapsed && page.services.length > 4)) {
+        setCollapsed(new Set(page.services.filter((s) => !isProblem(s.status)).map((s) => s.id)));
+      }
       if (page.default_collapsed) {
-        if (page.services.length > 4) {
-          setCollapsed(new Set(page.services.filter((s) => !isProblem(s.status)).map((s) => s.id)));
-        }
         setCollapsedSrv(
           new Set(
             page.services
@@ -142,6 +149,14 @@ export function Dashboard() {
       }
     }
   }, [page]);
+
+  // Track viewport so collapsibility/affordances react to rotation & resize.
+  useEffect(() => {
+    const mq = window.matchMedia(MOBILE_QUERY);
+    const onChange = () => setIsMobile(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
 
   // Live status via SSE.
   useEffect(() => {
@@ -284,6 +299,8 @@ export function Dashboard() {
   }
 
   const manyServices = page.services.length > 4;
+  // services are collapsible when there are many of them, and always on phones
+  const collapsible = manyServices || isMobile;
 
   return (
     <div className="container fade-in compact">
@@ -457,12 +474,16 @@ export function Dashboard() {
         return (
           <div className="card" key={service.id} id={`svc-${service.id}`}>
             <div
-              className={`card-head ${manyServices ? "collapse-head" : ""}`}
-              onClick={manyServices ? () => toggle(service.id) : undefined}
+              className={`card-head ${collapsible ? "collapse-head" : ""}`}
+              onClick={collapsible ? () => toggle(service.id) : undefined}
+              title={collapsible ? t(isCollapsed ? "dash.showService" : "dash.hideService") : undefined}
             >
               <h3>
-                {manyServices && <span className={`chev ${isCollapsed ? "" : "open"}`}>▶</span>}{" "}
+                {collapsible && <span className={`chev ${isCollapsed ? "" : "open"}`}>▶</span>}{" "}
                 {service.name}
+                {collapsible && isCollapsed && (
+                  <span className="count-pill svc-count">{service.servers.length}</span>
+                )}
               </h3>
               <div className="inline">
                 {svcBar.some((p) => p.status !== "none") && (
