@@ -44,6 +44,7 @@ export function AdminNav() {
               {t("nav.pages")}
             </NavLink>
             <NavLink to="/admin/alerts">{t("nav.alerts")}</NavLink>
+            <NavLink to="/admin/stats">{t("nav.stats")}</NavLink>
           </div>
           <span className={`worker-pill ${workerOk ? "ok" : "bad"}`} title={workerTitle}>
             <span className={`dot ${workerOk ? "up" : "down"}`} />

@@ -5,6 +5,7 @@ import { AlertChannels } from "./pages/admin/AlertChannels";
 import { Login } from "./pages/admin/Login";
 import { PageEditor } from "./pages/admin/PageEditor";
 import { Pages } from "./pages/admin/Pages";
+import { Stats } from "./pages/admin/Stats";
 import { Dashboard } from "./pages/public/Dashboard";
 import { Home } from "./pages/public/Home";
 import { IncidentsHistory } from "./pages/public/IncidentsHistory";
@@ -26,6 +27,7 @@ export function App() {
       <Route path="/admin" element={<RequireAuth><Pages /></RequireAuth>} />
       <Route path="/admin/pages/:id" element={<RequireAuth><PageEditor /></RequireAuth>} />
       <Route path="/admin/alerts" element={<RequireAuth><AlertChannels /></RequireAuth>} />
+      <Route path="/admin/stats" element={<RequireAuth><Stats /></RequireAuth>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

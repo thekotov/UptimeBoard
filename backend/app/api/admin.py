@@ -1,8 +1,9 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, status
+from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 from app.auth.deps import get_current_user
@@ -15,6 +16,7 @@ from app.models import (
     Page,
     Probe,
     ProbeResult,
+    ProbeRollup,
     Server,
     Service,
     User,
@@ -44,7 +46,7 @@ from app.schemas.admin import (
     ServiceOut,
     ServiceUpdate,
 )
-from app.realtime import get_sync_redis
+from app.realtime import get_sync_redis, get_worker_heartbeat_age
 from app.config import settings
 from app.alerts import (
     list_telegram_chats,
@@ -709,6 +711,86 @@ def clear_metrics(page_id: int | None = None, db: Session = Depends(get_db)):
     deleted = q.delete(synchronize_session=False)
     db.commit()
     return {"deleted": deleted}
+
+
+# ---------------- Statistics ----------------
+
+
+def _worker_status() -> dict:
+    age = get_worker_heartbeat_age()
+    if age is None:
+        return {"status": "unknown", "last_beat_age_sec": None, "stale_after_sec": settings.worker_stale_sec}
+    return {
+        "status": "ok" if age <= settings.worker_stale_sec else "stale",
+        "last_beat_age_sec": round(age, 1),
+        "stale_after_sec": settings.worker_stale_sec,
+    }
+
+
+@router.get("/stats")
+def admin_stats(db: Session = Depends(get_db)):
+    """Database & metrics health: on-disk size per table (with estimated row
+    counts from the planner stats — cheap even on huge tables), the metrics
+    retention span and recent check volume, entity counts and worker liveness."""
+    # Per-table size + estimated rows (n_live_tup avoids a full COUNT on big tables).
+    tables = [
+        {
+            "name": row.relname,
+            "rows": int(row.rows or 0),
+            "total_bytes": int(row.total_bytes or 0),
+            "table_bytes": int(row.table_bytes or 0),
+            "index_bytes": int(row.index_bytes or 0),
+        }
+        for row in db.execute(text(
+            """
+            SELECT relname,
+                   n_live_tup AS rows,
+                   pg_total_relation_size(relid) AS total_bytes,
+                   pg_table_size(relid)          AS table_bytes,
+                   pg_indexes_size(relid)        AS index_bytes
+            FROM pg_stat_user_tables
+            ORDER BY pg_total_relation_size(relid) DESC
+            """
+        ))
+    ]
+    total_bytes = int(db.execute(text("SELECT pg_database_size(current_database())")).scalar() or 0)
+
+    now = datetime.now(timezone.utc)
+    oldest, newest = db.execute(
+        text("SELECT min(checked_at), max(checked_at) FROM probe_results")
+    ).one()
+    results_24h = db.scalar(
+        text("SELECT count(*) FROM probe_results WHERE checked_at >= :since"),
+        {"since": now - timedelta(hours=24)},
+    )
+    results_1h = db.scalar(
+        text("SELECT count(*) FROM probe_results WHERE checked_at >= :since"),
+        {"since": now - timedelta(hours=1)},
+    )
+
+    return {
+        "database": {"total_bytes": total_bytes, "tables": tables},
+        "metrics": {
+            "results_oldest": oldest.isoformat() if oldest else None,
+            "results_newest": newest.isoformat() if newest else None,
+            "results_last_24h": int(results_24h or 0),
+            "results_last_1h": int(results_1h or 0),
+            "rollups_hour": db.query(ProbeRollup).filter(ProbeRollup.period == "hour").count(),
+            "rollups_day": db.query(ProbeRollup).filter(ProbeRollup.period == "day").count(),
+        },
+        "entities": {
+            "pages": db.query(Page).count(),
+            "services": db.query(Service).count(),
+            "servers": db.query(Server).count(),
+            "probes": db.query(Probe).count(),
+            "probes_enabled": db.query(Probe).filter(Probe.enabled.is_(True)).count(),
+            "incidents": db.query(Incident).count(),
+            "incidents_open": db.query(Incident).filter(Incident.resolved_at.is_(None)).count(),
+            "alert_channels": db.query(AlertChannel).count(),
+            "alert_channels_enabled": db.query(AlertChannel).filter(AlertChannel.enabled.is_(True)).count(),
+        },
+        "worker": _worker_status(),
+    }
 
 
 # ---------------- Alert channels ----------------

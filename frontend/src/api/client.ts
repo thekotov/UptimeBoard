@@ -402,6 +402,41 @@ export async function getWorkerHealth(): Promise<WorkerHealth> {
   return data;
 }
 
+export interface TableStat {
+  name: string;
+  rows: number;
+  total_bytes: number;
+  table_bytes: number;
+  index_bytes: number;
+}
+export interface AdminStats {
+  database: { total_bytes: number; tables: TableStat[] };
+  metrics: {
+    results_oldest: string | null;
+    results_newest: string | null;
+    results_last_24h: number;
+    results_last_1h: number;
+    rollups_hour: number;
+    rollups_day: number;
+  };
+  entities: {
+    pages: number;
+    services: number;
+    servers: number;
+    probes: number;
+    probes_enabled: number;
+    incidents: number;
+    incidents_open: number;
+    alert_channels: number;
+    alert_channels_enabled: number;
+  };
+  worker: { status: "ok" | "stale" | "unknown"; last_beat_age_sec: number | null; stale_after_sec: number };
+}
+export async function getAdminStats(): Promise<AdminStats> {
+  const { data } = await api.get<AdminStats>("/admin/stats");
+  return data;
+}
+
 export interface Me {
   id: number;
   email: string;
