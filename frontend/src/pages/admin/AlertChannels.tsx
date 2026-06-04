@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, type AlertChannel, type Page, sendTestAlert, testChannel } from "../../api/client";
-import { PencilIcon, TrashIcon } from "../../components/Icons";
+import { PencilIcon, RefreshIcon, TrashIcon } from "../../components/Icons";
+import { Modal } from "../../components/Modal";
+import { Skeleton } from "../../components/Skeleton";
 import { useConfirm } from "../../confirm";
 import { useI18n } from "../../i18n";
 import { useToast } from "../../toast";
@@ -8,18 +10,12 @@ import { AdminNav } from "./AdminNav";
 
 type ChannelType = "telegram" | "webhook" | "email";
 
-const emptyEmail = { smtpHost: "", smtpPort: "587", smtpUser: "", smtpPass: "", from: "", to: "" };
-
 const EVENT_TYPES = ["opened", "ongoing", "escalated", "resolved"] as const;
 
-// Merge the per-channel tuning keys (events filter, custom template) into a
-// config object, removing them when empty so we don't store dead keys.
-const withTuning = (config: Record<string, any>, events: string[], template: string) => {
-  if (events.length) config.events = events;
-  else delete config.events;
-  if (template.trim()) config.template = template;
-  else delete config.template;
-  return config;
+const TYPE_META: Record<ChannelType, { icon: string; label: string }> = {
+  telegram: { icon: "✈", label: "Telegram" },
+  webhook: { icon: "🔗", label: "Webhook" },
+  email: { icon: "✉", label: "Email" },
 };
 
 export function AlertChannels() {
@@ -28,63 +24,16 @@ export function AlertChannels() {
   const confirm = useConfirm();
   const [channels, setChannels] = useState<AlertChannel[]>([]);
   const [pages, setPages] = useState<Page[]>([]);
-  const [type, setType] = useState<ChannelType>("telegram");
-  const [name, setName] = useState("");
-  const [botToken, setBotToken] = useState("");
-  const [chatId, setChatId] = useState("");
-  const [proxy, setProxy] = useState("");
-  const [url, setUrl] = useState("");
-  const [email, setEmail] = useState({ ...emptyEmail });
-  const [pageId, setPageId] = useState<string>("");
-  const [escalate, setEscalate] = useState<string>("0");
-  const [events, setEvents] = useState<string[]>([]);
-  const [template, setTemplate] = useState("");
-  const [testing, setTesting] = useState(false);
-  const [sendingAlert, setSendingAlert] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  // null = closed, "new" = create, AlertChannel = edit
+  const [editing, setEditing] = useState<AlertChannel | "new" | null>(null);
 
-  // edit state
-  const [editingId, setEditingId] = useState<number | null>(null);
-  const [edit, setEdit] = useState({ name: "", botToken: "", chatId: "", proxy: "", url: "", pageId: "", escalate: "0", events: [] as string[], template: "" });
+  const load = () =>
+    api.get<AlertChannel[]>("/admin/alert-channels").then(({ data }) => {
+      setChannels(data);
+      setLoaded(true);
+    });
 
-  const toggleCreateEvent = (ev: string) =>
-    setEvents((s) => (s.includes(ev) ? s.filter((x) => x !== ev) : [...s, ev]));
-  const toggleEditEvent = (ev: string) =>
-    setEdit((s) => ({ ...s, events: s.events.includes(ev) ? s.events.filter((x) => x !== ev) : [...s.events, ev] }));
-
-  const runTest = async (body: { config: Record<string, unknown>; channel_id?: number }) => {
-    setTesting(true);
-    try {
-      const res = await testChannel({ type: "telegram", ...body });
-      toast.show(res.detail, res.ok ? "success" : "error");
-    } catch {
-      toast.error(t("toast.error"));
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  const runSendAlert = async (body: { config: Record<string, unknown>; channel_id?: number }) => {
-    setSendingAlert(true);
-    try {
-      const res = await sendTestAlert({ type: "telegram", ...body });
-      toast.show(res.detail, res.ok ? "success" : "error");
-    } catch {
-      toast.error(t("toast.error"));
-    } finally {
-      setSendingAlert(false);
-    }
-  };
-
-  const emailConfig = (e: typeof emptyEmail) => ({
-    smtp_host: e.smtpHost,
-    smtp_port: Number(e.smtpPort) || 587,
-    username: e.smtpUser || undefined,
-    password: e.smtpPass || undefined,
-    from: e.from,
-    to: e.to,
-  });
-
-  const load = () => api.get<AlertChannel[]>("/admin/alert-channels").then(({ data }) => setChannels(data));
   useEffect(() => {
     void load();
     api.get<Page[]>("/admin/pages").then(({ data }) => setPages(data));
@@ -95,68 +44,17 @@ export function AlertChannels() {
     return (id: number | null) => (id == null ? t("alerts.allPages") : m.get(id) ?? `#${id}`);
   }, [pages, t]);
 
-  const create = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const base =
-      type === "telegram"
-        ? { bot_token: botToken, chat_id: chatId, ...(proxy.trim() ? { proxy: proxy.trim() } : {}) }
-        : type === "webhook"
-        ? { url }
-        : emailConfig(email);
-    const config = withTuning({ ...base }, events, template);
-    await api.post("/admin/alert-channels", {
-      name: name || type, type, config, page_id: pageId ? Number(pageId) : null,
-      escalate_after_min: Number(escalate) || 0,
-    });
-    toast.success(t("toast.saved"));
-    setName("");
-    setBotToken("");
-    setChatId("");
-    setProxy("");
-    setUrl("");
-    setEmail({ ...emptyEmail });
-    setPageId("");
-    setEscalate("0");
-    setEvents([]);
-    setTemplate("");
-    load();
+  const eventSummary = (ch: AlertChannel): string => {
+    const evs = (ch.config as Record<string, any>).events;
+    if (!Array.isArray(evs) || evs.length === 0) return t("alerts.allEvents");
+    return evs.map((e: string) => t(`alerts.event.${e}`)).join(", ");
   };
 
-  const startEdit = (ch: AlertChannel) => {
+  const destination = (ch: AlertChannel): string => {
     const c = ch.config as Record<string, any>;
-    setEdit({
-      name: ch.name,
-      botToken: "", // secret not returned; blank = keep existing
-      chatId: c.chat_id ?? "",
-      proxy: c.proxy ?? "",
-      url: c.url ?? "",
-      pageId: ch.page_id == null ? "" : String(ch.page_id),
-      escalate: String(ch.escalate_after_min ?? 0),
-      events: Array.isArray(c.events) ? c.events : [],
-      template: c.template ?? "",
-    });
-    setEditingId(ch.id);
-  };
-
-  const saveEdit = async (ch: AlertChannel) => {
-    let config: Record<string, any>;
-    if (ch.type === "telegram") {
-      config = { ...(ch.config as object), bot_token: edit.botToken, chat_id: edit.chatId };
-      if (edit.proxy.trim()) config.proxy = edit.proxy.trim();
-      else delete config.proxy;
-    } else if (ch.type === "webhook") {
-      config = { ...(ch.config as object), url: edit.url };
-    } else {
-      config = { ...(ch.config as object) };
-    }
-    withTuning(config, edit.events, edit.template);
-    await api.patch(`/admin/alert-channels/${ch.id}`, {
-      name: edit.name || ch.type, config, page_id: edit.pageId ? Number(edit.pageId) : null,
-      escalate_after_min: Number(edit.escalate) || 0,
-    });
-    toast.success(t("toast.saved"));
-    setEditingId(null);
-    load();
+    if (ch.type === "telegram") return c.chat_id ? `chat ${c.chat_id}` : "";
+    if (ch.type === "webhook") return c.url ?? "";
+    return c.to ?? "";
   };
 
   const toggle = async (ch: AlertChannel) => {
@@ -175,100 +73,347 @@ export function AlertChannels() {
     <div className="container fade-in">
       <AdminNav />
 
-      <div className="card">
-        <div className="card-head">
-          <h3>{t("alerts.add")}</h3>
+      <div className="toolbar">
+        <button onClick={() => setEditing("new")}>+ {t("alerts.add")}</button>
+        <span className="muted small">{t("alerts.intro")}</span>
+      </div>
+
+      {!loaded && (
+        <div className="card">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="incident-row">
+              <Skeleton w={`${30 + i * 10}%`} h={14} />
+              <span className="spacer" />
+              <Skeleton w={70} h={22} r={7} />
+            </div>
+          ))}
         </div>
-        <form onSubmit={create} className="row">
-          <div style={{ flex: "0 0 150px" }}>
-            <label>{t("alerts.type")}</label>
-            <select value={type} onChange={(e) => setType(e.target.value as ChannelType)}>
-              <option value="telegram">Telegram</option>
-              <option value="webhook">Webhook</option>
-              <option value="email">Email</option>
-            </select>
+      )}
+
+      {loaded && channels.length === 0 && (
+        <div className="card empty">
+          <span className="e-emoji">🔔</span>
+          {t("alerts.empty")}
+          <div className="hint" style={{ marginTop: 6 }}>{t("alerts.emptyHint")}</div>
+        </div>
+      )}
+
+      {loaded && channels.length > 0 && (
+        <div className="card">
+          <div className="table-scroll">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>{t("alerts.name")}</th>
+                  <th>{t("alerts.scope")}</th>
+                  <th>{t("alerts.events")}</th>
+                  <th>{t("alerts.enabled")}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {channels.map((ch) => (
+                  <tr key={ch.id}>
+                    <td>
+                      <div className="stack">
+                        <span className="inline" style={{ gap: 8, flexWrap: "wrap" }}>
+                          <span className="pill" title={TYPE_META[ch.type].label}>
+                            {TYPE_META[ch.type].icon} {TYPE_META[ch.type].label}
+                          </span>
+                          <b>{ch.name}</b>
+                          {ch.escalate_after_min > 0 && (
+                            <span className="pill" title={t("alerts.escalateAfter")}>
+                              ↑ {ch.escalate_after_min}′
+                            </span>
+                          )}
+                        </span>
+                        {destination(ch) && (
+                          <span className="muted small srv-note" title={destination(ch)}>
+                            {destination(ch)}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="muted">{pageName(ch.page_id)}</td>
+                    <td className="muted small">{eventSummary(ch)}</td>
+                    <td>
+                      <button
+                        className="secondary btn-sm"
+                        onClick={() => toggle(ch)}
+                        title={ch.enabled ? t("alerts.on") : t("alerts.off")}
+                      >
+                        <span className={`dot ${ch.enabled ? "up" : "paused"}`} />
+                        {ch.enabled ? t("alerts.on") : t("alerts.off")}
+                      </button>
+                    </td>
+                    <td>
+                      <div className="row-actions" style={{ justifyContent: "flex-end" }}>
+                        <button
+                          className="icon-btn"
+                          title={t("edit")}
+                          aria-label={t("edit")}
+                          onClick={() => setEditing(ch)}
+                        >
+                          <PencilIcon />
+                        </button>
+                        <button
+                          className="icon-btn danger"
+                          title={t("delete")}
+                          aria-label={t("delete")}
+                          onClick={() => remove(ch)}
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {editing && (
+        <Modal
+          title={editing === "new" ? t("alerts.add") : t("alerts.editTitle")}
+          onClose={() => setEditing(null)}
+        >
+          <ChannelForm
+            channel={editing === "new" ? undefined : editing}
+            pages={pages}
+            onSaved={() => {
+              setEditing(null);
+              load();
+            }}
+            onCancel={() => setEditing(null)}
+          />
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+function ChannelForm({
+  channel,
+  pages,
+  onSaved,
+  onCancel,
+}: {
+  channel?: AlertChannel;
+  pages: Page[];
+  onSaved: () => void;
+  onCancel: () => void;
+}) {
+  const { t } = useI18n();
+  const toast = useToast();
+  const editing = channel != null;
+  const cfg = (channel?.config ?? {}) as Record<string, any>;
+
+  const [type, setType] = useState<ChannelType>(channel?.type ?? "telegram");
+  const [name, setName] = useState(channel?.name ?? "");
+  // telegram — token left blank on edit means "keep the stored one"
+  const [botToken, setBotToken] = useState("");
+  const [chatId, setChatId] = useState<string>(cfg.chat_id ?? "");
+  const [proxy, setProxy] = useState<string>(cfg.proxy ?? "");
+  // webhook
+  const [url, setUrl] = useState<string>(cfg.url ?? "");
+  // email — password blank on edit means "keep the stored one"
+  const [smtpHost, setSmtpHost] = useState<string>(cfg.smtp_host ?? "");
+  const [smtpPort, setSmtpPort] = useState<string>(String(cfg.smtp_port ?? 587));
+  const [smtpUser, setSmtpUser] = useState<string>(cfg.username ?? "");
+  const [smtpPass, setSmtpPass] = useState("");
+  const [from, setFrom] = useState<string>(cfg.from ?? "");
+  const [to, setTo] = useState<string>(cfg.to ?? "");
+  // routing & tuning
+  const [pageId, setPageId] = useState<string>(channel?.page_id == null ? "" : String(channel.page_id));
+  const [escalate, setEscalate] = useState<string>(String(channel?.escalate_after_min ?? 0));
+  const [events, setEvents] = useState<string[]>(Array.isArray(cfg.events) ? cfg.events : []);
+  const [template, setTemplate] = useState<string>(cfg.template ?? "");
+
+  const [busy, setBusy] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [sendingAlert, setSendingAlert] = useState(false);
+
+  const toggleEvent = (ev: string) =>
+    setEvents((s) => (s.includes(ev) ? s.filter((x) => x !== ev) : [...s, ev]));
+
+  // Build the type-specific config, preserving stored keys/secrets when editing.
+  const buildConfig = (): Record<string, any> => {
+    const base: Record<string, any> = editing ? { ...cfg } : {};
+    if (type === "telegram") {
+      base.bot_token = botToken; // blank → backend keeps the stored token
+      base.chat_id = chatId;
+      if (proxy.trim()) base.proxy = proxy.trim();
+      else delete base.proxy;
+    } else if (type === "webhook") {
+      base.url = url;
+    } else {
+      base.smtp_host = smtpHost;
+      base.smtp_port = Number(smtpPort) || 587;
+      base.from = from;
+      base.to = to;
+      if (smtpUser.trim()) base.username = smtpUser.trim();
+      else delete base.username;
+      if (smtpPass) base.password = smtpPass; // blank → backend keeps the stored secret
+    }
+    if (events.length) base.events = events;
+    else delete base.events;
+    if (template.trim()) base.template = template;
+    else delete base.template;
+    return base;
+  };
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      const payload = {
+        name: name || type,
+        config: buildConfig(),
+        page_id: pageId ? Number(pageId) : null,
+        escalate_after_min: Number(escalate) || 0,
+      };
+      if (editing) await api.patch(`/admin/alert-channels/${channel!.id}`, payload);
+      else await api.post("/admin/alert-channels", { ...payload, type });
+      toast.success(t("toast.saved"));
+      onSaved();
+    } catch {
+      toast.error(t("toast.error"));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const runTest = async () => {
+    setTesting(true);
+    try {
+      const res = await testChannel({
+        type: "telegram",
+        ...(editing ? { channel_id: channel!.id } : {}),
+        config: { bot_token: botToken, proxy: proxy.trim() },
+      });
+      toast.show(res.detail, res.ok ? "success" : "error");
+    } catch {
+      toast.error(t("toast.error"));
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const runSendAlert = async () => {
+    setSendingAlert(true);
+    try {
+      const res = await sendTestAlert({
+        type: "telegram",
+        ...(editing ? { channel_id: channel!.id } : {}),
+        config: { bot_token: botToken, chat_id: chatId, proxy: proxy.trim() },
+      });
+      toast.show(res.detail, res.ok ? "success" : "error");
+    } catch {
+      toast.error(t("toast.error"));
+    } finally {
+      setSendingAlert(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="form-grid">
+      <div>
+        <label>{t("alerts.type")}</label>
+        <select
+          value={type}
+          disabled={editing}
+          onChange={(e) => setType(e.target.value as ChannelType)}
+        >
+          <option value="telegram">Telegram</option>
+          <option value="webhook">Webhook</option>
+          <option value="email">Email</option>
+        </select>
+      </div>
+      <div>
+        <label>{t("alerts.name")}</label>
+        <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("optional")} />
+      </div>
+
+      {type === "telegram" && (
+        <>
+          <div>
+            <label>{t("alerts.botToken")}</label>
+            <input
+              value={botToken}
+              placeholder={editing ? "••••••" : ""}
+              onChange={(e) => setBotToken(e.target.value)}
+            />
           </div>
           <div>
-            <label>{t("alerts.name")}</label>
-            <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("optional")} />
+            <label>{t("alerts.chatId")}</label>
+            <input value={chatId} onChange={(e) => setChatId(e.target.value)} />
           </div>
-          {type === "telegram" && (
-            <>
-              <div>
-                <label>{t("alerts.botToken")}</label>
-                <input value={botToken} onChange={(e) => setBotToken(e.target.value)} />
-              </div>
-              <div>
-                <label>{t("alerts.chatId")}</label>
-                <input value={chatId} onChange={(e) => setChatId(e.target.value)} />
-              </div>
-              <div style={{ flex: 2 }}>
-                <label>{t("alerts.proxy")}</label>
-                <input
-                  value={proxy}
-                  onChange={(e) => setProxy(e.target.value)}
-                  placeholder="socks5://user:pass@host:1080"
-                />
-              </div>
-              <div className="btn-cell">
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={testing}
-                  onClick={() => runTest({ config: { bot_token: botToken, proxy: proxy.trim() } })}
-                >
-                  {testing ? t("alerts.testing") : t("alerts.test")}
-                </button>
-                <button
-                  type="button"
-                  className="secondary"
-                  disabled={sendingAlert}
-                  onClick={() =>
-                    runSendAlert({
-                      config: { bot_token: botToken, chat_id: chatId, proxy: proxy.trim() },
-                    })
-                  }
-                >
-                  {sendingAlert ? t("alerts.sendingAlert") : t("alerts.testAlert")}
-                </button>
-              </div>
-            </>
-          )}
-          {type === "webhook" && (
-            <div style={{ flex: 2 }}>
-              <label>{t("alerts.webhookUrl")}</label>
-              <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://hooks…" />
-            </div>
-          )}
-          {type === "email" && (
-            <>
-              <div>
-                <label>{t("alerts.smtpHost")}</label>
-                <input value={email.smtpHost} onChange={(e) => setEmail((s) => ({ ...s, smtpHost: e.target.value }))} placeholder="smtp.example.com" />
-              </div>
-              <div style={{ flex: "0 0 80px" }}>
-                <label>{t("alerts.smtpPort")}</label>
-                <input value={email.smtpPort} onChange={(e) => setEmail((s) => ({ ...s, smtpPort: e.target.value }))} />
-              </div>
-              <div>
-                <label>{t("alerts.from")}</label>
-                <input value={email.from} onChange={(e) => setEmail((s) => ({ ...s, from: e.target.value }))} placeholder="mon@example.com" />
-              </div>
-              <div>
-                <label>{t("alerts.to")}</label>
-                <input value={email.to} onChange={(e) => setEmail((s) => ({ ...s, to: e.target.value }))} placeholder="ops@example.com" />
-              </div>
-              <div>
-                <label>{t("alerts.smtpUser")}</label>
-                <input value={email.smtpUser} onChange={(e) => setEmail((s) => ({ ...s, smtpUser: e.target.value }))} placeholder={t("optional")} />
-              </div>
-              <div>
-                <label>{t("alerts.smtpPass")}</label>
-                <input type="password" value={email.smtpPass} onChange={(e) => setEmail((s) => ({ ...s, smtpPass: e.target.value }))} placeholder={t("optional")} />
-              </div>
-            </>
-          )}
-          <div style={{ flex: "0 0 180px" }}>
+          <div className="full">
+            <label>{t("alerts.proxy")}</label>
+            <input
+              value={proxy}
+              onChange={(e) => setProxy(e.target.value)}
+              placeholder="socks5://user:pass@host:1080"
+            />
+          </div>
+        </>
+      )}
+
+      {type === "webhook" && (
+        <div className="full">
+          <label>{t("alerts.webhookUrl")}</label>
+          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://hooks…" />
+        </div>
+      )}
+
+      {type === "email" && (
+        <>
+          <div>
+            <label>{t("alerts.smtpHost")}</label>
+            <input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="smtp.example.com" />
+          </div>
+          <div>
+            <label>{t("alerts.smtpPort")}</label>
+            <input value={smtpPort} onChange={(e) => setSmtpPort(e.target.value)} />
+          </div>
+          <div>
+            <label>{t("alerts.from")}</label>
+            <input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="mon@example.com" />
+          </div>
+          <div>
+            <label>{t("alerts.to")}</label>
+            <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="ops@example.com" />
+          </div>
+          <div>
+            <label>{t("alerts.smtpUser")}</label>
+            <input value={smtpUser} onChange={(e) => setSmtpUser(e.target.value)} placeholder={t("optional")} />
+          </div>
+          <div>
+            <label>{t("alerts.smtpPass")}</label>
+            <input
+              type="password"
+              value={smtpPass}
+              placeholder={editing ? "••••••" : t("optional")}
+              onChange={(e) => setSmtpPass(e.target.value)}
+            />
+          </div>
+        </>
+      )}
+
+      <div className="hint full">
+        {type === "telegram"
+          ? t("alerts.hintTelegram")
+          : type === "webhook"
+          ? t("alerts.hintWebhook")
+          : t("alerts.hintEmail")}
+      </div>
+
+      <details className="full advanced" open={editing && (pageId !== "" || Number(escalate) > 0 || events.length > 0 || !!template)}>
+        <summary>{t("alerts.advanced")}</summary>
+        <div className="form-grid" style={{ marginTop: 10 }}>
+          <div>
             <label>{t("alerts.scope")}</label>
             <select value={pageId} onChange={(e) => setPageId(e.target.value)}>
               <option value="">{t("alerts.allPages")}</option>
@@ -277,17 +422,17 @@ export function AlertChannels() {
               ))}
             </select>
           </div>
-          <div style={{ flex: "0 0 150px" }}>
+          <div>
             <label>{t("alerts.escalateAfter")}</label>
             <input type="number" min={0} value={escalate} onChange={(e) => setEscalate(e.target.value)} />
           </div>
-          <div style={{ flex: "0 0 100%" }}>
+          <div className="full">
             <label>{t("alerts.events")}</label>
             <div className="row" style={{ marginTop: 2 }}>
               {EVENT_TYPES.map((ev) => (
                 <div key={ev} className="check-cell">
                   <label>
-                    <input type="checkbox" checked={events.includes(ev)} onChange={() => toggleCreateEvent(ev)} />
+                    <input type="checkbox" checked={events.includes(ev)} onChange={() => toggleEvent(ev)} />
                     {t(`alerts.event.${ev}`)}
                   </label>
                 </div>
@@ -295,232 +440,36 @@ export function AlertChannels() {
             </div>
             <div className="hint">{t("alerts.eventsHint")}</div>
           </div>
-          <div style={{ flex: "0 0 100%" }}>
+          <div className="full">
             <label>{t("alerts.template")}</label>
             <textarea
               value={template}
               rows={2}
               onChange={(e) => setTemplate(e.target.value)}
               placeholder={"{verb}: {probe} на {host}\nстатус: {status}"}
-              style={{ resize: "vertical" }}
             />
             <div className="hint">{t("alerts.templateHint")}</div>
           </div>
-          <div className="btn-cell">
-            <button>{t("add")}</button>
-          </div>
-        </form>
-        <div className="hint">
-          {type === "telegram"
-            ? t("alerts.hintTelegram")
-            : type === "webhook"
-            ? t("alerts.hintWebhook")
-            : t("alerts.hintEmail")}
         </div>
-      </div>
+      </details>
 
-      <div className="card">
-        <div className="table-scroll">
-        <table className="table">
-          <thead>
-            <tr>
-              <th>{t("alerts.name")}</th>
-              <th>{t("alerts.type")}</th>
-              <th>{t("alerts.scope")}</th>
-              <th>{t("alerts.enabled")}</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {channels.map((ch) =>
-              editingId === ch.id ? (
-                <tr key={ch.id}>
-                  <td colSpan={5}>
-                    <form
-                      className="row"
-                      onSubmit={(e) => {
-                        e.preventDefault();
-                        saveEdit(ch);
-                      }}
-                    >
-                      <div>
-                        <label>{t("alerts.name")}</label>
-                        <input
-                          value={edit.name}
-                          onChange={(e) => setEdit((s) => ({ ...s, name: e.target.value }))}
-                        />
-                      </div>
-                      {ch.type === "telegram" && (
-                        <>
-                          <div>
-                            <label>{t("alerts.botToken")}</label>
-                            <input
-                              value={edit.botToken}
-                              placeholder="••••••"
-                              onChange={(e) => setEdit((s) => ({ ...s, botToken: e.target.value }))}
-                            />
-                          </div>
-                          <div>
-                            <label>{t("alerts.chatId")}</label>
-                            <input
-                              value={edit.chatId}
-                              onChange={(e) => setEdit((s) => ({ ...s, chatId: e.target.value }))}
-                            />
-                          </div>
-                          <div style={{ flex: 2 }}>
-                            <label>{t("alerts.proxy")}</label>
-                            <input
-                              value={edit.proxy}
-                              placeholder="socks5://host:1080"
-                              onChange={(e) => setEdit((s) => ({ ...s, proxy: e.target.value }))}
-                            />
-                          </div>
-                          <div className="btn-cell">
-                            <button
-                              type="button"
-                              className="secondary"
-                              disabled={testing}
-                              onClick={() =>
-                                runTest({
-                                  channel_id: ch.id,
-                                  config: { bot_token: edit.botToken, proxy: edit.proxy.trim() },
-                                })
-                              }
-                            >
-                              {testing ? t("alerts.testing") : t("alerts.test")}
-                            </button>
-                            <button
-                              type="button"
-                              className="secondary"
-                              disabled={sendingAlert}
-                              onClick={() =>
-                                runSendAlert({
-                                  channel_id: ch.id,
-                                  config: {
-                                    bot_token: edit.botToken,
-                                    chat_id: edit.chatId,
-                                    proxy: edit.proxy.trim(),
-                                  },
-                                })
-                              }
-                            >
-                              {sendingAlert ? t("alerts.sendingAlert") : t("alerts.testAlert")}
-                            </button>
-                          </div>
-                        </>
-                      )}
-                      {ch.type === "webhook" && (
-                        <div style={{ flex: 2 }}>
-                          <label>{t("alerts.webhookUrl")}</label>
-                          <input
-                            value={edit.url}
-                            onChange={(e) => setEdit((s) => ({ ...s, url: e.target.value }))}
-                          />
-                        </div>
-                      )}
-                      <div style={{ flex: "0 0 180px" }}>
-                        <label>{t("alerts.scope")}</label>
-                        <select
-                          value={edit.pageId}
-                          onChange={(e) => setEdit((s) => ({ ...s, pageId: e.target.value }))}
-                        >
-                          <option value="">{t("alerts.allPages")}</option>
-                          {pages.map((p) => (
-                            <option key={p.id} value={p.id}>{p.title}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div style={{ flex: "0 0 150px" }}>
-                        <label>{t("alerts.escalateAfter")}</label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={edit.escalate}
-                          onChange={(e) => setEdit((s) => ({ ...s, escalate: e.target.value }))}
-                        />
-                      </div>
-                      <div style={{ flex: "0 0 100%" }}>
-                        <label>{t("alerts.events")}</label>
-                        <div className="row" style={{ marginTop: 2 }}>
-                          {EVENT_TYPES.map((ev) => (
-                            <div key={ev} className="check-cell">
-                              <label>
-                                <input
-                                  type="checkbox"
-                                  checked={edit.events.includes(ev)}
-                                  onChange={() => toggleEditEvent(ev)}
-                                />
-                                {t(`alerts.event.${ev}`)}
-                              </label>
-                            </div>
-                          ))}
-                        </div>
-                        <div className="hint">{t("alerts.eventsHint")}</div>
-                      </div>
-                      <div style={{ flex: "0 0 100%" }}>
-                        <label>{t("alerts.template")}</label>
-                        <textarea
-                          value={edit.template}
-                          rows={2}
-                          onChange={(e) => setEdit((s) => ({ ...s, template: e.target.value }))}
-                          placeholder={"{verb}: {probe} на {host}\nстатус: {status}"}
-                          style={{ resize: "vertical" }}
-                        />
-                        <div className="hint">{t("alerts.templateHint")}</div>
-                      </div>
-                      <div className="btn-cell">
-                        <button>{t("save")}</button>
-                        <button type="button" className="ghost" onClick={() => setEditingId(null)}>
-                          {t("cancel")}
-                        </button>
-                      </div>
-                    </form>
-                  </td>
-                </tr>
-              ) : (
-                <tr key={ch.id}>
-                  <td>{ch.name}</td>
-                  <td className="muted">{ch.type}</td>
-                  <td className="muted">{pageName(ch.page_id)}</td>
-                  <td>
-                    <button className="secondary btn-sm" onClick={() => toggle(ch)}>
-                      {ch.enabled ? t("alerts.on") : t("alerts.off")}
-                    </button>
-                  </td>
-                  <td>
-                    <div className="row-actions" style={{ justifyContent: "flex-end" }}>
-                      <button
-                        className="icon-btn"
-                        title={t("edit")}
-                        aria-label={t("edit")}
-                        onClick={() => startEdit(ch)}
-                      >
-                        <PencilIcon />
-                      </button>
-                      <button
-                        className="icon-btn danger"
-                        title={t("delete")}
-                        aria-label={t("delete")}
-                        onClick={() => remove(ch)}
-                      >
-                        <TrashIcon />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              )
-            )}
-            {channels.length === 0 && (
-              <tr>
-                <td colSpan={5} className="empty">
-                  {t("alerts.empty")}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-        </div>
+      <div className="form-actions">
+        {type === "telegram" && (
+          <>
+            <button type="button" className="secondary btn-sm" onClick={runTest} disabled={testing}>
+              <RefreshIcon size={14} /> {testing ? t("alerts.testing") : t("alerts.test")}
+            </button>
+            <button type="button" className="secondary btn-sm" onClick={runSendAlert} disabled={sendingAlert}>
+              {sendingAlert ? t("alerts.sendingAlert") : t("alerts.testAlert")}
+            </button>
+          </>
+        )}
+        <span style={{ flex: 1 }} />
+        <button type="button" className="ghost" onClick={onCancel} disabled={busy}>
+          {t("cancel")}
+        </button>
+        <button disabled={busy}>{editing ? t("save") : t("add")}</button>
       </div>
-    </div>
+    </form>
   );
 }

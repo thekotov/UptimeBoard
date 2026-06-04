@@ -359,9 +359,16 @@ const ru: Dict = {
   "alerts.on": "вкл",
   "alerts.off": "выкл",
   "alerts.empty": "Каналов пока нет.",
+  "alerts.emptyHint": "Добавьте канал — и мы сообщим о падениях в Telegram, по email или вебхуком.",
   "alerts.confirmDelete": "Удалить канал?",
   "alerts.hintTelegram": "Бот уведомит в Telegram при инцидентах.",
   "alerts.hintWebhook": "POST-запрос с JSON при инцидентах.",
+  "alerts.intro": "Куда отправлять уведомления об инцидентах.",
+  "alerts.allEvents": "Все события",
+  "alerts.destination": "Куда",
+  "alerts.advanced": "Маршрутизация, события и шаблон",
+  "alerts.editTitle": "Изменить канал",
+  "alerts.noScope": "—",
 };
 
 const en: Dict = {
@@ -696,9 +703,16 @@ const en: Dict = {
   "alerts.on": "on",
   "alerts.off": "off",
   "alerts.empty": "No channels yet.",
+  "alerts.emptyHint": "Add a channel and we'll notify you of outages via Telegram, email or webhook.",
   "alerts.confirmDelete": "Delete channel?",
   "alerts.hintTelegram": "A bot notifies you on Telegram about incidents.",
   "alerts.hintWebhook": "A JSON POST request is sent on incidents.",
+  "alerts.intro": "Where to deliver incident notifications.",
+  "alerts.allEvents": "All events",
+  "alerts.destination": "Destination",
+  "alerts.advanced": "Routing, events & template",
+  "alerts.editTitle": "Edit channel",
+  "alerts.noScope": "—",
 };
 
 const DICTS: Record<Lang, Dict> = { ru, en };
