@@ -144,8 +144,15 @@ export function PageEditor() {
       return next;
     });
 
+  const collapseInit = useRef(false);
   const load = () => {
-    api.get<PageDetail>(`/admin/pages/${id}`).then(({ data }) => setPage(data));
+    api.get<PageDetail>(`/admin/pages/${id}`).then(({ data }) => {
+      setPage(data);
+      if (!collapseInit.current) {
+        collapseInit.current = true;
+        setCollapsed(new Set(data.services.map((s) => s.id)));
+      }
+    });
   };
   useEffect(load, [id]);
 
