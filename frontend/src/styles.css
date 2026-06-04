@@ -237,9 +237,10 @@ input.invalid, textarea.invalid { border-color: var(--down); box-shadow: 0 0 0 3
 .probe-row.flash { animation: rowflash 1.6s ease; border-radius: 6px; }
 
 /* inline range bar: cells stretch to fill the fixed spark area */
-.probe-spark { width: 190px; }
-.probe-spark .timeline { gap: 1px; }
-.probe-spark .tl-cell { flex: 1 1 0; min-width: 0; height: 18px; }
+/* fixed-size cells, right-aligned, older overflow clipped — uniform scale across rows */
+.probe-spark { width: 190px; overflow: hidden; }
+.probe-spark .timeline { gap: 1px; justify-content: flex-end; }
+.probe-spark .tl-cell { flex: 0 0 auto; width: 4px; height: 18px; }
 .summary .item { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); }
 .summary .item b { color: var(--text); font-size: 14px; font-weight: 650; }
 
@@ -318,6 +319,9 @@ input.invalid, textarea.invalid { border-color: var(--down); box-shadow: 0 0 0 3
   background-color: var(--down);
   background-image: repeating-linear-gradient(135deg, rgba(0,0,0,.32) 0 1.5px, transparent 1.5px 3px);
 }
+
+/* empty slot in a fixed time grid — faint, no texture */
+.tl-cell.none { background: var(--unknown-soft); opacity: .4; }
 
 /* full-width status bar (probe modal) — cells stretch to fill */
 .status-bar .timeline { gap: 1px; }

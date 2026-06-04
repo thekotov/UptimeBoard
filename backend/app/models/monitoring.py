@@ -107,6 +107,11 @@ class Probe(Base):
     failure_threshold: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     # Optional: mark "degraded" when latency exceeds this (ms), even if reachable.
     latency_degraded_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Visual tiering of a failing probe by consecutive failures: it shows as
+    # "degraded" once it has failed this many times in a row, and as "down" once
+    # it reaches `down_threshold`. With both at 1 a failure is "down" immediately.
+    degraded_threshold: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    down_threshold: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
     # Denormalised latest result (kept in sync by the worker) for fast snapshots
     # and live status in the admin UI without scanning probe_results.

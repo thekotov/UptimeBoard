@@ -23,6 +23,25 @@ def _is_bad(status: str) -> bool:
     return status != STATUS_UP and status != STATUS_UNKNOWN
 
 
+def _display_status(probe: Probe, raw_status: str, consecutive_failures: int) -> str:
+    """Tier a hard-down outcome by how many times the probe has failed in a row.
+
+    The check is displayed as ``degraded`` once it has failed ``degraded_threshold``
+    times and as ``down`` once it reaches ``down_threshold`` (both default 1, so a
+    failure is ``down`` immediately). Non-down outcomes — ``up``, a latency-induced
+    ``degraded`` or ``unknown`` — are returned unchanged; only genuine outages are
+    softened. The underlying incident/alert logic still uses the raw status, so
+    this only affects what the dashboard shows, not when alerts fire.
+    """
+    if raw_status != STATUS_DOWN:
+        return raw_status
+    if consecutive_failures >= max(1, probe.down_threshold):
+        return STATUS_DOWN
+    if consecutive_failures >= max(1, probe.degraded_threshold):
+        return STATUS_DEGRADED
+    return STATUS_UP
+
+
 def in_maintenance(db: Session, page_id: int, now: datetime) -> bool:
     return (
         db.query(MaintenanceWindow.id)
@@ -120,26 +139,31 @@ def execute_and_store(db: Session, probe: Probe) -> ProbeOutcome:
             probe, run_probe(probe.type, host, probe.config or {}, probe.timeout_sec)
         )
 
+    # Count consecutive failures from the RAW outcome, then tier it for display.
+    probe.consecutive_failures = probe.consecutive_failures + 1 if _is_bad(outcome.status) else 0
+    display = _display_status(probe, outcome.status, probe.consecutive_failures)
+
     db.add(
         ProbeResult(
-            probe_id=probe.id, status=outcome.status, latency_ms=outcome.latency_ms,
+            probe_id=probe.id, status=display, latency_ms=outcome.latency_ms,
             error=outcome.error, checked_at=now,
         )
     )
-    probe.last_status = outcome.status
+    probe.last_status = display
     probe.last_latency_ms = outcome.latency_ms
     probe.last_checked_at = now
     probe.last_error = outcome.error
-    probe.consecutive_failures = probe.consecutive_failures + 1 if _is_bad(outcome.status) else 0
     db.flush()
 
     page = find_page_for_probe(db, probe.id)
     maint = page is not None and in_maintenance(db, page.id, now)
+    # Incident/alert logic intentionally keys off the raw outcome + failure_threshold,
+    # independently of the visual degraded/down tiering above.
     handle_incident(db, probe, outcome, host, page.id if page else None, maint, now)
     db.commit()
 
     if page is not None:
-        publish_status_update(page.slug, {"probe_id": probe.id, "status": outcome.status})
+        publish_status_update(page.slug, {"probe_id": probe.id, "status": display})
 
     logger.info(
         "probe %s (%s %s) -> %s%s%s",

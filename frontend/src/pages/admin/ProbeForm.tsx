@@ -46,6 +46,8 @@ export function ProbeForm({
   const [enabled, setEnabled] = useState(probe?.enabled ?? true);
   const [failureThreshold, setFailureThreshold] = useState(probe?.failure_threshold ?? 1);
   const [latencyDegraded, setLatencyDegraded] = useState<number | "">(probe?.latency_degraded_ms ?? "");
+  const [degradedThreshold, setDegradedThreshold] = useState(probe?.degraded_threshold ?? 1);
+  const [downThreshold, setDownThreshold] = useState(probe?.down_threshold ?? 1);
   // http
   const [url, setUrl] = useState(cfg.url ?? "");
   const [method, setMethod] = useState<string>(cfg.method ?? "GET");
@@ -95,6 +97,8 @@ export function ProbeForm({
     enabled,
     failure_threshold: Number(failureThreshold),
     latency_degraded_ms: latencyDegraded === "" ? null : Number(latencyDegraded),
+    degraded_threshold: Number(degradedThreshold),
+    down_threshold: Number(downThreshold),
     config: editing ? { ...cfg, ...buildConfig() } : buildConfig(),
   });
 
@@ -285,6 +289,16 @@ export function ProbeForm({
       <div>
         <label>{t("probe.failureThreshold")}</label>
         <input type="number" min={1} value={failureThreshold} onChange={(e) => setFailureThreshold(+e.target.value)} />
+      </div>
+      <div>
+        <label>{t("probe.degradedThreshold")}</label>
+        <input type="number" min={1} value={degradedThreshold} onChange={(e) => setDegradedThreshold(+e.target.value)} />
+        <span className="hint">{t("probe.degradedThresholdHint")}</span>
+      </div>
+      <div>
+        <label>{t("probe.downThreshold")}</label>
+        <input type="number" min={1} value={downThreshold} onChange={(e) => setDownThreshold(+e.target.value)} />
+        <span className="hint">{t("probe.downThresholdHint")}</span>
       </div>
       {hasLatency && (
         <div>

@@ -277,6 +277,7 @@ def _clone_probe(src: Probe, *, copy_name: bool = True) -> Probe:
         name=f"{src.name} (copy)" if copy_name else src.name, type=src.type,
         interval_sec=src.interval_sec, timeout_sec=src.timeout_sec, enabled=src.enabled,
         failure_threshold=src.failure_threshold, latency_degraded_ms=src.latency_degraded_ms,
+        degraded_threshold=src.degraded_threshold, down_threshold=src.down_threshold,
         config=dict(src.config or {}),
     )
 
@@ -407,7 +408,9 @@ def export_page(page_id: int, db: Session = Depends(get_db)):
                                 "name": p.name, "type": p.type, "interval_sec": p.interval_sec,
                                 "timeout_sec": p.timeout_sec, "enabled": p.enabled, "order": p.order,
                                 "failure_threshold": p.failure_threshold,
-                                "latency_degraded_ms": p.latency_degraded_ms, "config": p.config,
+                                "latency_degraded_ms": p.latency_degraded_ms,
+                                "degraded_threshold": p.degraded_threshold,
+                                "down_threshold": p.down_threshold, "config": p.config,
                             }
                             for p in s.probes
                         ],
@@ -447,6 +450,8 @@ def import_page(payload: dict = Body(...), db: Session = Depends(get_db)):
                             enabled=p.get("enabled", True), order=p.get("order", 0),
                             failure_threshold=p.get("failure_threshold", 1),
                             latency_degraded_ms=p.get("latency_degraded_ms"),
+                            degraded_threshold=p.get("degraded_threshold", 1),
+                            down_threshold=p.get("down_threshold", 1),
                             config=p.get("config", {}),
                         )
                         for p in s.get("probes", [])

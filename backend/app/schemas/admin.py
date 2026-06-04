@@ -40,6 +40,8 @@ class ProbeBase(BaseModel):
     order: int = 0
     failure_threshold: int = Field(default=1, ge=1, le=20)
     latency_degraded_ms: int | None = Field(default=None, ge=1)
+    degraded_threshold: int = Field(default=1, ge=1, le=20)
+    down_threshold: int = Field(default=1, ge=1, le=20)
     config: dict = {}
 
 
@@ -56,6 +58,8 @@ class ProbeUpdate(BaseModel):
     order: int | None = None
     failure_threshold: int | None = Field(default=None, ge=1, le=20)
     latency_degraded_ms: int | None = Field(default=None, ge=1)
+    degraded_threshold: int | None = Field(default=None, ge=1, le=20)
+    down_threshold: int | None = Field(default=None, ge=1, le=20)
     config: dict | None = None
 
 
