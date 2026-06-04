@@ -101,7 +101,10 @@ def handle_incident(db: Session, probe: Probe, outcome: ProbeOutcome, host: str,
         .first()
     )
     bad = _is_bad(outcome.status)
-    threshold = max(1, probe.failure_threshold)
+    # An incident opens only once failures exceed both the flap guard and the
+    # monitoring-noise tolerance — so tolerated blips never become a "сбой"
+    # (consistent with them being excluded from uptime/graphs/timeline).
+    threshold = max(1, probe.failure_threshold, probe.tolerance_checks + 1)
 
     # Static context for richly-formatted alerts (server/service/page names + link).
     server = probe.server
