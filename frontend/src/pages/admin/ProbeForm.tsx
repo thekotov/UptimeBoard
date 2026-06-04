@@ -74,6 +74,19 @@ export function ProbeForm({
   const [grace, setGrace] = useState(num(cfg.grace_sec, 60));
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
+  // open the detection-tuning section by default only when editing a probe
+  // whose tuning differs from the defaults, so it isn't lost behind a collapsed panel
+  const [tuningOpen, setTuningOpen] = useState(
+    editing && (
+      (probe?.failure_threshold ?? 2) !== 2 ||
+      (probe?.degraded_threshold ?? 1) !== 1 ||
+      (probe?.down_threshold ?? 2) !== 2 ||
+      (probe?.tolerance_checks ?? (pageDefaultTolerance ?? 1)) !== (pageDefaultTolerance ?? 1) ||
+      (probe?.recovery_threshold ?? 2) !== 2 ||
+      (probe?.retries ?? 2) !== 2 ||
+      probe?.latency_degraded_ms != null
+    )
+  );
 
   const buildConfig = (): Record<string, unknown> => {
     if (type === "http") {
@@ -294,43 +307,49 @@ export function ProbeForm({
           <input type="number" value={timeout} onChange={(e) => setTimeoutSec(+e.target.value)} />
         </div>
       )}
-      <div>
-        <label>{t("probe.failureThreshold")}</label>
-        <input type="number" min={1} value={failureThreshold} onChange={(e) => setFailureThreshold(+e.target.value)} />
-        <span className="hint">{t("probe.failureThresholdHint")}</span>
-      </div>
-      <div>
-        <label>{t("probe.degradedThreshold")}</label>
-        <input type="number" min={1} value={degradedThreshold} onChange={(e) => setDegradedThreshold(+e.target.value)} />
-        <span className="hint">{t("probe.degradedThresholdHint")}</span>
-      </div>
-      <div>
-        <label>{t("probe.downThreshold")}</label>
-        <input type="number" min={1} value={downThreshold} onChange={(e) => setDownThreshold(+e.target.value)} />
-        <span className="hint">{t("probe.downThresholdHint")}</span>
-      </div>
-      <div>
-        <label>{t("probe.tolerance")}</label>
-        <input type="number" min={0} value={toleranceChecks} onChange={(e) => setToleranceChecks(+e.target.value)} />
-        <span className="hint">{t("probe.toleranceHint")}</span>
-      </div>
-      <div>
-        <label>{t("probe.recovery")}</label>
-        <input type="number" min={1} value={recoveryThreshold} onChange={(e) => setRecoveryThreshold(+e.target.value)} />
-        <span className="hint">{t("probe.recoveryHint")}</span>
-      </div>
-      <div>
-        <label>{t("probe.retries")}</label>
-        <input type="number" min={0} max={5} value={retries} onChange={(e) => setRetries(+e.target.value)} />
-        <span className="hint">{t("probe.retriesHint")}</span>
-      </div>
-      {hasLatency && (
-        <div>
-          <label>{t("probe.latencyDegraded")}</label>
-          <input type="number" value={latencyDegraded}
-            onChange={(e) => setLatencyDegraded(e.target.value === "" ? "" : +e.target.value)} placeholder={t("optional")} />
+      <details className="full advanced" open={tuningOpen}
+        onToggle={(e) => setTuningOpen(e.currentTarget.open)}>
+        <summary>{t("probe.detection")}</summary>
+        <div className="form-grid" style={{ marginTop: 10 }}>
+          <div>
+            <label>{t("probe.failureThreshold")}</label>
+            <input type="number" min={1} value={failureThreshold} onChange={(e) => setFailureThreshold(+e.target.value)} />
+            <span className="hint">{t("probe.failureThresholdHint")}</span>
+          </div>
+          <div>
+            <label>{t("probe.degradedThreshold")}</label>
+            <input type="number" min={1} value={degradedThreshold} onChange={(e) => setDegradedThreshold(+e.target.value)} />
+            <span className="hint">{t("probe.degradedThresholdHint")}</span>
+          </div>
+          <div>
+            <label>{t("probe.downThreshold")}</label>
+            <input type="number" min={1} value={downThreshold} onChange={(e) => setDownThreshold(+e.target.value)} />
+            <span className="hint">{t("probe.downThresholdHint")}</span>
+          </div>
+          <div>
+            <label>{t("probe.tolerance")}</label>
+            <input type="number" min={0} value={toleranceChecks} onChange={(e) => setToleranceChecks(+e.target.value)} />
+            <span className="hint">{t("probe.toleranceHint")}</span>
+          </div>
+          <div>
+            <label>{t("probe.recovery")}</label>
+            <input type="number" min={1} value={recoveryThreshold} onChange={(e) => setRecoveryThreshold(+e.target.value)} />
+            <span className="hint">{t("probe.recoveryHint")}</span>
+          </div>
+          <div>
+            <label>{t("probe.retries")}</label>
+            <input type="number" min={0} max={5} value={retries} onChange={(e) => setRetries(+e.target.value)} />
+            <span className="hint">{t("probe.retriesHint")}</span>
+          </div>
+          {hasLatency && (
+            <div>
+              <label>{t("probe.latencyDegraded")}</label>
+              <input type="number" value={latencyDegraded}
+                onChange={(e) => setLatencyDegraded(e.target.value === "" ? "" : +e.target.value)} placeholder={t("optional")} />
+            </div>
+          )}
         </div>
-      )}
+      </details>
       <label className="check-cell full">
         <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> {t("probe.enabled")}
       </label>
