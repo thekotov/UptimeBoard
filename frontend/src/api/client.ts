@@ -124,6 +124,7 @@ export interface Probe {
   down_threshold: number;
   tolerance_checks: number;
   recovery_threshold: number;
+  retries: number;
   config: Record<string, unknown>;
   last_status: Status;
   last_latency_ms: number | null;

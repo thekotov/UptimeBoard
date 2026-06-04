@@ -4,7 +4,7 @@ import time
 from datetime import datetime, timezone
 
 from app.models.monitoring import STATUS_DEGRADED, STATUS_DOWN, STATUS_UP
-from app.probes.base import ProbeOutcome
+from app.probes.base import ProbeOutcome, is_timeout_error
 
 
 def execute(host: str, config: dict, timeout_sec: int) -> ProbeOutcome:
@@ -25,7 +25,10 @@ def execute(host: str, config: dict, timeout_sec: int) -> ProbeOutcome:
                 cert = ssock.getpeercert()
         latency_ms = (time.perf_counter() - start) * 1000
     except (OSError, ssl.SSLError) as exc:
-        return ProbeOutcome(status=STATUS_DOWN, error=str(exc))
+        return ProbeOutcome(
+            status=STATUS_DOWN, error=str(exc),
+            kind="timeout" if is_timeout_error(exc) else None,
+        )
 
     not_after = cert.get("notAfter")
     if not not_after:

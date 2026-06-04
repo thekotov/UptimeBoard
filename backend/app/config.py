@@ -25,6 +25,19 @@ class Settings(BaseSettings):
     rollup_interval_min: int = 15  # how often the rollup job runs
     probe_default_interval: int = 60
     probe_default_timeout: int = 10
+    # Delay between in-check retries (see Probe.retries). A failed check is retried
+    # after this pause before being accepted, to absorb transient single blips.
+    probe_retry_backoff_sec: float = 2.0
+
+    # Uplink self-check (anti-storm). Before trusting a *failed* check, the worker
+    # verifies it has network itself by TCP-connecting to a few stable anchors. If
+    # ALL anchors are unreachable we assume the monitor is offline (not the targets)
+    # and record the check as "unknown" with alerts suppressed — preventing a whole
+    # dashboard from alarming on the monitor's own connectivity blip.
+    uplink_check_enabled: bool = True
+    uplink_anchors: str = "1.1.1.1:443,8.8.8.8:443,9.9.9.9:443"
+    uplink_timeout_sec: float = 3.0
+    uplink_cache_sec: float = 5.0
 
     # Worker: size of the thread pool that runs probe checks concurrently.
     # Probes are I/O-bound (network waits), so this can comfortably exceed cores.

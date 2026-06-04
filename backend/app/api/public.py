@@ -247,7 +247,9 @@ def get_timeline(
     result = []
     for pid, results in by_probe.items():
         # Maintenance checks are excluded from uptime (planned, not an outage).
-        total = sum(1 for r in results if r.status != "maintenance")
+        # "maintenance" (planned) and "unknown" (no-confidence / monitor offline)
+        # are both excluded from uptime — neither is an outage of the target.
+        total = sum(1 for r in results if r.status not in ("maintenance", "unknown"))
         up = sum(1 for r in results if r.status == "up")
         uptime_pct = (up / total * 100) if total else 0.0
         points = _series_points(results, since, window, _TIMELINE_BUCKETS)
@@ -336,7 +338,9 @@ def get_probe_history(
             .order_by(asc(ProbeResult.checked_at))
             .all()
         )
-        total = sum(1 for r in results if r.status != "maintenance")
+        # "maintenance" (planned) and "unknown" (no-confidence / monitor offline)
+        # are both excluded from uptime — neither is an outage of the target.
+        total = sum(1 for r in results if r.status not in ("maintenance", "unknown"))
         up = sum(1 for r in results if r.status == "up")
         uptime_pct = (up / total * 100) if total else 0.0
         points = _series_points(results, since, window, n_buckets)

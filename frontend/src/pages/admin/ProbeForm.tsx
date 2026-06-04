@@ -52,6 +52,7 @@ export function ProbeForm({
   const [downThreshold, setDownThreshold] = useState(probe?.down_threshold ?? 1);
   const [toleranceChecks, setToleranceChecks] = useState(probe?.tolerance_checks ?? pageDefaultTolerance ?? 0);
   const [recoveryThreshold, setRecoveryThreshold] = useState(probe?.recovery_threshold ?? 1);
+  const [retries, setRetries] = useState(probe?.retries ?? 1);
   // http
   const [url, setUrl] = useState(cfg.url ?? "");
   const [method, setMethod] = useState<string>(cfg.method ?? "GET");
@@ -105,6 +106,7 @@ export function ProbeForm({
     down_threshold: Number(downThreshold),
     tolerance_checks: Number(toleranceChecks),
     recovery_threshold: Number(recoveryThreshold),
+    retries: Number(retries),
     config: editing ? { ...cfg, ...buildConfig() } : buildConfig(),
   });
 
@@ -316,6 +318,11 @@ export function ProbeForm({
         <label>{t("probe.recovery")}</label>
         <input type="number" min={1} value={recoveryThreshold} onChange={(e) => setRecoveryThreshold(+e.target.value)} />
         <span className="hint">{t("probe.recoveryHint")}</span>
+      </div>
+      <div>
+        <label>{t("probe.retries")}</label>
+        <input type="number" min={0} max={5} value={retries} onChange={(e) => setRetries(+e.target.value)} />
+        <span className="hint">{t("probe.retriesHint")}</span>
       </div>
       {hasLatency && (
         <div>

@@ -2,7 +2,7 @@ import socket
 import time
 
 from app.models.monitoring import STATUS_DOWN, STATUS_UP
-from app.probes.base import ProbeOutcome
+from app.probes.base import ProbeOutcome, is_timeout_error
 
 
 def execute(host: str, config: dict, timeout_sec: int) -> ProbeOutcome:
@@ -21,4 +21,7 @@ def execute(host: str, config: dict, timeout_sec: int) -> ProbeOutcome:
             latency_ms = (time.perf_counter() - start) * 1000
             return ProbeOutcome(status=STATUS_UP, latency_ms=latency_ms)
     except OSError as exc:
-        return ProbeOutcome(status=STATUS_DOWN, error=str(exc))
+        return ProbeOutcome(
+            status=STATUS_DOWN, error=str(exc),
+            kind="timeout" if is_timeout_error(exc) else None,
+        )

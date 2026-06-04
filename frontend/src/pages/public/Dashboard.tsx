@@ -479,8 +479,8 @@ export function Dashboard() {
               title={collapsible ? t(isCollapsed ? "dash.showService" : "dash.hideService") : undefined}
             >
               <h3>
-                {collapsible && <span className={`chev ${isCollapsed ? "" : "open"}`}>▶</span>}{" "}
-                {service.name}
+                {collapsible && <span className={`chev ${isCollapsed ? "" : "open"}`}>▶</span>}
+                <span className="svc-name">{service.name}</span>
                 {collapsible && isCollapsed && (
                   <span className="count-pill svc-count">{service.servers.length}</span>
                 )}

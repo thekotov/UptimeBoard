@@ -134,6 +134,10 @@ class Probe(Base):
     # Resolve an open incident only after this many consecutive good checks
     # (recovery confirmation / anti-flap on the close side). 1 = resolve at once.
     recovery_threshold: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    # On a failed check, retry up to this many times (short backoff between) before
+    # the result is accepted. Kills transient single-sample blips without waiting a
+    # whole interval. 0 = single attempt, no retry.
+    retries: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
     # Denormalised latest result (kept in sync by the worker) for fast snapshots
     # and live status in the admin UI without scanning probe_results.

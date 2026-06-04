@@ -284,7 +284,7 @@ def _clone_probe(src: Probe, *, copy_name: bool = True) -> Probe:
         failure_threshold=src.failure_threshold, latency_degraded_ms=src.latency_degraded_ms,
         degraded_threshold=src.degraded_threshold, down_threshold=src.down_threshold,
         tolerance_checks=src.tolerance_checks, recovery_threshold=src.recovery_threshold,
-        config=dict(src.config or {}),
+        retries=src.retries, config=dict(src.config or {}),
     )
 
 
@@ -424,7 +424,8 @@ def export_page(page_id: int, db: Session = Depends(get_db)):
                                 "degraded_threshold": p.degraded_threshold,
                                 "down_threshold": p.down_threshold,
                                 "tolerance_checks": p.tolerance_checks,
-                                "recovery_threshold": p.recovery_threshold, "config": p.config,
+                                "recovery_threshold": p.recovery_threshold, "retries": p.retries,
+                                "config": p.config,
                             }
                             for p in s.probes
                         ],
@@ -472,6 +473,7 @@ def import_page(payload: dict = Body(...), db: Session = Depends(get_db)):
                             down_threshold=p.get("down_threshold", 1),
                             tolerance_checks=p.get("tolerance_checks", 0),
                             recovery_threshold=p.get("recovery_threshold", 1),
+                            retries=p.get("retries", 1),
                             config=p.get("config", {}),
                         )
                         for p in s.get("probes", [])

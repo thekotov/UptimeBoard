@@ -44,6 +44,7 @@ class ProbeBase(BaseModel):
     down_threshold: int = Field(default=1, ge=1, le=20)
     tolerance_checks: int = Field(default=0, ge=0, le=20)
     recovery_threshold: int = Field(default=1, ge=1, le=20)
+    retries: int = Field(default=1, ge=0, le=5)
     config: dict = {}
 
 
@@ -66,6 +67,7 @@ class ProbeUpdate(BaseModel):
     down_threshold: int | None = Field(default=None, ge=1, le=20)
     tolerance_checks: int | None = Field(default=None, ge=0, le=20)
     recovery_threshold: int | None = Field(default=None, ge=1, le=20)
+    retries: int | None = Field(default=None, ge=0, le=5)
     config: dict | None = None
 
 

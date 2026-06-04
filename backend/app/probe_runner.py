@@ -4,6 +4,7 @@ grouping and escalation), and publish a real-time update. Used by both the
 scheduler worker and the admin "check now" endpoint."""
 
 import logging
+import time
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
@@ -21,6 +22,7 @@ from app.models.monitoring import (
 from app.probes import ProbeOutcome, run_probe
 from app.realtime import publish_status_update
 from app.status_service import find_page_for_probe
+from app.uplink import uplink_ok
 
 logger = logging.getLogger("probe_runner")
 
@@ -87,6 +89,63 @@ def _apply_latency_threshold(probe: Probe, outcome: ProbeOutcome) -> ProbeOutcom
             latency_ms=outcome.latency_ms,
             error=f"latency {outcome.latency_ms:.0f}ms > {probe.latency_degraded_ms}ms",
         )
+    return outcome
+
+
+def _soften_timeout(outcome: ProbeOutcome) -> ProbeOutcome:
+    """A timeout is "no response in time" — slow, not necessarily a hard outage,
+    so render it as ``degraded`` instead of ``down``. It still counts as bad, so a
+    *persistent* timeout opens an incident as usual — just not coloured red. Hard
+    failures (connection refused, DNS, TLS, unexpected status) stay ``down``."""
+    if outcome.kind == "timeout" and outcome.status == STATUS_DOWN:
+        return ProbeOutcome(
+            status=STATUS_DEGRADED, latency_ms=outcome.latency_ms,
+            error=outcome.error, kind="timeout",
+        )
+    return outcome
+
+
+def _run_check(probe: Probe, host: str) -> ProbeOutcome:
+    """Run the probe with in-check retries. A bad attempt is retried up to
+    ``probe.retries`` times (with a short backoff) before the result is accepted,
+    so a single transient blip never registers as a failure. The first good
+    attempt wins immediately; otherwise the last attempt's outcome is returned."""
+    attempts = max(0, probe.retries) + 1
+    outcome: ProbeOutcome | None = None
+    for i in range(attempts):
+        if i:
+            time.sleep(max(0.0, settings.probe_retry_backoff_sec))
+        raw = run_probe(probe.type, host, probe.config or {}, probe.timeout_sec)
+        outcome = _apply_latency_threshold(probe, _soften_timeout(raw))
+        if not _is_bad(outcome.status):
+            break
+    return outcome  # type: ignore[return-value]  # loop runs at least once
+
+
+def _store_suppressed(db: Session, probe: Probe, now: datetime, outcome: ProbeOutcome) -> ProbeOutcome:
+    """Record an inconclusive check when the worker's own uplink is down: write an
+    ``unknown`` tick (excluded from uptime), refresh live status to ``unknown``,
+    but leave the failure/success streaks and any open incident untouched and send
+    no alerts. Returns the real probe outcome to the caller unchanged."""
+    page = find_page_for_probe(db, probe.id)
+    err = "monitor uplink down — check suppressed"
+    db.add(
+        ProbeResult(
+            probe_id=probe.id, status=STATUS_UNKNOWN, latency_ms=None,
+            error=err, checked_at=now,
+        )
+    )
+    probe.last_status = STATUS_UNKNOWN
+    probe.last_latency_ms = None
+    probe.last_checked_at = now
+    probe.last_error = err
+    db.commit()
+    if page is not None:
+        publish_status_update(page.slug, {"probe_id": probe.id, "status": STATUS_UNKNOWN})
+    logger.warning(
+        "probe %s (%s %s): uplink down -> suppressed bad result (%s)",
+        probe.id, probe.type, probe.server.host, outcome.error,
+    )
     return outcome
 
 
@@ -177,9 +236,16 @@ def execute_and_store(db: Session, probe: Probe) -> ProbeOutcome:
     if probe.type == "heartbeat":
         outcome = _evaluate_heartbeat(probe, now)
     else:
-        outcome = _apply_latency_threshold(
-            probe, run_probe(probe.type, host, probe.config or {}, probe.timeout_sec)
-        )
+        # In-check retries + timeout-softening + latency tiering all happen here.
+        outcome = _run_check(probe, host)
+
+    # Anti-storm gate: a bad result while the worker's *own* uplink is down almost
+    # always means the monitor is offline, not the target. Record an inconclusive
+    # tick and skip incident/alert logic instead of flooding the dashboard with
+    # false "down"s. (Only consulted when the result is already bad, so healthy
+    # checks pay nothing.)
+    if _is_bad(outcome.status) and not uplink_ok():
+        return _store_suppressed(db, probe, now, outcome)
 
     # Track consecutive failures (for tiering) and successes (for recovery
     # confirmation) from the RAW outcome, then tier it for display.

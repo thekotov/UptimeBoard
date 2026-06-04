@@ -5,6 +5,7 @@ Each executor takes a host and the probe's config dict and returns a
 APScheduler worker thread pool without an event loop.
 """
 
+import socket
 from dataclasses import dataclass
 
 from app.models.monitoring import STATUS_DOWN, STATUS_UP
@@ -15,6 +16,20 @@ class ProbeOutcome:
     status: str
     latency_ms: float | None = None
     error: str | None = None
+    # Failure classification, used to soften transient/slow failures. "timeout"
+    # marks a no-response-in-time failure, which the runner renders as "degraded"
+    # (slow ≠ hard outage) rather than "down". None for other outcomes.
+    kind: str | None = None
+
+
+def is_timeout_error(exc: BaseException) -> bool:
+    """True if an exception represents a network timeout (vs. a hard failure such
+    as connection refused, DNS error, TLS error). Covers stdlib socket timeouts
+    and httpx's ConnectTimeout/ReadTimeout/PoolTimeout (matched by name so we don't
+    import httpx here)."""
+    if isinstance(exc, (TimeoutError, socket.timeout)):
+        return True
+    return "timeout" in type(exc).__name__.lower()
 
 
 def run_probe(probe_type: str, host: str, config: dict, timeout_sec: int) -> ProbeOutcome:
@@ -35,7 +50,10 @@ def run_probe(probe_type: str, host: str, config: dict, timeout_sec: int) -> Pro
             return tls_probe.execute(host, config, timeout_sec)
         return ProbeOutcome(status=STATUS_DOWN, error=f"unknown probe type: {probe_type}")
     except Exception as exc:  # noqa: BLE001 - any executor failure is a down result
-        return ProbeOutcome(status=STATUS_DOWN, error=str(exc))
+        return ProbeOutcome(
+            status=STATUS_DOWN, error=str(exc),
+            kind="timeout" if is_timeout_error(exc) else None,
+        )
 
 
-__all__ = ["ProbeOutcome", "run_probe", "STATUS_UP", "STATUS_DOWN"]
+__all__ = ["ProbeOutcome", "run_probe", "is_timeout_error", "STATUS_UP", "STATUS_DOWN"]

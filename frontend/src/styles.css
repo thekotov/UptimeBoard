@@ -253,7 +253,14 @@ input.invalid, textarea.invalid { border-color: var(--down); box-shadow: 0 0 0 3
   box-shadow: var(--shadow);
 }
 .card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; row-gap: 10px; }
-.card-head h3 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; min-width: 0; }
+.card-head h3 {
+  margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.01em;
+  display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0;
+}
+/* long service names shrink and ellipsize instead of pushing the status to a new line */
+.card-head h3 .svc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.card-head h3 .chev, .card-head h3 .count-pill { flex: 0 0 auto; margin-left: 0; }
+.card-head > .inline { flex: 0 0 auto; }
 .card-head > .stack { min-width: 0; flex: 1 1 200px; }
 
 /* server = a small card; its header is the "lid", probes sit in a recessed well below */
@@ -660,7 +667,8 @@ button:focus:not(:focus-visible) { outline: none; }
   .probe-stats > span:last-child { min-width: 0; text-align: left; }
   .row-actions { flex-wrap: wrap; }
   .server-head { flex-wrap: wrap; }
-  .card-head { flex-wrap: wrap; }
+  /* keep the service name + status on one line; the name ellipsizes if too long */
+  .card-head { flex-wrap: nowrap; }
   /* drag handles are awkward on touch — hide them on phones */
   .grip { display: none; }
 

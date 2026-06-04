@@ -51,7 +51,7 @@ _UPSERT = text(
       min(latency_ms),
       max(latency_ms)
     FROM probe_results
-    WHERE checked_at >= :since AND status <> 'maintenance'
+    WHERE checked_at >= :since AND status NOT IN ('maintenance', 'unknown')
     GROUP BY probe_id, date_trunc(:trunc, checked_at)
     ON CONFLICT (probe_id, period, bucket) DO UPDATE SET
       total          = EXCLUDED.total,
