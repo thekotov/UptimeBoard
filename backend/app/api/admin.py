@@ -47,6 +47,8 @@ from app.schemas.admin import (
 from app.realtime import get_sync_redis
 from app.config import settings
 from app.alerts import (
+    list_telegram_chats,
+    record_deliveries,
     send_test_email,
     send_test_telegram,
     send_test_webhook,
@@ -724,6 +726,7 @@ def _masked(channel: AlertChannel) -> AlertChannelOut:
     return AlertChannelOut(
         id=channel.id, name=channel.name, type=channel.type, enabled=channel.enabled,
         page_id=channel.page_id, escalate_after_min=channel.escalate_after_min, config=cfg,
+        last_sent_at=channel.last_sent_at, last_ok=channel.last_ok, last_error=channel.last_error,
     )
 
 
@@ -777,7 +780,21 @@ def test_alert_channel_send(payload: AlertChannelTest, db: Session = Depends(get
         ok, detail = send_test_email(cfg)
     else:
         return {"ok": False, "detail": "test alert not supported for this channel type"}
+    # A manual test alert is a real delivery — surface its outcome in the list too.
+    if payload.channel_id is not None:
+        record_deliveries([(payload.channel_id, ok, None if ok else detail)])
     return {"ok": ok, "detail": detail}
+
+
+@router.post("/alert-channels/telegram-chats")
+def telegram_chats(payload: AlertChannelTest, db: Session = Depends(get_db)):
+    """List chats the Telegram bot can see (via getUpdates) so the operator can
+    pick a chat_id instead of looking it up manually."""
+    cfg = _resolve_test_config(payload, db)
+    ok, result = list_telegram_chats(cfg.get("bot_token"), cfg.get("proxy"))
+    if ok:
+        return {"ok": True, "chats": result}
+    return {"ok": False, "detail": result}
 
 
 @router.post("/alert-channels", response_model=AlertChannelOut, status_code=201)

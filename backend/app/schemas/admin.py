@@ -218,6 +218,9 @@ class AlertChannelUpdate(BaseModel):
 
 class AlertChannelOut(AlertChannelBase):
     id: int
+    last_sent_at: datetime | None = None
+    last_ok: bool | None = None
+    last_error: str | None = None
 
     model_config = {"from_attributes": True}
 

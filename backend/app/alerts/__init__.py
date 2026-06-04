@@ -3,6 +3,8 @@ from app.alerts.dispatcher import (
     base_channels,
     dispatch,
     escalation_channels,
+    list_telegram_chats,
+    record_deliveries,
     send_test_email,
     send_test_telegram,
     send_test_webhook,
@@ -22,4 +24,6 @@ __all__ = [
     "send_test_webhook",
     "test_email",
     "send_test_email",
+    "list_telegram_chats",
+    "record_deliveries",
 ]

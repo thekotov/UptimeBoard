@@ -372,6 +372,14 @@ const ru: Dict = {
   "alerts.advanced": "Маршрутизация, события и шаблон",
   "alerts.editTitle": "Изменить канал",
   "alerts.noScope": "—",
+  "alerts.delivery": "Доставка",
+  "alerts.deliveredOk": "доставлено {time}",
+  "alerts.deliveredFail": "ошибка {time}",
+  "alerts.neverSent": "не отправлялось",
+  "alerts.pickChat": "Подобрать chat_id",
+  "alerts.pickingChat": "Поиск чатов…",
+  "alerts.noChats": "Чаты не найдены — напишите боту, добавьте его в группу и повторите.",
+  "alerts.pickChatHint": "Выберите чат, куда слать оповещения:",
 };
 
 const en: Dict = {
@@ -719,6 +727,14 @@ const en: Dict = {
   "alerts.advanced": "Routing, events & template",
   "alerts.editTitle": "Edit channel",
   "alerts.noScope": "—",
+  "alerts.delivery": "Delivery",
+  "alerts.deliveredOk": "delivered {time}",
+  "alerts.deliveredFail": "failed {time}",
+  "alerts.neverSent": "never sent",
+  "alerts.pickChat": "Find chat_id",
+  "alerts.pickingChat": "Loading chats…",
+  "alerts.noChats": "No chats found — message the bot or add it to a group, then retry.",
+  "alerts.pickChatHint": "Pick the chat to send alerts to:",
 };
 
 const DICTS: Record<Lang, Dict> = { ru, en };

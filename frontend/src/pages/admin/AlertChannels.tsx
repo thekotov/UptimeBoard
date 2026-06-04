@@ -1,10 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, type AlertChannel, type Page, sendTestAlert, testChannel } from "../../api/client";
+import {
+  api,
+  type AlertChannel,
+  type Page,
+  sendTestAlert,
+  type TelegramChat,
+  telegramChats,
+  testChannel,
+} from "../../api/client";
 import { PencilIcon, RefreshIcon, TrashIcon } from "../../components/Icons";
 import { Modal } from "../../components/Modal";
 import { Skeleton } from "../../components/Skeleton";
 import { useConfirm } from "../../confirm";
-import { useI18n } from "../../i18n";
+import { relativeTime, useI18n } from "../../i18n";
 import { useToast } from "../../toast";
 import { AdminNav } from "./AdminNav";
 
@@ -19,7 +27,7 @@ const TYPE_META: Record<ChannelType, { icon: string; label: string }> = {
 };
 
 export function AlertChannels() {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const toast = useToast();
   const confirm = useConfirm();
   const [channels, setChannels] = useState<AlertChannel[]>([]);
@@ -107,6 +115,7 @@ export function AlertChannels() {
                   <th>{t("alerts.name")}</th>
                   <th>{t("alerts.scope")}</th>
                   <th>{t("alerts.events")}</th>
+                  <th>{t("alerts.delivery")}</th>
                   <th>{t("alerts.enabled")}</th>
                   <th></th>
                 </tr>
@@ -136,6 +145,22 @@ export function AlertChannels() {
                     </td>
                     <td className="muted">{pageName(ch.page_id)}</td>
                     <td className="muted small">{eventSummary(ch)}</td>
+                    <td className="small">
+                      {ch.last_sent_at ? (
+                        <span
+                          className="inline"
+                          style={{ gap: 6 }}
+                          title={ch.last_error ?? undefined}
+                        >
+                          <span className={`dot ${ch.last_ok ? "up" : "down"}`} />
+                          {t(ch.last_ok ? "alerts.deliveredOk" : "alerts.deliveredFail", {
+                            time: relativeTime(ch.last_sent_at, lang),
+                          })}
+                        </span>
+                      ) : (
+                        <span className="faint">{t("alerts.neverSent")}</span>
+                      )}
+                    </td>
                     <td>
                       <button
                         className="secondary btn-sm"
@@ -234,6 +259,9 @@ function ChannelForm({
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
   const [sendingAlert, setSendingAlert] = useState(false);
+  // telegram chat_id discovery (getUpdates helper)
+  const [chats, setChats] = useState<TelegramChat[] | null>(null);
+  const [pickingChat, setPickingChat] = useState(false);
 
   const toggleEvent = (ev: string) =>
     setEvents((s) => (s.includes(ev) ? s.filter((x) => x !== ev) : [...s, ev]));
@@ -338,6 +366,30 @@ function ChannelForm({
     }
   };
 
+  const pickChat = async () => {
+    setPickingChat(true);
+    try {
+      const res = await telegramChats({
+        ...(editing ? { channel_id: channel!.id } : {}),
+        config: { bot_token: botToken, proxy: proxy.trim() },
+      });
+      if (!res.ok) {
+        toast.error(res.detail || t("toast.error"));
+      } else if (!res.chats || res.chats.length === 0) {
+        toast.show(t("alerts.noChats"), "info");
+      } else if (res.chats.length === 1) {
+        setChatId(String(res.chats[0].id));
+        setChats(null);
+      } else {
+        setChats(res.chats);
+      }
+    } catch {
+      toast.error(t("toast.error"));
+    } finally {
+      setPickingChat(false);
+    }
+  };
+
   return (
     <form onSubmit={submit} className="form-grid">
       <div>
@@ -379,6 +431,15 @@ function ChannelForm({
               onChange={(e) => setChatId(e.target.value)}
             />
             {reqMsg("chatId", chatMissing)}
+            <button
+              type="button"
+              className="ghost btn-sm"
+              style={{ marginTop: 6 }}
+              onClick={pickChat}
+              disabled={pickingChat || (!editing && !botToken.trim())}
+            >
+              {pickingChat ? t("alerts.pickingChat") : t("alerts.pickChat")}
+            </button>
           </div>
           <div className="full">
             <label>{t("alerts.proxy")}</label>
@@ -388,6 +449,26 @@ function ChannelForm({
               placeholder="socks5://user:pass@host:1080"
             />
           </div>
+          {chats && chats.length > 0 && (
+            <div className="full">
+              <div className="hint">{t("alerts.pickChatHint")}</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 4 }}>
+                {chats.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className="secondary btn-sm"
+                    onClick={() => {
+                      setChatId(String(c.id));
+                      setChats(null);
+                    }}
+                  >
+                    {c.title} <span className="faint">#{c.id}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </>
       )}
 

@@ -158,6 +158,15 @@ export interface AlertChannel {
   page_id: number | null;
   escalate_after_min: number;
   config: Record<string, unknown>;
+  last_sent_at: string | null;
+  last_ok: boolean | null;
+  last_error: string | null;
+}
+
+export interface TelegramChat {
+  id: number;
+  title: string;
+  type: string;
 }
 
 export interface MaintenanceWindow {
@@ -316,6 +325,17 @@ export async function sendTestAlert(body: {
   const { data } = await api.post<{ ok: boolean; detail: string }>(
     "/admin/alert-channels/test-alert",
     body
+  );
+  return data;
+}
+
+export async function telegramChats(body: {
+  config: Record<string, unknown>;
+  channel_id?: number;
+}): Promise<{ ok: boolean; chats?: TelegramChat[]; detail?: string }> {
+  const { data } = await api.post<{ ok: boolean; chats?: TelegramChat[]; detail?: string }>(
+    "/admin/alert-channels/telegram-chats",
+    { type: "telegram", ...body }
   );
   return data;
 }

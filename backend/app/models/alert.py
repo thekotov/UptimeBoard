@@ -28,3 +28,8 @@ class AlertChannel(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+    # Last delivery outcome (real alerts + manual "test alert") — surfaced in the
+    # admin UI so broken channels are visible without a manual probe.
+    last_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_ok: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(String(500), nullable=True)

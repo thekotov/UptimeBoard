@@ -19,6 +19,7 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.db import SessionLocal
 from app.models.alert import AlertChannel
 from app.realtime import get_sync_redis
 
@@ -217,6 +218,40 @@ def test_telegram(token: str, proxy: str | None) -> tuple[bool, str]:
         return False, str(exc)
 
 
+def list_telegram_chats(token: str | None, proxy: str | None) -> tuple[bool, list[dict] | str]:
+    """Discover chats the bot can see via getUpdates, so the operator can pick a
+    chat_id instead of hunting for it. Returns (ok, chats) or (False, error).
+    A chat appears only after someone has messaged the bot / added it to a group."""
+    if not token:
+        return False, "bot_token required"
+    try:
+        with httpx.Client(timeout=_TIMEOUT, proxy=proxy or None) as client:
+            resp = client.get(
+                f"https://api.telegram.org/bot{token}/getUpdates",
+                params={"limit": 100, "timeout": 0},
+            )
+        data = resp.json()
+        if resp.status_code != 200 or not data.get("ok"):
+            return False, data.get("description", f"HTTP {resp.status_code}")
+        chats: dict = {}
+        for upd in data.get("result", []):
+            for key in ("message", "edited_message", "channel_post", "my_chat_member"):
+                obj = upd.get(key)
+                chat = obj.get("chat") if isinstance(obj, dict) else None
+                if not chat:
+                    continue
+                title = (
+                    chat.get("title")
+                    or " ".join(x for x in (chat.get("first_name"), chat.get("last_name")) if x)
+                    or (f"@{chat['username']}" if chat.get("username") else "")
+                    or str(chat["id"])
+                )
+                chats[chat["id"]] = {"id": chat["id"], "title": title, "type": chat.get("type", "")}
+        return True, list(chats.values())
+    except Exception as exc:  # noqa: BLE001
+        return False, str(exc)
+
+
 def _sample_ctx() -> dict:
     """A representative alert context used by the end-to-end channel tests."""
     now = datetime.now(timezone.utc)
@@ -382,6 +417,27 @@ def _channels(db: Session, page_id: int | None):
     )
 
 
+def record_deliveries(outcomes: list[tuple[int, bool, str | None]]) -> None:
+    """Persist the last-delivery status for each channel id. Uses its own session
+    so it never commits the caller's in-flight transaction. Best-effort: a failure
+    here must never break alert dispatch."""
+    if not outcomes:
+        return
+    sent_at = datetime.now(timezone.utc)
+    try:
+        with SessionLocal() as session:
+            for channel_id, ok, err in outcomes:
+                ch = session.get(AlertChannel, channel_id)
+                if ch is None:
+                    continue
+                ch.last_sent_at = sent_at
+                ch.last_ok = ok
+                ch.last_error = None if ok else (err or "")[:500]
+            session.commit()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("recording alert delivery status failed: %s", exc)
+
+
 def dispatch(channels: list[AlertChannel], *, event: str, probe_name: str, server_host: str,
              status: str, error: str | None, server_id: int | None = None, group: bool = True,
              probe_type: str = "", server_name: str = "", service_name: str = "",
@@ -411,6 +467,7 @@ def dispatch(channels: list[AlertChannel], *, event: str, probe_name: str, serve
     # Template fields (strings) for custom templates.
     fields = {**ctx, "verb": verb, "latency": f"{latency_ms:.0f}" if latency_ms is not None else ""}
 
+    outcomes: list[tuple[int, bool, str | None]] = []
     for ch in channels:
         cfg = ch.config or {}
         # Per-channel event subscription: empty/absent list = receive every event.
@@ -427,6 +484,7 @@ def dispatch(channels: list[AlertChannel], *, event: str, probe_name: str, serve
                    "page": page_title, "status": status, "error": error,
                    "latency_ms": latency_ms, "duration": duration, "url": page_url,
                    "occurred_at": now.isoformat(), "text": text}
+        ok, err = True, None
         try:
             if ch.type == "telegram":
                 _deliver(lambda cfg=cfg, tg_text=tg_text, tg_mode=tg_mode: _send_telegram(cfg, tg_text, tg_mode))
@@ -435,5 +493,8 @@ def dispatch(channels: list[AlertChannel], *, event: str, probe_name: str, serve
             elif ch.type == "email":
                 _deliver(lambda cfg=cfg, text=text: _send_email(cfg, subject=f"{verb}: {probe_name}", text=text))
         except Exception as exc:  # noqa: BLE001
+            ok, err = False, str(exc)
             logger.warning("alert channel %s (%s) failed after %s attempt(s): %s",
                            ch.id, ch.type, max(1, settings.alert_retry_attempts), exc)
+        outcomes.append((ch.id, ok, err))
+    record_deliveries(outcomes)
