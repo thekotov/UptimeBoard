@@ -749,6 +749,7 @@ function PageForm({ page, onSaved, onCancel }: { page: PageDetail; onSaved: () =
   const [description, setDescription] = useState(page.description ?? "");
   const [group, setGroup] = useState(page.group_name ?? "");
   const [isPrivate, setIsPrivate] = useState(page.is_private);
+  const [defaultCollapsed, setDefaultCollapsed] = useState(page.default_collapsed);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const slugState = useSlugCheck(slug, page.id);
@@ -761,7 +762,7 @@ function PageForm({ page, onSaved, onCancel }: { page: PageDetail; onSaved: () =
     try {
       await api.patch(`/admin/pages/${page.id}`, {
         title, slug, description: description.trim() || null, group_name: group.trim() || null,
-        is_private: isPrivate,
+        is_private: isPrivate, default_collapsed: defaultCollapsed,
       });
       toast.success(t("toast.saved"));
       onSaved();
@@ -794,6 +795,17 @@ function PageForm({ page, onSaved, onCancel }: { page: PageDetail; onSaved: () =
       <div className="full">
         <label>{t("editor.group")}</label>
         <input value={group} onChange={(e) => setGroup(e.target.value)} placeholder={t("optional")} />
+      </div>
+      <div className="full">
+        <label>{t("editor.defaultView")}</label>
+        <select
+          value={defaultCollapsed ? "collapsed" : "expanded"}
+          onChange={(e) => setDefaultCollapsed(e.target.value === "collapsed")}
+        >
+          <option value="collapsed">{t("editor.viewCollapsed")}</option>
+          <option value="expanded">{t("editor.viewExpanded")}</option>
+        </select>
+        <div className="muted" style={{ fontSize: "0.85em" }}>{t("editor.defaultViewHint")}</div>
       </div>
       <div className="full">
         <label className="check-cell full">

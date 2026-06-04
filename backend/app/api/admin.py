@@ -398,6 +398,7 @@ def export_page(page_id: int, db: Session = Depends(get_db)):
         "title": page.title,
         "description": page.description,
         "group_name": page.group_name,
+        "default_collapsed": page.default_collapsed,
         "services": [
             {
                 "name": svc.name, "order": svc.order,
@@ -436,6 +437,7 @@ def import_page(payload: dict = Body(...), db: Session = Depends(get_db)):
         title=payload.get("title", "Imported"),
         description=payload.get("description"),
         group_name=payload.get("group_name"),
+        default_collapsed=payload.get("default_collapsed", True),
         is_published=False,
     )
     page.services = [

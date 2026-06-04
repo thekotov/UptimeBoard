@@ -81,6 +81,7 @@ export interface PageStatus {
   description: string | null;
   group_name: string | null;
   status: Status;
+  default_collapsed: boolean;
   generated_at: string;
   maintenance: MaintenanceInfo | null;
   announcements: AnnouncementInfo[];
@@ -101,6 +102,7 @@ export interface Page {
   group_name: string | null;
   is_published: boolean;
   is_private: boolean;
+  default_collapsed: boolean;
 }
 export type ProbeType = "icmp" | "tcp" | "http" | "tls" | "heartbeat";
 

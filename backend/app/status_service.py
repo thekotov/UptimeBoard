@@ -138,6 +138,7 @@ def build_page_status(db: Session, page: Page) -> PageStatus:
         description=page.description,
         group_name=page.group_name,
         status=overall,
+        default_collapsed=page.default_collapsed,
         generated_at=now,
         maintenance=maintenance,
         announcements=announcements,

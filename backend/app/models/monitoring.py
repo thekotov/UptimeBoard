@@ -38,6 +38,9 @@ class Page(Base):
     # Private pages are hidden from the public directory but still reachable
     # via their direct /status/<slug> link.
     is_private: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # Default display density on the public page: when True, server blocks start
+    # collapsed (click to reveal probes); when False, everything is expanded.
+    default_collapsed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

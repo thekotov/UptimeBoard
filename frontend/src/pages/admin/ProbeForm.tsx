@@ -289,6 +289,7 @@ export function ProbeForm({
       <div>
         <label>{t("probe.failureThreshold")}</label>
         <input type="number" min={1} value={failureThreshold} onChange={(e) => setFailureThreshold(+e.target.value)} />
+        <span className="hint">{t("probe.failureThresholdHint")}</span>
       </div>
       <div>
         <label>{t("probe.degradedThreshold")}</label>

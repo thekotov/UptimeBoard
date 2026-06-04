@@ -49,6 +49,7 @@ class PageStatus(BaseModel):
     description: str | None = None
     group_name: str | None = None
     status: str
+    default_collapsed: bool = True
     generated_at: datetime
     maintenance: MaintenanceInfo | None = None
     announcements: list[AnnouncementInfo] = []

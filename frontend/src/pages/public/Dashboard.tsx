@@ -63,6 +63,7 @@ export function Dashboard() {
   const [q, setQ] = useState("");
   const [onlyProblems, setOnlyProblems] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  const [collapsedSrv, setCollapsedSrv] = useState<Set<number>>(new Set());
   const [range, setRange] = useState<TimeRange>("24h");
   const [updateSeq, setUpdateSeq] = useState(0);
   const [selectedProbe, setSelectedProbe] = useState<{ id: number; name: string } | null>(null);
@@ -105,9 +106,23 @@ export function Dashboard() {
       const id = setTimeout(() => setFlashIds(new Set()), 1600);
       return () => clearTimeout(id);
     }
-    if (!didInitCollapse.current && page.services.length > 4) {
+    if (!didInitCollapse.current) {
       didInitCollapse.current = true;
-      setCollapsed(new Set(page.services.filter((s) => !isProblem(s.status)).map((s) => s.id)));
+      // "Expanded" pages open everything; "collapsed" pages fold healthy blocks
+      // (problem services/servers stay open so issues are visible immediately).
+      if (page.default_collapsed) {
+        if (page.services.length > 4) {
+          setCollapsed(new Set(page.services.filter((s) => !isProblem(s.status)).map((s) => s.id)));
+        }
+        setCollapsedSrv(
+          new Set(
+            page.services
+              .flatMap((s) => s.servers)
+              .filter((sv) => !isProblem(sv.status))
+              .map((sv) => sv.id)
+          )
+        );
+      }
     }
   }, [page]);
 
@@ -219,6 +234,13 @@ export function Dashboard() {
     setCollapsed((c) => {
       const next = new Set(c);
       next.has(sid) ? next.delete(sid) : next.add(sid);
+      return next;
+    });
+
+  const toggleSrv = (id: number) =>
+    setCollapsedSrv((c) => {
+      const next = new Set(c);
+      next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
 
@@ -435,20 +457,36 @@ export function Dashboard() {
             {!isCollapsed &&
               service.servers.map((server) => {
                 const srvUptime = avgUptime(server.probes.map((p) => p.id));
+                const srvCollapsed = collapsedSrv.has(server.id);
+                const srvBar = aggregateBar(
+                  server.probes.map((p) => timeline[p.id]?.points).filter(Boolean) as Pt[][]
+                );
                 return (
                 <div className={`server srv-${server.status}`} key={server.id}>
-                  <div className="server-head">
+                  <div
+                    className="server-head collapse-head"
+                    onClick={() => toggleSrv(server.id)}
+                    title={srvCollapsed ? t("dash.showProbes") : t("dash.hideProbes")}
+                  >
                     <div className="inline">
+                      <span className={`chev ${srvCollapsed ? "" : "open"}`}>▶</span>
                       <StatusDot status={server.status} />
                       <strong>{server.name}</strong>
                       <span className="muted small">{server.host}</span>
+                      <span className="count-pill">{server.probes.length}</span>
                     </div>
                     <div className="inline">
+                      {srvCollapsed && srvBar.length > 1 && (
+                        <span className="svc-bar">
+                          <Timeline points={srvBar} count={srvBar.length} />
+                        </span>
+                      )}
                       {srvUptime != null && (
                         <span className="muted small">{srvUptime}% · {t(`range.${range}`)}</span>
                       )}
                     </div>
                   </div>
+                  {!srvCollapsed && (
                   <div className="probe-list">
                   {server.probes.map((probe) => {
                     const tl = timeline[probe.id];
@@ -495,6 +533,7 @@ export function Dashboard() {
                     );
                   })}
                   </div>
+                  )}
                 </div>
                 );
               })}
