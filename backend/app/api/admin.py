@@ -412,7 +412,8 @@ def export_page(page_id: int, db: Session = Depends(get_db)):
                                 "failure_threshold": p.failure_threshold,
                                 "latency_degraded_ms": p.latency_degraded_ms,
                                 "degraded_threshold": p.degraded_threshold,
-                                "down_threshold": p.down_threshold, "config": p.config,
+                                "down_threshold": p.down_threshold,
+                                "tolerance_checks": p.tolerance_checks, "config": p.config,
                             }
                             for p in s.probes
                         ],
@@ -455,6 +456,7 @@ def import_page(payload: dict = Body(...), db: Session = Depends(get_db)):
                             latency_degraded_ms=p.get("latency_degraded_ms"),
                             degraded_threshold=p.get("degraded_threshold", 1),
                             down_threshold=p.get("down_threshold", 1),
+                            tolerance_checks=p.get("tolerance_checks", 0),
                             config=p.get("config", {}),
                         )
                         for p in s.get("probes", [])

@@ -119,6 +119,7 @@ export interface Probe {
   latency_degraded_ms: number | null;
   degraded_threshold: number;
   down_threshold: number;
+  tolerance_checks: number;
   config: Record<string, unknown>;
   last_status: Status;
   last_latency_ms: number | null;

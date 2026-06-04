@@ -48,6 +48,7 @@ export function ProbeForm({
   const [latencyDegraded, setLatencyDegraded] = useState<number | "">(probe?.latency_degraded_ms ?? "");
   const [degradedThreshold, setDegradedThreshold] = useState(probe?.degraded_threshold ?? 1);
   const [downThreshold, setDownThreshold] = useState(probe?.down_threshold ?? 1);
+  const [toleranceChecks, setToleranceChecks] = useState(probe?.tolerance_checks ?? 0);
   // http
   const [url, setUrl] = useState(cfg.url ?? "");
   const [method, setMethod] = useState<string>(cfg.method ?? "GET");
@@ -99,6 +100,7 @@ export function ProbeForm({
     latency_degraded_ms: latencyDegraded === "" ? null : Number(latencyDegraded),
     degraded_threshold: Number(degradedThreshold),
     down_threshold: Number(downThreshold),
+    tolerance_checks: Number(toleranceChecks),
     config: editing ? { ...cfg, ...buildConfig() } : buildConfig(),
   });
 
@@ -300,6 +302,11 @@ export function ProbeForm({
         <label>{t("probe.downThreshold")}</label>
         <input type="number" min={1} value={downThreshold} onChange={(e) => setDownThreshold(+e.target.value)} />
         <span className="hint">{t("probe.downThresholdHint")}</span>
+      </div>
+      <div>
+        <label>{t("probe.tolerance")}</label>
+        <input type="number" min={0} value={toleranceChecks} onChange={(e) => setToleranceChecks(+e.target.value)} />
+        <span className="hint">{t("probe.toleranceHint")}</span>
       </div>
       {hasLatency && (
         <div>

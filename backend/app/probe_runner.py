@@ -24,15 +24,27 @@ def _is_bad(status: str) -> bool:
 
 
 def _display_status(probe: Probe, raw_status: str, consecutive_failures: int) -> str:
-    """Tier a hard-down outcome by how many times the probe has failed in a row.
+    """Recorded/displayed status for a check, derived from the raw outcome.
 
-    The check is displayed as ``degraded`` once it has failed ``degraded_threshold``
-    times and as ``down`` once it reaches ``down_threshold`` (both default 1, so a
-    failure is ``down`` immediately). Non-down outcomes — ``up``, a latency-induced
-    ``degraded`` or ``unknown`` — are returned unchanged; only genuine outages are
-    softened. The underlying incident/alert logic still uses the raw status, so
-    this only affects what the dashboard shows, not when alerts fire.
+    Two layers, both keyed off the consecutive-failure count:
+
+    1. **Tolerance (monitoring noise):** the first ``tolerance_checks`` bad checks
+       in a row — of *any* severity (degraded or down) — are treated as noise and
+       recorded as ``up``, so isolated blips (a latency spike, one packet-loss
+       sample, a single failed request) don't affect uptime, graphs or the
+       timeline. A real outage lasting longer than the tolerance counts fully.
+    2. **Down tiering:** past the tolerance, a hard-``down`` outcome shows as
+       ``degraded`` until it reaches ``down_threshold`` (then ``down``).
+
+    ``up``/``unknown`` pass through. Incident/alert logic uses the raw status, so
+    this only changes what's stored/shown, not when alerts fire.
     """
+    if raw_status in (STATUS_UP, STATUS_UNKNOWN):
+        return raw_status
+    # Layer 1: within tolerance -> treat as monitoring noise.
+    if consecutive_failures <= probe.tolerance_checks:
+        return STATUS_UP
+    # Layer 2: down tiering (degraded outcomes pass through unchanged).
     if raw_status != STATUS_DOWN:
         return raw_status
     if consecutive_failures >= max(1, probe.down_threshold):

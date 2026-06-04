@@ -117,6 +117,10 @@ class Probe(Base):
     # it reaches `down_threshold`. With both at 1 a failure is "down" immediately.
     degraded_threshold: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     down_threshold: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    # Monitoring noise tolerance: the first N consecutive bad checks (any severity)
+    # are treated as noise and recorded as "up", so isolated blips don't affect
+    # uptime, graphs or the timeline. A real outage (longer than N) counts fully.
+    tolerance_checks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
 
     # Denormalised latest result (kept in sync by the worker) for fast snapshots
     # and live status in the admin UI without scanning probe_results.
