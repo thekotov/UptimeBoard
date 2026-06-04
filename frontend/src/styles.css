@@ -696,12 +696,20 @@ button:focus:not(:focus-visible) { outline: none; }
   /* server header → tidy two-line block: name (+host +pill) on top, uptime below */
   .server-head { flex-direction: column; align-items: stretch; gap: 3px; }
   .server-head > .inline:first-child { flex-wrap: wrap; gap: 4px 8px; }
-  .server-head > .inline:first-child strong { font-size: 14px; }
-  .server-head > .inline:first-child .muted.small {
-    flex: 1 1 auto; min-width: 0; overflow: hidden;
-    text-overflow: ellipsis; white-space: nowrap; font-size: 12px;
+  /* name fills the line and pushes the probe-count pill to the right edge */
+  .server-head > .inline:first-child strong {
+    flex: 1 1 auto; min-width: 0; font-size: 14px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .server-head .count-pill { margin-left: 0; }
+  /* probe-count pill always sits top-right on the name line — never wraps under it,
+     so its position is identical for every server regardless of comment length */
+  .server-head .count-pill { margin-left: 0; order: 0; flex: 0 0 auto; }
+  /* comment/host always drops to its own full-width line, indented under the name
+     and ellipsized — uniform second line for every server */
+  .server-head > .inline:first-child .muted.small {
+    order: 1; flex: 1 1 100%; min-width: 0; padding-left: 22px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px;
+  }
   /* uptime line: left-aligned under the name, indented past the chevron+dot */
   .server-head > .inline:last-child { justify-content: flex-start; padding-left: 22px; }
 
