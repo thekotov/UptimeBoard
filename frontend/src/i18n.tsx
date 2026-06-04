@@ -195,6 +195,8 @@ const ru: Dict = {
   "valid.slugFree": "Свободно",
   "valid.url": "URL должен начинаться с http:// или https://",
   "valid.port": "Порт должен быть 1–65535",
+  "valid.email": "Некорректный email-адрес",
+  "valid.required": "Обязательное поле",
 
   // alert routing
   "alerts.scope": "Применять к",
@@ -548,6 +550,8 @@ const en: Dict = {
   "valid.slugFree": "Available",
   "valid.url": "URL must start with http:// or https://",
   "valid.port": "Port must be 1–65535",
+  "valid.email": "Invalid email address",
+  "valid.required": "Required field",
 
   "alerts.scope": "Applies to",
   "alerts.allPages": "All pages",

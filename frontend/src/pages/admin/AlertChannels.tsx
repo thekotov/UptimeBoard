@@ -264,8 +264,31 @@ function ChannelForm({
     return base;
   };
 
+  // --- inline validation ---
+  const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+  // a secret left blank while editing means "keep the stored one" — not missing
+  const tokenMissing = type === "telegram" && !editing && !botToken.trim();
+  const chatMissing = type === "telegram" && !chatId.trim();
+  const urlMissing = type === "webhook" && !url.trim();
+  const urlBad = type === "webhook" && url.trim() !== "" && !/^https?:\/\//i.test(url.trim());
+  const hostMissing = type === "email" && !smtpHost.trim();
+  const fromMissing = type === "email" && !from.trim();
+  const fromBad = type === "email" && from.trim() !== "" && !EMAIL_RE.test(from.trim());
+  const toMissing = type === "email" && !to.trim();
+  const toBad = type === "email" && to.trim() !== "" && !EMAIL_RE.test(to.trim());
+  const formInvalid =
+    tokenMissing || chatMissing || urlMissing || urlBad ||
+    hostMissing || fromMissing || fromBad || toMissing || toBad;
+
+  // surface "required" messages once a field has been left, format errors always
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const touch = (k: string) => () => setTouched((s) => ({ ...s, [k]: true }));
+  const reqMsg = (k: string, missing: boolean) =>
+    touched[k] && missing ? <div className="field-msg err">{t("valid.required")}</div> : null;
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (formInvalid) return;
     setBusy(true);
     try {
       const payload = {
@@ -285,14 +308,16 @@ function ChannelForm({
     }
   };
 
+  const testBody = () => ({
+    type,
+    ...(editing ? { channel_id: channel!.id } : {}),
+    config: buildConfig(),
+  });
+
   const runTest = async () => {
     setTesting(true);
     try {
-      const res = await testChannel({
-        type: "telegram",
-        ...(editing ? { channel_id: channel!.id } : {}),
-        config: { bot_token: botToken, proxy: proxy.trim() },
-      });
+      const res = await testChannel(testBody());
       toast.show(res.detail, res.ok ? "success" : "error");
     } catch {
       toast.error(t("toast.error"));
@@ -304,11 +329,7 @@ function ChannelForm({
   const runSendAlert = async () => {
     setSendingAlert(true);
     try {
-      const res = await sendTestAlert({
-        type: "telegram",
-        ...(editing ? { channel_id: channel!.id } : {}),
-        config: { bot_token: botToken, chat_id: chatId, proxy: proxy.trim() },
-      });
+      const res = await sendTestAlert(testBody());
       toast.show(res.detail, res.ok ? "success" : "error");
     } catch {
       toast.error(t("toast.error"));
@@ -342,13 +363,22 @@ function ChannelForm({
             <label>{t("alerts.botToken")}</label>
             <input
               value={botToken}
+              className={touched.botToken && tokenMissing ? "invalid" : ""}
               placeholder={editing ? "••••••" : ""}
+              onBlur={touch("botToken")}
               onChange={(e) => setBotToken(e.target.value)}
             />
+            {reqMsg("botToken", tokenMissing)}
           </div>
           <div>
             <label>{t("alerts.chatId")}</label>
-            <input value={chatId} onChange={(e) => setChatId(e.target.value)} />
+            <input
+              value={chatId}
+              className={touched.chatId && chatMissing ? "invalid" : ""}
+              onBlur={touch("chatId")}
+              onChange={(e) => setChatId(e.target.value)}
+            />
+            {reqMsg("chatId", chatMissing)}
           </div>
           <div className="full">
             <label>{t("alerts.proxy")}</label>
@@ -364,7 +394,14 @@ function ChannelForm({
       {type === "webhook" && (
         <div className="full">
           <label>{t("alerts.webhookUrl")}</label>
-          <input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://hooks…" />
+          <input
+            value={url}
+            className={urlBad || (touched.url && urlMissing) ? "invalid" : ""}
+            onBlur={touch("url")}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://hooks…"
+          />
+          {urlBad ? <div className="field-msg err">{t("valid.url")}</div> : reqMsg("url", urlMissing)}
         </div>
       )}
 
@@ -372,7 +409,14 @@ function ChannelForm({
         <>
           <div>
             <label>{t("alerts.smtpHost")}</label>
-            <input value={smtpHost} onChange={(e) => setSmtpHost(e.target.value)} placeholder="smtp.example.com" />
+            <input
+              value={smtpHost}
+              className={touched.smtpHost && hostMissing ? "invalid" : ""}
+              onBlur={touch("smtpHost")}
+              onChange={(e) => setSmtpHost(e.target.value)}
+              placeholder="smtp.example.com"
+            />
+            {reqMsg("smtpHost", hostMissing)}
           </div>
           <div>
             <label>{t("alerts.smtpPort")}</label>
@@ -380,11 +424,25 @@ function ChannelForm({
           </div>
           <div>
             <label>{t("alerts.from")}</label>
-            <input value={from} onChange={(e) => setFrom(e.target.value)} placeholder="mon@example.com" />
+            <input
+              value={from}
+              className={fromBad || (touched.from && fromMissing) ? "invalid" : ""}
+              onBlur={touch("from")}
+              onChange={(e) => setFrom(e.target.value)}
+              placeholder="mon@example.com"
+            />
+            {fromBad ? <div className="field-msg err">{t("valid.email")}</div> : reqMsg("from", fromMissing)}
           </div>
           <div>
             <label>{t("alerts.to")}</label>
-            <input value={to} onChange={(e) => setTo(e.target.value)} placeholder="ops@example.com" />
+            <input
+              value={to}
+              className={toBad || (touched.to && toMissing) ? "invalid" : ""}
+              onBlur={touch("to")}
+              onChange={(e) => setTo(e.target.value)}
+              placeholder="ops@example.com"
+            />
+            {toBad ? <div className="field-msg err">{t("valid.email")}</div> : reqMsg("to", toMissing)}
           </div>
           <div>
             <label>{t("alerts.smtpUser")}</label>
@@ -454,21 +512,17 @@ function ChannelForm({
       </details>
 
       <div className="form-actions">
-        {type === "telegram" && (
-          <>
-            <button type="button" className="secondary btn-sm" onClick={runTest} disabled={testing}>
-              <RefreshIcon size={14} /> {testing ? t("alerts.testing") : t("alerts.test")}
-            </button>
-            <button type="button" className="secondary btn-sm" onClick={runSendAlert} disabled={sendingAlert}>
-              {sendingAlert ? t("alerts.sendingAlert") : t("alerts.testAlert")}
-            </button>
-          </>
-        )}
+        <button type="button" className="secondary btn-sm" onClick={runTest} disabled={testing}>
+          <RefreshIcon size={14} /> {testing ? t("alerts.testing") : t("alerts.test")}
+        </button>
+        <button type="button" className="secondary btn-sm" onClick={runSendAlert} disabled={sendingAlert}>
+          {sendingAlert ? t("alerts.sendingAlert") : t("alerts.testAlert")}
+        </button>
         <span style={{ flex: 1 }} />
         <button type="button" className="ghost" onClick={onCancel} disabled={busy}>
           {t("cancel")}
         </button>
-        <button disabled={busy}>{editing ? t("save") : t("add")}</button>
+        <button disabled={busy || formInvalid}>{editing ? t("save") : t("add")}</button>
       </div>
     </form>
   );

@@ -217,6 +217,18 @@ def test_telegram(token: str, proxy: str | None) -> tuple[bool, str]:
         return False, str(exc)
 
 
+def _sample_ctx() -> dict:
+    """A representative alert context used by the end-to-end channel tests."""
+    now = datetime.now(timezone.utc)
+    return {
+        "event": "opened", "probe": "Тестовая проба", "type": "https",
+        "host": "example.com", "server": "Тест-сервер", "service": "Проверка",
+        "page": "", "status": "down", "error": "Это тестовый алерт",
+        "latency": 123.0, "duration": _fmt_duration(90),
+        "url": "", "time": now.strftime("%d.%m.%Y %H:%M:%S UTC"),
+    }
+
+
 def send_test_telegram(config: dict) -> tuple[bool, str]:
     """Deliver a sample formatted alert to the channel's Telegram chat so the
     operator can confirm the bot token, chat_id (and proxy) actually work
@@ -225,15 +237,7 @@ def send_test_telegram(config: dict) -> tuple[bool, str]:
         return False, "bot_token required"
     if not config.get("chat_id"):
         return False, "chat_id required"
-    now = datetime.now(timezone.utc)
-    ctx = {
-        "event": "opened", "probe": "Тестовая проба", "type": "https",
-        "host": "example.com", "server": "Тест-сервер", "service": "Проверка",
-        "page": "", "status": "down", "error": "Это тестовый алерт",
-        "latency": 123.0, "duration": _fmt_duration(90),
-        "url": "", "time": now.strftime("%d.%m.%Y %H:%M:%S UTC"),
-    }
-    _, default_html = _build_messages(ctx)
+    _, default_html = _build_messages(_sample_ctx())
     text = "🧪 <b>ТЕСТ</b>\n\n" + default_html
     try:
         _send_telegram(config, text, parse_mode="HTML")
@@ -254,23 +258,102 @@ def _send_webhook(config: dict, payload: dict) -> None:
     resp.raise_for_status()
 
 
+def test_webhook(config: dict) -> tuple[bool, str]:
+    """POST a tiny ping payload to the webhook URL and check for a 2xx. Returns
+    (ok, detail)."""
+    if not config.get("url"):
+        return False, "url required"
+    try:
+        _send_webhook(config, {"event": "test", "text": "🧪 monitoring webhook test"})
+        return True, "Вебхук принял запрос (2xx)"
+    except httpx.HTTPStatusError as exc:
+        return False, f"HTTP {exc.response.status_code}"
+    except Exception as exc:  # noqa: BLE001
+        return False, str(exc)
+
+
+def send_test_webhook(config: dict) -> tuple[bool, str]:
+    """POST a full sample alert payload to the webhook so the operator can verify
+    the receiving side parses it end-to-end. Returns (ok, detail)."""
+    if not config.get("url"):
+        return False, "url required"
+    ctx = _sample_ctx()
+    plain, _ = _build_messages(ctx)
+    payload = {
+        "event": ctx["event"], "probe": ctx["probe"], "type": ctx["type"],
+        "host": ctx["host"], "server": ctx["server"], "service": ctx["service"],
+        "page": ctx["page"], "status": ctx["status"], "error": ctx["error"],
+        "latency_ms": ctx["latency"], "duration": ctx["duration"], "url": ctx["url"],
+        "test": True, "text": "🧪 ТЕСТ\n\n" + plain,
+    }
+    try:
+        _send_webhook(config, payload)
+        return True, "Тестовый вебхук отправлен"
+    except httpx.HTTPStatusError as exc:
+        return False, f"HTTP {exc.response.status_code}"
+    except Exception as exc:  # noqa: BLE001
+        return False, str(exc)
+
+
+def _smtp_connect(config: dict):
+    """Open an SMTP connection per the channel config (SSL/STARTTLS + optional
+    login). The caller must quit() it."""
+    host = config["smtp_host"]
+    port = int(config.get("smtp_port", 587))
+    use_ssl = bool(config.get("use_ssl", port == 465))
+    smtp = (smtplib.SMTP_SSL(host, port, timeout=_TIMEOUT) if use_ssl
+            else smtplib.SMTP(host, port, timeout=_TIMEOUT))
+    if not use_ssl and config.get("use_tls", True):
+        smtp.starttls()
+    if config.get("username") and config.get("password"):
+        smtp.login(config["username"], config["password"])
+    return smtp
+
+
+def test_email(config: dict) -> tuple[bool, str]:
+    """Open an SMTP session (TLS + optional auth) and NOOP, without sending mail,
+    to confirm the host/port/credentials work. Returns (ok, detail)."""
+    if not config.get("smtp_host"):
+        return False, "smtp_host required"
+    try:
+        smtp = _smtp_connect(config)
+        try:
+            smtp.noop()
+        finally:
+            smtp.quit()
+        return True, f"SMTP {config['smtp_host']}:{config.get('smtp_port', 587)} OK"
+    except Exception as exc:  # noqa: BLE001
+        return False, str(exc)
+
+
+def send_test_email(config: dict) -> tuple[bool, str]:
+    """Send a sample alert email so the operator can confirm delivery end-to-end.
+    Returns (ok, detail)."""
+    if not config.get("smtp_host"):
+        return False, "smtp_host required"
+    if not config.get("to"):
+        return False, "to required"
+    if not (config.get("from") or config.get("username")):
+        return False, "from required"
+    plain, _ = _build_messages(_sample_ctx())
+    try:
+        _send_email(config, subject="🧪 ТЕСТ: мониторинг", text="🧪 ТЕСТ\n\n" + plain)
+        return True, "Тестовое письмо отправлено"
+    except Exception as exc:  # noqa: BLE001
+        return False, str(exc)
+
+
 def _send_email(config: dict, subject: str, text: str) -> None:
     host, to_addr = config.get("smtp_host"), config.get("to")
     from_addr = config.get("from") or config.get("username")
     if not host or not to_addr or not from_addr:
         logger.warning("email channel misconfigured")
         return
-    port = int(config.get("smtp_port", 587))
     msg = EmailMessage()
     msg["Subject"], msg["From"], msg["To"] = subject, from_addr, to_addr
     msg.set_content(text)
-    use_ssl = bool(config.get("use_ssl", port == 465))
-    smtp = smtplib.SMTP_SSL(host, port, timeout=_TIMEOUT) if use_ssl else smtplib.SMTP(host, port, timeout=_TIMEOUT)
+    smtp = _smtp_connect(config)
     try:
-        if not use_ssl and config.get("use_tls", True):
-            smtp.starttls()
-        if config.get("username") and config.get("password"):
-            smtp.login(config["username"], config["password"])
         smtp.send_message(msg)
     finally:
         smtp.quit()

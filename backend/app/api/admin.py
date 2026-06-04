@@ -46,7 +46,14 @@ from app.schemas.admin import (
 )
 from app.realtime import get_sync_redis
 from app.config import settings
-from app.alerts import send_test_telegram, test_telegram
+from app.alerts import (
+    send_test_email,
+    send_test_telegram,
+    send_test_webhook,
+    test_email,
+    test_telegram,
+    test_webhook,
+)
 from app.probe_runner import execute_and_store
 from app.probes import run_probe
 from app.schemas.public import IncidentItem
@@ -732,30 +739,45 @@ def _resolve_test_config(payload: AlertChannelTest, db: Session) -> dict:
     if payload.channel_id is not None:
         stored = db.get(AlertChannel, payload.channel_id)
         if stored is not None:
-            for key in ("bot_token", "proxy", "chat_id"):
+            # Fill any field left blank or masked from the stored config so a
+            # test for an existing channel needs no secret re-entry (any type).
+            for key, val in (stored.config or {}).items():
                 if not cfg.get(key) or cfg.get(key) == _MASK:
-                    cfg[key] = (stored.config or {}).get(key, cfg.get(key))
+                    cfg[key] = val
     return cfg
 
 
 @router.post("/alert-channels/test")
 def test_alert_channel(payload: AlertChannelTest, db: Session = Depends(get_db)):
-    """Test a channel's connectivity. Telegram: getMe via optional SOCKS5 proxy."""
+    """Test a channel's connectivity without sending a real alert:
+    Telegram getMe (optional SOCKS5 proxy), a webhook ping POST, or an SMTP
+    handshake + login."""
     cfg = _resolve_test_config(payload, db)
     if payload.type == "telegram":
         ok, detail = test_telegram(cfg.get("bot_token"), cfg.get("proxy"))
-        return {"ok": ok, "detail": detail}
-    return {"ok": False, "detail": "test not supported for this channel type"}
+    elif payload.type == "webhook":
+        ok, detail = test_webhook(cfg)
+    elif payload.type == "email":
+        ok, detail = test_email(cfg)
+    else:
+        return {"ok": False, "detail": "test not supported for this channel type"}
+    return {"ok": ok, "detail": detail}
 
 
 @router.post("/alert-channels/test-alert")
 def test_alert_channel_send(payload: AlertChannelTest, db: Session = Depends(get_db)):
-    """Send a real sample alert to the channel's Telegram chat (end-to-end test)."""
+    """Send a real sample alert through the channel (Telegram / webhook / email)
+    so the operator can confirm end-to-end delivery."""
     cfg = _resolve_test_config(payload, db)
     if payload.type == "telegram":
         ok, detail = send_test_telegram(cfg)
-        return {"ok": ok, "detail": detail}
-    return {"ok": False, "detail": "test alert supported only for Telegram"}
+    elif payload.type == "webhook":
+        ok, detail = send_test_webhook(cfg)
+    elif payload.type == "email":
+        ok, detail = send_test_email(cfg)
+    else:
+        return {"ok": False, "detail": "test alert not supported for this channel type"}
+    return {"ok": ok, "detail": detail}
 
 
 @router.post("/alert-channels", response_model=AlertChannelOut, status_code=201)

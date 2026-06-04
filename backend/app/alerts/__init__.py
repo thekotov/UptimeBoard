@@ -3,8 +3,12 @@ from app.alerts.dispatcher import (
     base_channels,
     dispatch,
     escalation_channels,
+    send_test_email,
     send_test_telegram,
+    send_test_webhook,
+    test_email,
     test_telegram,
+    test_webhook,
 )
 
 __all__ = [
@@ -14,4 +18,8 @@ __all__ = [
     "all_escalation_channels",
     "test_telegram",
     "send_test_telegram",
+    "test_webhook",
+    "send_test_webhook",
+    "test_email",
+    "send_test_email",
 ]
