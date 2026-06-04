@@ -18,7 +18,7 @@ interface UptimeEntry {
   points: { checked_at: string; status: string; latency_ms: number | null }[];
 }
 
-const RANGES: TimeRange[] = ["24h", "7d", "30d", "90d"];
+const RANGES: TimeRange[] = ["15m", "24h", "7d", "30d", "90d"];
 
 const isProblem = (st: Status) => st === "down" || st === "degraded";
 const STATUS_GLYPH: Record<Status, string> = { up: "✓", degraded: "!", down: "✕", unknown: "?", paused: "⏸" };
@@ -444,7 +444,9 @@ export function Dashboard() {
                       <span className="muted small">{server.host}</span>
                     </div>
                     <div className="inline">
-                      {srvUptime != null && <span className="muted small">{srvUptime}% · 24ч</span>}
+                      {srvUptime != null && (
+                        <span className="muted small">{srvUptime}% · {t(`range.${range}`)}</span>
+                      )}
                     </div>
                   </div>
                   <div className="probe-list">

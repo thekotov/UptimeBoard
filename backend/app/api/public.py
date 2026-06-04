@@ -24,6 +24,7 @@ from app.status_service import build_page_status
 router = APIRouter(prefix="/api/public", tags=["public"])
 
 _RANGES = {
+    "15m": timedelta(minutes=15),
     "1h": timedelta(hours=1),
     "24h": timedelta(hours=24),
     "7d": timedelta(days=7),

@@ -7,6 +7,7 @@ import {
   api,
   checkProbeNow,
   clearIncidents,
+  clearMetrics,
   clone,
   createAnnouncement,
   createMaintenance,
@@ -235,6 +236,16 @@ export function PageEditor() {
     URL.revokeObjectURL(a.href);
   };
 
+  const clearPageMetrics = async () => {
+    if (!(await confirm({ message: t("metrics.confirmPage", { title: page.title }), danger: true }))) return;
+    try {
+      const n = await clearMetrics(page.id);
+      toast.success(t("metrics.cleared", { n }));
+    } catch {
+      toast.error(t("toast.error"));
+    }
+  };
+
   // --- drag & drop ordering ---
   const dnd = (key: string, index: number, onReorder: (from: number, to: number) => void) => ({
     draggable: true,
@@ -333,6 +344,9 @@ export function PageEditor() {
             </button>
             <button className="secondary btn-sm" onClick={doExport}>
               ⬇ {t("io.export")}
+            </button>
+            <button className="secondary btn-sm" onClick={clearPageMetrics} title={t("metrics.hintPage")}>
+              🧹 {t("metrics.clear")}
             </button>
             <button
               className="secondary btn-sm"

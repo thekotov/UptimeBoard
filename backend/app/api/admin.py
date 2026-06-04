@@ -14,6 +14,7 @@ from app.models import (
     MaintenanceWindow,
     Page,
     Probe,
+    ProbeResult,
     Server,
     Service,
     User,
@@ -629,6 +630,29 @@ def clear_page_incidents(page_id: int, only_resolved: bool = False, db: Session 
         q = q.filter(Incident.resolved_at.is_not(None))
     q.delete(synchronize_session=False)
     db.commit()
+
+
+# ---------------- Metrics ----------------
+
+
+@router.delete("/metrics")
+def clear_metrics(page_id: int | None = None, db: Session = Depends(get_db)):
+    """Wipe stored probe results (timeline/uptime history).
+
+    Without ``page_id`` clears every probe's history; with it, only that page's
+    probes. Denormalised current statuses are left intact — they refresh on the
+    next check. Returns how many result rows were removed.
+    """
+    q = db.query(ProbeResult)
+    if page_id is not None:
+        _get_or_404(db, Page, page_id)
+        probe_ids = _page_probe_ids(db, page_id)
+        if not probe_ids:
+            return {"deleted": 0}
+        q = q.filter(ProbeResult.probe_id.in_(probe_ids))
+    deleted = q.delete(synchronize_session=False)
+    db.commit()
+    return {"deleted": deleted}
 
 
 # ---------------- Alert channels ----------------

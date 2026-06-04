@@ -6,9 +6,10 @@ import { Spinner } from "../../components/Spinner";
 import { StatusDot } from "../../components/StatusBadge";
 import { relativeTime, useI18n } from "../../i18n";
 
-const RANGES: TimeRange[] = ["24h", "7d", "30d", "90d"];
+const RANGES: TimeRange[] = ["15m", "24h", "7d", "30d", "90d"];
 
 const RANGE_MS: Record<TimeRange, number> = {
+  "15m": 15 * 60e3,
   "24h": 24 * 3600e3,
   "7d": 7 * 864e5,
   "30d": 30 * 864e5,

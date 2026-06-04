@@ -195,7 +195,7 @@ export interface CheckResult {
   error: string | null;
 }
 
-export type TimeRange = "24h" | "7d" | "30d" | "90d";
+export type TimeRange = "15m" | "24h" | "7d" | "30d" | "90d";
 
 export async function listPublicPages(): Promise<PageListItem[]> {
   const { data } = await api.get<PageListItem[]>("/public/pages");
@@ -264,6 +264,12 @@ export async function deleteIncident(id: number): Promise<void> {
 }
 export async function clearIncidents(pageId: number, onlyResolved = false): Promise<void> {
   await api.delete(`/admin/pages/${pageId}/incidents?only_resolved=${onlyResolved}`);
+}
+export async function clearMetrics(pageId?: number): Promise<number> {
+  const { data } = await api.delete<{ deleted: number }>(
+    "/admin/metrics" + (pageId != null ? `?page_id=${pageId}` : "")
+  );
+  return data.deleted;
 }
 
 export async function testChannel(body: {

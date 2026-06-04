@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, importPage, type Page } from "../../api/client";
+import { api, clearMetrics, importPage, type Page } from "../../api/client";
 import { PencilIcon, TrashIcon } from "../../components/Icons";
 import { Modal } from "../../components/Modal";
 import { Skeleton } from "../../components/Skeleton";
@@ -34,6 +34,16 @@ export function Pages() {
     await api.delete(`/admin/pages/${id}`);
     toast.success(t("toast.deleted"));
     load();
+  };
+
+  const clearAllMetrics = async () => {
+    if (!(await confirm({ message: t("metrics.confirm"), danger: true }))) return;
+    try {
+      const n = await clearMetrics();
+      toast.success(t("metrics.cleared", { n }));
+    } catch {
+      toast.error(t("toast.error"));
+    }
   };
 
   const onImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -89,6 +99,9 @@ export function Pages() {
           style={{ display: "none" }}
           onChange={onImportFile}
         />
+        <button className="ghost danger" onClick={clearAllMetrics} title={t("metrics.hint")}>
+          🧹 {t("metrics.clear")}
+        </button>
         <div className="search">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("search")} />
         </div>
