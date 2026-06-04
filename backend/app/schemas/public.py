@@ -85,6 +85,17 @@ class IncidentItem(BaseModel):
     acknowledged_at: datetime | None = None
 
 
+class LatencyStats(BaseModel):
+    avg: float | None = None
+    p50: float | None = None
+    p95: float | None = None
+    p99: float | None = None
+    min: float | None = None
+    max: float | None = None
+    # True when derived from rollups (percentiles are approximate, not exact).
+    approx: bool = False
+
+
 class ProbeHistory(BaseModel):
     probe_id: int
     name: str
@@ -95,3 +106,4 @@ class ProbeHistory(BaseModel):
     total: int
     points: list[dict]  # bucketed [{checked_at, status, latency_ms}]
     recent: list[dict]  # last raw checks [{checked_at, status, latency_ms, error}]
+    latency: LatencyStats | None = None

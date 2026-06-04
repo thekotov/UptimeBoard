@@ -5,9 +5,11 @@ from sqlalchemy import (
     DateTime,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -152,6 +154,44 @@ class ProbeResult(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     probe: Mapped["Probe"] = relationship(back_populates="results")
+
+
+class ProbeRollup(Base):
+    """Pre-aggregated probe metrics per fixed period (hour/day).
+
+    Raw ``probe_results`` are kept only for a short retention window; rollups are
+    compact and long-lived, so long-range dashboards/uptime/latency are fast and
+    survive raw cleanup. One row per (probe, period, bucket-start). Latency
+    percentiles are computed over the raw checks of that period via Postgres
+    ``percentile_cont`` when the rollup is built.
+    """
+
+    __tablename__ = "probe_rollups"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    probe_id: Mapped[int] = mapped_column(
+        ForeignKey("probes.id", ondelete="CASCADE"), nullable=False
+    )
+    period: Mapped[str] = mapped_column(String(8), nullable=False)  # 'hour' | 'day'
+    bucket: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    total: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    up_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    degraded_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    down_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    uptime_pct: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+
+    latency_avg: Mapped[float | None] = mapped_column(Float, nullable=True)
+    latency_p50: Mapped[float | None] = mapped_column(Float, nullable=True)
+    latency_p95: Mapped[float | None] = mapped_column(Float, nullable=True)
+    latency_p99: Mapped[float | None] = mapped_column(Float, nullable=True)
+    latency_min: Mapped[float | None] = mapped_column(Float, nullable=True)
+    latency_max: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("probe_id", "period", "bucket", name="uq_rollup_probe_period_bucket"),
+        Index("ix_rollup_lookup", "probe_id", "period", "bucket"),
+    )
 
 
 class Incident(Base):

@@ -22,6 +22,7 @@ from app.db import SessionLocal
 from app.models import Probe, ProbeResult
 from app.probe_runner import execute_and_store
 from app.realtime import get_sync_redis, write_worker_heartbeat
+from app.rollups import backfill_rollups, build_rollups, cleanup_rollups
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("worker")
@@ -50,7 +51,15 @@ def _check_probe(probe_id: int) -> None:
 
 
 def _retention_cleanup() -> None:
+    # Roll up first so freshly-aggregated history survives the raw cleanup.
     db: Session = SessionLocal()
+    try:
+        build_rollups(db)
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        logger.exception("rollup build failed (skipping raw cleanup this tick)")
+        db.close()
+        return
     try:
         cutoff = datetime.now(timezone.utc) - timedelta(days=settings.result_retention_days)
         deleted = (
@@ -59,9 +68,25 @@ def _retention_cleanup() -> None:
         db.commit()
         if deleted:
             logger.info("retention: removed %s old probe results", deleted)
+        dropped = cleanup_rollups(db)
+        if dropped:
+            logger.info("retention: removed %s old rollups", dropped)
     except Exception:  # noqa: BLE001
         db.rollback()
         logger.exception("retention cleanup failed")
+    finally:
+        db.close()
+
+
+def _rollup_tick() -> None:
+    """Frequent rollup refresh so long-range views stay current between the
+    less-frequent retention runs."""
+    db: Session = SessionLocal()
+    try:
+        build_rollups(db)
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        logger.exception("rollup tick failed")
     finally:
         db.close()
 
@@ -115,6 +140,15 @@ def _listen_for_reload() -> None:
 def main() -> None:
     logger.info("starting monitoring worker")
     _load_schedule()
+    # One-time backfill so long-range views are populated from existing raw data.
+    db = SessionLocal()
+    try:
+        backfill_rollups(db)
+    except Exception:  # noqa: BLE001
+        db.rollback()
+        logger.exception("initial rollup backfill failed")
+    finally:
+        db.close()
     write_worker_heartbeat()  # beat once at startup so health is green immediately
     scheduler.add_job(
         write_worker_heartbeat,
@@ -129,6 +163,14 @@ def main() -> None:
         hours=6,
         id="retention-cleanup",
         replace_existing=True,
+    )
+    scheduler.add_job(
+        _rollup_tick,
+        trigger="interval",
+        minutes=settings.rollup_interval_min,
+        id="rollup-tick",
+        replace_existing=True,
+        next_run_time=datetime.now(timezone.utc),  # build an initial set immediately
     )
     # Periodic safety-net reload: picks up probes added directly to the DB
     # (e.g. the seed script) or any reload signal that was missed.

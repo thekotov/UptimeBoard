@@ -91,6 +91,7 @@ const ru: Dict = {
   "modal.latencyTitle": "Время ответа, мс",
   "modal.noLatency": "Нет данных о времени ответа за период.",
   "modal.noData": "Нет данных",
+  "modal.latencyApprox": "Приблизительно: за длинный период перцентили считаются по агрегатам (роллапам).",
   "modal.uptime": "Аптайм",
   "modal.checks": "проверок",
 
@@ -403,6 +404,7 @@ const en: Dict = {
   "modal.latencyTitle": "Response time, ms",
   "modal.noLatency": "No response-time data for this range.",
   "modal.noData": "No data",
+  "modal.latencyApprox": "Approximate: over long ranges percentiles are computed from aggregates (rollups).",
   "modal.uptime": "Uptime",
   "modal.checks": "checks",
 

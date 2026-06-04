@@ -167,6 +167,15 @@ export interface HistoryPoint {
   latency_ms: number | null;
   error?: string | null;
 }
+export interface LatencyStats {
+  avg: number | null;
+  p50: number | null;
+  p95: number | null;
+  p99: number | null;
+  min: number | null;
+  max: number | null;
+  approx: boolean;
+}
 export interface ProbeHistory {
   probe_id: number;
   name: string;
@@ -177,6 +186,7 @@ export interface ProbeHistory {
   total: number;
   points: HistoryPoint[];
   recent: HistoryPoint[];
+  latency: LatencyStats | null;
 }
 export interface Incident {
   id: number;

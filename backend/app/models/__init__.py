@@ -6,6 +6,7 @@ from app.models.monitoring import (
     Page,
     Probe,
     ProbeResult,
+    ProbeRollup,
     Server,
     Service,
 )
@@ -18,6 +19,7 @@ __all__ = [
     "Server",
     "Probe",
     "ProbeResult",
+    "ProbeRollup",
     "Incident",
     "MaintenanceWindow",
     "Announcement",

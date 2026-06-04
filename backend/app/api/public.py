@@ -3,17 +3,18 @@ import json
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from sqlalchemy import asc
+from sqlalchemy import asc, text
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
 from app.aggregation import worst
 from app.config import settings
 from app.db import SessionLocal, get_db
-from app.models import Incident, Page, Probe, ProbeResult, Server, Service
+from app.models import Incident, Page, Probe, ProbeResult, ProbeRollup, Server, Service
 from app.realtime import get_async_redis
 from app.schemas.public import (
     IncidentItem,
+    LatencyStats,
     PageListItem,
     PageStatus,
     ProbeHistory,
@@ -75,6 +76,95 @@ def _series_points(results: list, since: datetime, window: timedelta, n_buckets:
     return points
 
 
+# Long ranges read from pre-aggregated rollups (compact + survive raw cleanup);
+# shorter ranges read raw probe_results directly for full fidelity.
+_ROLLUP_PERIOD = {"7d": "hour", "30d": "day", "90d": "day"}
+
+
+def _rollup_status(up: int, degraded: int, down: int, total: int) -> str:
+    """Representative status for a rollup bucket: green only if all checks were
+    up, red when the majority failed, amber otherwise."""
+    if total <= 0:
+        return "unknown"
+    if up >= total:
+        return "up"
+    if down * 2 >= total:
+        return "down"
+    return "degraded"
+
+
+def _rollup_points(rows: list[ProbeRollup]) -> list[dict]:
+    return [
+        {
+            "checked_at": r.bucket.isoformat(),
+            "status": _rollup_status(r.up_count, r.degraded_count, r.down_count, r.total),
+            "latency_ms": r.latency_avg,
+        }
+        for r in rows
+    ]
+
+
+def _fetch_rollups(db: Session, probe_ids: list[int], period: str, since: datetime) -> dict[int, list]:
+    rows = (
+        db.query(ProbeRollup)
+        .filter(
+            ProbeRollup.probe_id.in_(probe_ids),
+            ProbeRollup.period == period,
+            ProbeRollup.bucket >= since,
+        )
+        .order_by(asc(ProbeRollup.probe_id), asc(ProbeRollup.bucket))
+        .all()
+    )
+    by_probe: dict[int, list] = {pid: [] for pid in probe_ids}
+    for r in rows:
+        by_probe[r.probe_id].append(r)
+    return by_probe
+
+
+def _latency_stats_raw(db: Session, probe_id: int, since: datetime) -> LatencyStats:
+    """Exact latency stats over raw results (used for short ranges)."""
+    row = db.execute(
+        text(
+            """
+            SELECT avg(latency_ms),
+                   percentile_cont(0.5)  WITHIN GROUP (ORDER BY latency_ms),
+                   percentile_cont(0.95) WITHIN GROUP (ORDER BY latency_ms),
+                   percentile_cont(0.99) WITHIN GROUP (ORDER BY latency_ms),
+                   min(latency_ms), max(latency_ms)
+            FROM probe_results
+            WHERE probe_id = :pid AND checked_at >= :since AND latency_ms IS NOT NULL
+            """
+        ),
+        {"pid": probe_id, "since": since},
+    ).first()
+    if not row or row[0] is None:
+        return LatencyStats()
+    return LatencyStats(avg=row[0], p50=row[1], p95=row[2], p99=row[3], min=row[4], max=row[5])
+
+
+def _wavg(pairs: list[tuple[float | None, int]]) -> float | None:
+    """Count-weighted average of (value, weight), skipping None values."""
+    num = sum(v * w for v, w in pairs if v is not None)
+    den = sum(w for v, w in pairs if v is not None)
+    return (num / den) if den else None
+
+
+def _latency_stats_rollup(rows: list) -> LatencyStats:
+    """Approximate latency stats over rollups (long ranges). Percentiles are
+    count-weighted averages of per-bucket percentiles — flagged ``approx``."""
+    mins = [r.latency_min for r in rows if r.latency_min is not None]
+    maxs = [r.latency_max for r in rows if r.latency_max is not None]
+    return LatencyStats(
+        avg=_wavg([(r.latency_avg, r.total) for r in rows]),
+        p50=_wavg([(r.latency_p50, r.total) for r in rows]),
+        p95=_wavg([(r.latency_p95, r.total) for r in rows]),
+        p99=_wavg([(r.latency_p99, r.total) for r in rows]),
+        min=min(mins) if mins else None,
+        max=max(maxs) if maxs else None,
+        approx=True,
+    )
+
+
 @router.get("/pages", response_model=list[PageListItem])
 def list_public_pages(db: Session = Depends(get_db)):
     """Directory of published pages (for the public home/index).
@@ -126,6 +216,22 @@ def get_timeline(
     if not probe_ids:
         return []
 
+    period = _ROLLUP_PERIOD.get(range)
+    if period:
+        by_probe_r = _fetch_rollups(db, probe_ids, period, since)
+        result: list[ProbeUptime] = []
+        for pid, rrows in by_probe_r.items():
+            total = sum(r.total for r in rrows)
+            up = sum(r.up_count for r in rrows)
+            uptime_pct = (up / total * 100) if total else 0.0
+            result.append(
+                ProbeUptime(
+                    probe_id=pid, uptime_pct=round(uptime_pct, 2), total=total,
+                    points=_rollup_points(rrows),
+                )
+            )
+        return result
+
     rows = (
         db.query(ProbeResult)
         .filter(ProbeResult.probe_id.in_(probe_ids), ProbeResult.checked_at >= since)
@@ -137,7 +243,7 @@ def get_timeline(
     for r in rows:
         by_probe[r.probe_id].append(r)
 
-    result: list[ProbeUptime] = []
+    result = []
     for pid, results in by_probe.items():
         total = len(results)
         up = sum(1 for r in results if r.status == "up")
@@ -213,18 +319,35 @@ def get_probe_history(
     since = now - window
     n_buckets = 120
 
-    results = (
+    period = _ROLLUP_PERIOD.get(range)
+    if period:
+        rrows = _fetch_rollups(db, [probe_id], period, since)[probe_id]
+        total = sum(r.total for r in rrows)
+        up = sum(r.up_count for r in rrows)
+        uptime_pct = (up / total * 100) if total else 0.0
+        points = _rollup_points(rrows)
+        latency = _latency_stats_rollup(rrows)
+    else:
+        results = (
+            db.query(ProbeResult)
+            .filter(ProbeResult.probe_id == probe_id, ProbeResult.checked_at >= since)
+            .order_by(asc(ProbeResult.checked_at))
+            .all()
+        )
+        total = len(results)
+        up = sum(1 for r in results if r.status == "up")
+        uptime_pct = (up / total * 100) if total else 0.0
+        points = _series_points(results, since, window, n_buckets)
+        latency = _latency_stats_raw(db, probe_id, since)
+
+    # "Recent checks" is always the freshest raw data, regardless of range.
+    recent_rows = (
         db.query(ProbeResult)
-        .filter(ProbeResult.probe_id == probe_id, ProbeResult.checked_at >= since)
-        .order_by(asc(ProbeResult.checked_at))
+        .filter(ProbeResult.probe_id == probe_id)
+        .order_by(ProbeResult.checked_at.desc())
+        .limit(25)
         .all()
     )
-    total = len(results)
-    up = sum(1 for r in results if r.status == "up")
-    uptime_pct = (up / total * 100) if total else 0.0
-
-    points = _series_points(results, since, window, n_buckets)
-
     recent = [
         {
             "checked_at": r.checked_at.isoformat(),
@@ -232,7 +355,7 @@ def get_probe_history(
             "latency_ms": r.latency_ms,
             "error": r.error,
         }
-        for r in results[-25:][::-1]
+        for r in recent_rows
     ]
 
     return ProbeHistory(
@@ -245,6 +368,7 @@ def get_probe_history(
         total=total,
         points=points,
         recent=recent,
+        latency=latency,
     )
 
 

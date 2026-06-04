@@ -130,12 +130,13 @@ export function ProbeModal({
           <div className="muted small" style={{ marginBottom: 4, display: "flex", justifyContent: "space-between" }}>
             <span>{t("modal.latencyTitle")}</span>
             {(() => {
-              const v = data.points.map((p) => p.latency_ms).filter((x): x is number => x != null);
-              if (!v.length) return null;
-              const avg = v.reduce((a, b) => a + b, 0) / v.length;
+              const L = data.latency;
+              const fmt = (n: number | null) => (n != null ? n.toFixed(0) : "—");
+              if (!L || L.p95 == null) return null;
               return (
-                <span style={{ fontVariantNumeric: "tabular-nums" }}>
-                  min {Math.min(...v).toFixed(0)} · avg {avg.toFixed(0)} · max {Math.max(...v).toFixed(0)} {t("dash.ms")}
+                <span style={{ fontVariantNumeric: "tabular-nums" }} title={L.approx ? t("modal.latencyApprox") : undefined}>
+                  p50 {fmt(L.p50)} · p95 {fmt(L.p95)} · p99 {fmt(L.p99)} · max {fmt(L.max)} {t("dash.ms")}
+                  {L.approx && " ≈"}
                 </span>
               );
             })()}

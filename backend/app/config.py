@@ -20,7 +20,9 @@ class Settings(BaseSettings):
     admin_password: str = "admin"
 
     # Probes / retention
-    result_retention_days: int = 30
+    result_retention_days: int = 30  # raw probe_results kept this long
+    rollup_retention_days: int = 400  # aggregated probe_rollups kept this long
+    rollup_interval_min: int = 15  # how often the rollup job runs
     probe_default_interval: int = 60
     probe_default_timeout: int = 10
 
