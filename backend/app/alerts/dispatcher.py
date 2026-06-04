@@ -217,6 +217,31 @@ def test_telegram(token: str, proxy: str | None) -> tuple[bool, str]:
         return False, str(exc)
 
 
+def send_test_telegram(config: dict) -> tuple[bool, str]:
+    """Deliver a sample formatted alert to the channel's Telegram chat so the
+    operator can confirm the bot token, chat_id (and proxy) actually work
+    end-to-end. Returns (ok, detail)."""
+    if not config.get("bot_token"):
+        return False, "bot_token required"
+    if not config.get("chat_id"):
+        return False, "chat_id required"
+    now = datetime.now(timezone.utc)
+    ctx = {
+        "event": "opened", "probe": "Тестовая проба", "type": "https",
+        "host": "example.com", "server": "Тест-сервер", "service": "Проверка",
+        "page": "", "status": "down", "error": "Это тестовый алерт",
+        "latency": 123.0, "duration": _fmt_duration(90),
+        "url": "", "time": now.strftime("%d.%m.%Y %H:%M:%S UTC"),
+    }
+    _, default_html = _build_messages(ctx)
+    text = "🧪 <b>ТЕСТ</b>\n\n" + default_html
+    try:
+        _send_telegram(config, text, parse_mode="HTML")
+        return True, "Тестовый алерт отправлен в Telegram"
+    except Exception as exc:  # noqa: BLE001
+        return False, str(exc)
+
+
 def _send_webhook(config: dict, payload: dict) -> None:
     url = config.get("url")
     if not url:

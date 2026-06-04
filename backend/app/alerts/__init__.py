@@ -3,6 +3,7 @@ from app.alerts.dispatcher import (
     base_channels,
     dispatch,
     escalation_channels,
+    send_test_telegram,
     test_telegram,
 )
 
@@ -12,4 +13,5 @@ __all__ = [
     "escalation_channels",
     "all_escalation_channels",
     "test_telegram",
+    "send_test_telegram",
 ]

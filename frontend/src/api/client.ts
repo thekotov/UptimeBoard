@@ -303,6 +303,18 @@ export async function testChannel(body: {
   return data;
 }
 
+export async function sendTestAlert(body: {
+  type: string;
+  config: Record<string, unknown>;
+  channel_id?: number;
+}): Promise<{ ok: boolean; detail: string }> {
+  const { data } = await api.post<{ ok: boolean; detail: string }>(
+    "/admin/alert-channels/test-alert",
+    body
+  );
+  return data;
+}
+
 export async function slugAvailable(slug: string, excludeId?: number): Promise<boolean> {
   const q = excludeId != null ? `&exclude_id=${excludeId}` : "";
   const { data } = await api.get<{ available: boolean }>(

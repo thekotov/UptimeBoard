@@ -45,7 +45,7 @@ from app.schemas.admin import (
 )
 from app.realtime import get_sync_redis
 from app.config import settings
-from app.alerts import test_telegram
+from app.alerts import send_test_telegram, test_telegram
 from app.probe_runner import execute_and_store
 from app.probes import run_probe
 from app.schemas.public import IncidentItem
@@ -700,21 +700,37 @@ def list_alert_channels(db: Session = Depends(get_db)):
     return [_masked(c) for c in db.query(AlertChannel).order_by(AlertChannel.id).all()]
 
 
-@router.post("/alert-channels/test")
-def test_alert_channel(payload: AlertChannelTest, db: Session = Depends(get_db)):
-    """Test a channel's connectivity. Telegram: getMe via optional SOCKS5 proxy."""
+def _resolve_test_config(payload: AlertChannelTest, db: Session) -> dict:
+    """Merge submitted config with stored secrets (when fields were left blank or
+    masked) so tests work for an existing channel without re-entering secrets."""
     cfg = dict(payload.config or {})
-    # If the secret/proxy weren't re-entered, fall back to the stored channel config.
     if payload.channel_id is not None:
         stored = db.get(AlertChannel, payload.channel_id)
         if stored is not None:
-            for key in ("bot_token", "proxy"):
+            for key in ("bot_token", "proxy", "chat_id"):
                 if not cfg.get(key) or cfg.get(key) == _MASK:
                     cfg[key] = (stored.config or {}).get(key, cfg.get(key))
+    return cfg
+
+
+@router.post("/alert-channels/test")
+def test_alert_channel(payload: AlertChannelTest, db: Session = Depends(get_db)):
+    """Test a channel's connectivity. Telegram: getMe via optional SOCKS5 proxy."""
+    cfg = _resolve_test_config(payload, db)
     if payload.type == "telegram":
         ok, detail = test_telegram(cfg.get("bot_token"), cfg.get("proxy"))
         return {"ok": ok, "detail": detail}
     return {"ok": False, "detail": "test not supported for this channel type"}
+
+
+@router.post("/alert-channels/test-alert")
+def test_alert_channel_send(payload: AlertChannelTest, db: Session = Depends(get_db)):
+    """Send a real sample alert to the channel's Telegram chat (end-to-end test)."""
+    cfg = _resolve_test_config(payload, db)
+    if payload.type == "telegram":
+        ok, detail = send_test_telegram(cfg)
+        return {"ok": ok, "detail": detail}
+    return {"ok": False, "detail": "test alert supported only for Telegram"}
 
 
 @router.post("/alert-channels", response_model=AlertChannelOut, status_code=201)

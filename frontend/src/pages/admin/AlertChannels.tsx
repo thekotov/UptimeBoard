@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, type AlertChannel, type Page, testChannel } from "../../api/client";
+import { api, type AlertChannel, type Page, sendTestAlert, testChannel } from "../../api/client";
 import { PencilIcon, TrashIcon } from "../../components/Icons";
 import { useConfirm } from "../../confirm";
 import { useI18n } from "../../i18n";
@@ -40,6 +40,7 @@ export function AlertChannels() {
   const [events, setEvents] = useState<string[]>([]);
   const [template, setTemplate] = useState("");
   const [testing, setTesting] = useState(false);
+  const [sendingAlert, setSendingAlert] = useState(false);
 
   // edit state
   const [editingId, setEditingId] = useState<number | null>(null);
@@ -59,6 +60,18 @@ export function AlertChannels() {
       toast.error(t("toast.error"));
     } finally {
       setTesting(false);
+    }
+  };
+
+  const runSendAlert = async (body: { config: Record<string, unknown>; channel_id?: number }) => {
+    setSendingAlert(true);
+    try {
+      const res = await sendTestAlert({ type: "telegram", ...body });
+      toast.show(res.detail, res.ok ? "success" : "error");
+    } catch {
+      toast.error(t("toast.error"));
+    } finally {
+      setSendingAlert(false);
     }
   };
 
@@ -205,6 +218,18 @@ export function AlertChannels() {
                   onClick={() => runTest({ config: { bot_token: botToken, proxy: proxy.trim() } })}
                 >
                   {testing ? t("alerts.testing") : t("alerts.test")}
+                </button>
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={sendingAlert}
+                  onClick={() =>
+                    runSendAlert({
+                      config: { bot_token: botToken, chat_id: chatId, proxy: proxy.trim() },
+                    })
+                  }
+                >
+                  {sendingAlert ? t("alerts.sendingAlert") : t("alerts.testAlert")}
                 </button>
               </div>
             </>
@@ -363,6 +388,23 @@ export function AlertChannels() {
                               }
                             >
                               {testing ? t("alerts.testing") : t("alerts.test")}
+                            </button>
+                            <button
+                              type="button"
+                              className="secondary"
+                              disabled={sendingAlert}
+                              onClick={() =>
+                                runSendAlert({
+                                  channel_id: ch.id,
+                                  config: {
+                                    bot_token: edit.botToken,
+                                    chat_id: edit.chatId,
+                                    proxy: edit.proxy.trim(),
+                                  },
+                                })
+                              }
+                            >
+                              {sendingAlert ? t("alerts.sendingAlert") : t("alerts.testAlert")}
                             </button>
                           </div>
                         </>
