@@ -49,6 +49,7 @@ from app.config import settings
 from app.alerts import (
     list_telegram_chats,
     record_deliveries,
+    render_preview,
     send_test_email,
     send_test_telegram,
     send_test_webhook,
@@ -784,6 +785,13 @@ def test_alert_channel_send(payload: AlertChannelTest, db: Session = Depends(get
     if payload.channel_id is not None:
         record_deliveries([(payload.channel_id, ok, None if ok else detail)])
     return {"ok": ok, "detail": detail}
+
+
+@router.post("/alert-channels/preview")
+def preview_alert_channel(payload: AlertChannelTest):
+    """Render what the channel will send for a sample incident (live template
+    preview). No delivery, no DB access."""
+    return render_preview(payload.type, payload.config or {})
 
 
 @router.post("/alert-channels/telegram-chats")

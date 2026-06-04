@@ -5,6 +5,7 @@ from app.alerts.dispatcher import (
     escalation_channels,
     list_telegram_chats,
     record_deliveries,
+    render_preview,
     send_test_email,
     send_test_telegram,
     send_test_webhook,
@@ -26,4 +27,5 @@ __all__ = [
     "send_test_email",
     "list_telegram_chats",
     "record_deliveries",
+    "render_preview",
 ]

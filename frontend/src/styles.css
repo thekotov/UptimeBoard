@@ -457,6 +457,14 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .form-grid textarea { resize: vertical; min-height: 38px; }
 @media (max-width: 480px) { .form-grid { grid-template-columns: 1fr; } }
 
+/* live alert message preview (channel form) — reads like a chat bubble */
+.alert-preview {
+  background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: 10px 12px; font-size: 13px; line-height: 1.45;
+  white-space: pre-wrap; word-break: break-word; overflow: auto; max-height: 240px;
+}
+.alert-preview a { pointer-events: none; }
+
 /* inline probe edit form gets a subtle highlight so it stands out from rows */
 .probe-edit {
   background: var(--panel-2); border: 1px solid var(--border);

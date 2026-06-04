@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.alerts.dispatcher import ALERT_EVENTS
+from app.alerts.dispatcher import ALERT_EVENTS, WEBHOOK_FORMATS
 
 
 def _validate_channel_config(config: dict | None) -> dict | None:
@@ -26,6 +26,9 @@ def _validate_channel_config(config: dict | None) -> dict | None:
     template = config.get("template")
     if template is not None and not isinstance(template, str):
         raise ValueError("config.template must be a string")
+    fmt = config.get("format")
+    if fmt is not None and fmt not in WEBHOOK_FORMATS:
+        raise ValueError(f"config.format must be one of {list(WEBHOOK_FORMATS)}")
     return config
 
 # ---- Probe ----

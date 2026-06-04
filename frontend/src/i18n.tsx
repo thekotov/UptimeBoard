@@ -380,6 +380,10 @@ const ru: Dict = {
   "alerts.pickingChat": "Поиск чатов…",
   "alerts.noChats": "Чаты не найдены — напишите боту, добавьте его в группу и повторите.",
   "alerts.pickChatHint": "Выберите чат, куда слать оповещения:",
+  "alerts.preview": "Предпросмотр сообщения",
+  "alerts.webhookFormat": "Формат payload",
+  "alerts.webhookFormatHint": "Slack/Mattermost → {text}, Discord → {content}, Generic → полный JSON со всеми полями.",
+  "alerts.format.generic": "Generic JSON",
 };
 
 const en: Dict = {
@@ -735,6 +739,10 @@ const en: Dict = {
   "alerts.pickingChat": "Loading chats…",
   "alerts.noChats": "No chats found — message the bot or add it to a group, then retry.",
   "alerts.pickChatHint": "Pick the chat to send alerts to:",
+  "alerts.preview": "Message preview",
+  "alerts.webhookFormat": "Payload format",
+  "alerts.webhookFormatHint": "Slack/Mattermost → {text}, Discord → {content}, Generic → full JSON with all fields.",
+  "alerts.format.generic": "Generic JSON",
 };
 
 const DICTS: Record<Lang, Dict> = { ru, en };

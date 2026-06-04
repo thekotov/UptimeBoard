@@ -264,6 +264,26 @@ def _sample_ctx() -> dict:
     }
 
 
+def render_preview(channel_type: str, config: dict) -> dict:
+    """Render exactly what a channel would send for a representative incident, so
+    the operator can preview a custom template (or the default message) live.
+    Returns {"text": str, "is_html": bool} — is_html marks Telegram's HTML body."""
+    ctx = _sample_ctx()
+    verb_emoji, verb_title = _header(ctx["event"], ctx["status"])
+    verb = f"{verb_emoji} {verb_title}"
+    default_plain, default_html = _build_messages(ctx)
+    fields = {**ctx, "verb": verb,
+              "latency": f"{ctx['latency']:.0f}" if ctx.get("latency") is not None else ""}
+    template = config.get("template")
+    if not template:
+        # Telegram sends the rich HTML body; webhook/email get the plain mirror.
+        if channel_type == "telegram":
+            return {"text": default_html, "is_html": True}
+        return {"text": default_plain, "is_html": False}
+    # A custom template is always delivered as plain text (no parse_mode).
+    return {"text": _render_template(template, fields, default_plain), "is_html": False}
+
+
 def send_test_telegram(config: dict) -> tuple[bool, str]:
     """Deliver a sample formatted alert to the channel's Telegram chat so the
     operator can confirm the bot token, chat_id (and proxy) actually work
@@ -281,6 +301,22 @@ def send_test_telegram(config: dict) -> tuple[bool, str]:
         return False, str(exc)
 
 
+WEBHOOK_FORMATS = ("generic", "slack", "discord", "mattermost")
+
+
+def _webhook_body(config: dict, payload: dict) -> dict:
+    """Shape the outgoing JSON for the target service so it renders as a message:
+    Slack/Mattermost incoming webhooks expect {"text": …}, Discord {"content": …};
+    'generic' (default) posts the full structured payload."""
+    fmt = config.get("format") or "generic"
+    text = payload.get("text", "")
+    if fmt in ("slack", "mattermost"):
+        return {"text": text}
+    if fmt == "discord":
+        return {"content": text}
+    return payload
+
+
 def _send_webhook(config: dict, payload: dict) -> None:
     url = config.get("url")
     if not url:
@@ -289,7 +325,7 @@ def _send_webhook(config: dict, payload: dict) -> None:
     headers = {}
     if config.get("secret_header") and config.get("secret_value"):
         headers[config["secret_header"]] = config["secret_value"]
-    resp = httpx.post(url, json=payload, headers=headers, timeout=_TIMEOUT)
+    resp = httpx.post(url, json=_webhook_body(config, payload), headers=headers, timeout=_TIMEOUT)
     resp.raise_for_status()
 
 

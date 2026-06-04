@@ -3,6 +3,7 @@ import {
   api,
   type AlertChannel,
   type Page,
+  previewChannel,
   sendTestAlert,
   type TelegramChat,
   telegramChats,
@@ -243,6 +244,7 @@ function ChannelForm({
   const [proxy, setProxy] = useState<string>(cfg.proxy ?? "");
   // webhook
   const [url, setUrl] = useState<string>(cfg.url ?? "");
+  const [format, setFormat] = useState<string>(cfg.format ?? "generic");
   // email — password blank on edit means "keep the stored one"
   const [smtpHost, setSmtpHost] = useState<string>(cfg.smtp_host ?? "");
   const [smtpPort, setSmtpPort] = useState<string>(String(cfg.smtp_port ?? 587));
@@ -262,6 +264,20 @@ function ChannelForm({
   // telegram chat_id discovery (getUpdates helper)
   const [chats, setChats] = useState<TelegramChat[] | null>(null);
   const [pickingChat, setPickingChat] = useState(false);
+  // live message preview (debounced on type + template)
+  const [preview, setPreview] = useState<{ text: string; is_html: boolean } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const id = setTimeout(() => {
+      previewChannel({ type, config: { template } })
+        .then((p) => !cancelled && setPreview(p))
+        .catch(() => !cancelled && setPreview(null));
+    }, 400);
+    return () => {
+      cancelled = true;
+      clearTimeout(id);
+    };
+  }, [type, template]);
 
   const toggleEvent = (ev: string) =>
     setEvents((s) => (s.includes(ev) ? s.filter((x) => x !== ev) : [...s, ev]));
@@ -276,6 +292,8 @@ function ChannelForm({
       else delete base.proxy;
     } else if (type === "webhook") {
       base.url = url;
+      if (format && format !== "generic") base.format = format;
+      else delete base.format;
     } else {
       base.smtp_host = smtpHost;
       base.smtp_port = Number(smtpPort) || 587;
@@ -473,17 +491,29 @@ function ChannelForm({
       )}
 
       {type === "webhook" && (
-        <div className="full">
-          <label>{t("alerts.webhookUrl")}</label>
-          <input
-            value={url}
-            className={urlBad || (touched.url && urlMissing) ? "invalid" : ""}
-            onBlur={touch("url")}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://hooks…"
-          />
-          {urlBad ? <div className="field-msg err">{t("valid.url")}</div> : reqMsg("url", urlMissing)}
-        </div>
+        <>
+          <div className="full">
+            <label>{t("alerts.webhookUrl")}</label>
+            <input
+              value={url}
+              className={urlBad || (touched.url && urlMissing) ? "invalid" : ""}
+              onBlur={touch("url")}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://hooks…"
+            />
+            {urlBad ? <div className="field-msg err">{t("valid.url")}</div> : reqMsg("url", urlMissing)}
+          </div>
+          <div className="full">
+            <label>{t("alerts.webhookFormat")}</label>
+            <select value={format} onChange={(e) => setFormat(e.target.value)}>
+              <option value="generic">{t("alerts.format.generic")}</option>
+              <option value="slack">Slack</option>
+              <option value="discord">Discord</option>
+              <option value="mattermost">Mattermost</option>
+            </select>
+            <div className="hint">{t("alerts.webhookFormatHint")}</div>
+          </div>
+        </>
       )}
 
       {type === "email" && (
@@ -588,6 +618,18 @@ function ChannelForm({
               placeholder={"{verb}: {probe} на {host}\nстатус: {status}"}
             />
             <div className="hint">{t("alerts.templateHint")}</div>
+          </div>
+          <div className="full">
+            <label>{t("alerts.preview")}</label>
+            <div className="alert-preview">
+              {preview == null ? (
+                <span className="faint">…</span>
+              ) : preview.is_html ? (
+                <span dangerouslySetInnerHTML={{ __html: preview.text }} />
+              ) : (
+                preview.text
+              )}
+            </div>
           </div>
         </div>
       </details>

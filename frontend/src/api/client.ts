@@ -329,6 +329,17 @@ export async function sendTestAlert(body: {
   return data;
 }
 
+export async function previewChannel(body: {
+  type: string;
+  config: Record<string, unknown>;
+}): Promise<{ text: string; is_html: boolean }> {
+  const { data } = await api.post<{ text: string; is_html: boolean }>(
+    "/admin/alert-channels/preview",
+    body
+  );
+  return data;
+}
+
 export async function telegramChats(body: {
   config: Record<string, unknown>;
   channel_id?: number;
