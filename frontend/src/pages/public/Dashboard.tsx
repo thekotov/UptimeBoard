@@ -24,18 +24,35 @@ const isProblem = (st: Status) => st === "down" || st === "degraded";
 const STATUS_GLYPH: Record<Status, string> = { up: "✓", degraded: "!", down: "✕", unknown: "?", paused: "⏸" };
 const SEV: Record<string, number> = { down: 4, degraded: 3, unknown: 2, paused: 1, up: 0, maintenance: -1 };
 type Pt = { checked_at: string; status: string; latency_ms: number | null };
-/** Aggregate per-bucket worst status across several probe timelines (right-aligned). */
-function aggregateBar(arrs: Pt[][]): Pt[] {
-  if (!arrs.length) return [];
-  const len = Math.max(...arrs.map((a) => a.length));
-  const out: Pt[] = [];
-  for (let j = 0; j < len; j++) {
-    const pts = arrs.map((a) => a[a.length - 1 - j]).filter(Boolean) as Pt[];
-    if (!pts.length) continue;
-    const worst = pts.reduce((w, p) => ((SEV[p.status] ?? 0) > (SEV[w.status] ?? 0) ? p : w));
-    out.push({ checked_at: worst.checked_at, status: worst.status, latency_ms: null });
+const RANGE_MS: Record<TimeRange, number> = {
+  "15m": 15 * 60e3,
+  "24h": 24 * 3600e3,
+  "7d": 7 * 864e5,
+  "30d": 30 * 864e5,
+  "90d": 90 * 864e5,
+};
+
+/** Bin every probe's points into a fixed grid of `n` time slots over the range,
+ *  worst status wins per slot. Always returns `n` uniform, time-aligned cells —
+ *  slots with no data render faint ("none") — so the bar never stretches a few
+ *  buckets into huge segments when history is younger than the range. */
+function aggregateBar(arrs: Pt[][], range: TimeRange, n = 40): Pt[] {
+  const pts = arrs.flat();
+  const span = RANGE_MS[range];
+  const end = pts.length ? Math.max(...pts.map((p) => new Date(p.checked_at).getTime())) : Date.now();
+  const start = end - span;
+  const width = span / n;
+  const slots: (Pt | null)[] = Array.from({ length: n }, () => null);
+  for (const p of pts) {
+    const i = Math.max(0, Math.min(n - 1, Math.floor((new Date(p.checked_at).getTime() - start) / width)));
+    const cur = slots[i];
+    if (!cur || (SEV[p.status] ?? 0) > (SEV[cur.status] ?? 0)) slots[i] = p;
   }
-  return out.reverse();
+  return slots.map((p, i) =>
+    p
+      ? { checked_at: p.checked_at, status: p.status, latency_ms: null }
+      : { checked_at: new Date(start + width * (i + 0.5)).toISOString(), status: "none", latency_ms: null }
+  );
 }
 
 /** Colour the latency value relative to the probe's own recent median:
@@ -432,7 +449,8 @@ export function Dashboard() {
         const probeIds = service.servers.flatMap((sv) => sv.probes.map((p) => p.id));
         const svcUptime = avgUptime(probeIds);
         const svcBar = aggregateBar(
-          probeIds.map((id) => timeline[id]?.points).filter(Boolean) as Pt[][]
+          probeIds.map((id) => timeline[id]?.points).filter(Boolean) as Pt[][],
+          range
         );
         return (
           <div className="card" key={service.id} id={`svc-${service.id}`}>
@@ -445,7 +463,7 @@ export function Dashboard() {
                 {service.name}
               </h3>
               <div className="inline">
-                {svcBar.length > 1 && (
+                {svcBar.some((p) => p.status !== "none") && (
                   <span className="svc-bar">
                     <Timeline points={svcBar} count={svcBar.length} />
                   </span>
@@ -459,7 +477,8 @@ export function Dashboard() {
                 const srvUptime = avgUptime(server.probes.map((p) => p.id));
                 const srvCollapsed = collapsedSrv.has(server.id);
                 const srvBar = aggregateBar(
-                  server.probes.map((p) => timeline[p.id]?.points).filter(Boolean) as Pt[][]
+                  server.probes.map((p) => timeline[p.id]?.points).filter(Boolean) as Pt[][],
+                  range
                 );
                 return (
                 <div className={`server srv-${server.status}`} key={server.id}>
@@ -476,7 +495,7 @@ export function Dashboard() {
                       <span className="count-pill">{server.probes.length}</span>
                     </div>
                     <div className="inline">
-                      {srvCollapsed && srvBar.length > 1 && (
+                      {srvCollapsed && srvBar.some((p) => p.status !== "none") && (
                         <span className="svc-bar">
                           <Timeline points={srvBar} count={srvBar.length} />
                         </span>
