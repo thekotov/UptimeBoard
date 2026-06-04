@@ -9,6 +9,13 @@ class Settings(BaseSettings):
     # Database / cache
     database_url: str = "postgresql+psycopg2://monitor:monitor@postgres:5432/monitor"
     redis_url: str = "redis://redis:6379/0"
+    # SQLAlchemy connection pool. Peak connections per process = pool_size +
+    # db_max_overflow. Keep (api + worker) totals under Postgres' max_connections.
+    # Size db_pool_size/db_max_overflow to the worker thread pool so probe checks
+    # don't queue waiting for a connection.
+    db_pool_size: int = 5
+    db_max_overflow: int = 10
+    db_pool_timeout: int = 30
 
     # Auth
     jwt_secret: str = "change-me-in-production"

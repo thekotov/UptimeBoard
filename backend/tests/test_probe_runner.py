@@ -9,9 +9,11 @@ def _probe(latency_degraded_ms=None):
     return SimpleNamespace(latency_degraded_ms=latency_degraded_ms)
 
 
-def _tier_probe(degraded_threshold=1, down_threshold=1):
+def _tier_probe(degraded_threshold=1, down_threshold=1, tolerance_checks=0):
     return SimpleNamespace(
-        degraded_threshold=degraded_threshold, down_threshold=down_threshold
+        degraded_threshold=degraded_threshold,
+        down_threshold=down_threshold,
+        tolerance_checks=tolerance_checks,
     )
 
 
