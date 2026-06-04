@@ -1,7 +1,7 @@
 """Build status snapshots for a page from the denormalised probe status."""
 
 import ipaddress
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session, selectinload
 
@@ -9,8 +9,11 @@ from app.aggregation import aggregate, worst
 from app.config import settings
 from app.models.monitoring import (
     STATUS_PAUSED,
+    STATUS_RECOVERED,
     STATUS_UNKNOWN,
+    STATUS_UP,
     Announcement,
+    Incident,
     MaintenanceWindow,
     Page,
     Probe,
@@ -54,6 +57,29 @@ def _is_stale(probe: Probe, now: datetime) -> bool:
     return (now - probe.last_checked_at).total_seconds() > max_age
 
 
+def _recently_recovered_probe_ids(
+    db: Session, probe_ids: list[int], now: datetime
+) -> set[int]:
+    """Probe ids that had an incident resolve within the recovery window.
+
+    Such probes, if currently up, are shown as "recovered" so a recent outage
+    stays visible for a while after everything is green again."""
+    if not probe_ids or settings.recovery_window_sec <= 0:
+        return set()
+    cutoff = now - timedelta(seconds=settings.recovery_window_sec)
+    rows = (
+        db.query(Incident.probe_id)
+        .filter(
+            Incident.probe_id.in_(probe_ids),
+            Incident.resolved_at.isnot(None),
+            Incident.resolved_at >= cutoff,
+        )
+        .distinct()
+        .all()
+    )
+    return {pid for (pid,) in rows}
+
+
 def build_page_status(db: Session, page: Page) -> PageStatus:
     page = (
         db.query(Page)
@@ -66,6 +92,14 @@ def build_page_status(db: Session, page: Page) -> PageStatus:
         .one()
     )
     now = datetime.now(timezone.utc)
+
+    all_probe_ids = [
+        probe.id
+        for service in page.services
+        for server in service.servers
+        for probe in server.probes
+    ]
+    recovered_ids = _recently_recovered_probe_ids(db, all_probe_ids, now)
 
     service_statuses: list[ServiceStatus] = []
     for service in page.services:
@@ -86,6 +120,10 @@ def build_page_status(db: Session, page: Page) -> PageStatus:
                 stale = _is_stale(probe, now)
                 # A stale probe's last status is no longer trustworthy → unknown.
                 status = STATUS_UNKNOWN if stale else probe.last_status
+                # Up again, but an incident resolved within the recovery window:
+                # celebrate it as "recovered" until the window elapses.
+                if status == STATUS_UP and probe.id in recovered_ids:
+                    status = STATUS_RECOVERED
                 probe_statuses.append(
                     ProbeStatus(
                         id=probe.id,

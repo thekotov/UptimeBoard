@@ -46,13 +46,13 @@ export function ProbeForm({
   const [interval, setInterval] = useState(probe?.interval_sec ?? 60);
   const [timeout, setTimeoutSec] = useState(probe?.timeout_sec ?? 10);
   const [enabled, setEnabled] = useState(probe?.enabled ?? true);
-  const [failureThreshold, setFailureThreshold] = useState(probe?.failure_threshold ?? 1);
+  const [failureThreshold, setFailureThreshold] = useState(probe?.failure_threshold ?? 2);
   const [latencyDegraded, setLatencyDegraded] = useState<number | "">(probe?.latency_degraded_ms ?? "");
   const [degradedThreshold, setDegradedThreshold] = useState(probe?.degraded_threshold ?? 1);
-  const [downThreshold, setDownThreshold] = useState(probe?.down_threshold ?? 1);
-  const [toleranceChecks, setToleranceChecks] = useState(probe?.tolerance_checks ?? pageDefaultTolerance ?? 0);
-  const [recoveryThreshold, setRecoveryThreshold] = useState(probe?.recovery_threshold ?? 1);
-  const [retries, setRetries] = useState(probe?.retries ?? 1);
+  const [downThreshold, setDownThreshold] = useState(probe?.down_threshold ?? 2);
+  const [toleranceChecks, setToleranceChecks] = useState(probe?.tolerance_checks ?? pageDefaultTolerance ?? 1);
+  const [recoveryThreshold, setRecoveryThreshold] = useState(probe?.recovery_threshold ?? 2);
+  const [retries, setRetries] = useState(probe?.retries ?? 2);
   // http
   const [url, setUrl] = useState(cfg.url ?? "");
   const [method, setMethod] = useState<string>(cfg.method ?? "GET");

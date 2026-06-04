@@ -32,7 +32,7 @@ api.interceptors.response.use(
 );
 
 // ---- Types ----
-export type Status = "up" | "degraded" | "down" | "unknown" | "paused";
+export type Status = "up" | "recovered" | "degraded" | "down" | "unknown" | "paused";
 
 export interface ProbeStatus {
   id: number;

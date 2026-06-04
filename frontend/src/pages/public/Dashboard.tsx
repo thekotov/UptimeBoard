@@ -5,7 +5,7 @@ import { LangSwitch } from "../../components/LangSwitch";
 import { SkeletonDashboard } from "../../components/Skeleton";
 import { StatusBadge, StatusDot } from "../../components/StatusBadge";
 import { Timeline } from "../../components/Timeline";
-import { pickUpHeadline, relativeShort, relativeTime, useI18n } from "../../i18n";
+import { pickRecoveredHeadline, pickUpHeadline, relativeShort, relativeTime, useI18n } from "../../i18n";
 import { ThemeSwitch } from "../../theme";
 import { useStatusTab } from "../../useStatusTab";
 import { Incidents } from "./Incidents";
@@ -22,7 +22,7 @@ const RANGES: TimeRange[] = ["15m", "24h", "7d", "30d", "90d"];
 
 const isProblem = (st: Status) => st === "down" || st === "degraded";
 const MOBILE_QUERY = "(max-width: 640px)";
-const STATUS_GLYPH: Record<Status, string> = { up: "✓", degraded: "!", down: "✕", unknown: "?", paused: "⏸" };
+const STATUS_GLYPH: Record<Status, string> = { up: "✓", recovered: "🎉", degraded: "!", down: "✕", unknown: "?", paused: "⏸" };
 const SEV: Record<string, number> = { down: 4, degraded: 3, unknown: 2, paused: 1, up: 0, maintenance: -1 };
 type Pt = { checked_at: string; status: string; latency_ms: number | null };
 const RANGE_MS: Record<TimeRange, number> = {
@@ -212,7 +212,7 @@ export function Dashboard() {
   const updated = page ? relativeTime(page.generated_at, lang) : "";
 
   const counts = useMemo(() => {
-    const c: Record<Status, number> = { up: 0, degraded: 0, down: 0, unknown: 0, paused: 0 };
+    const c: Record<Status, number> = { up: 0, recovered: 0, degraded: 0, down: 0, unknown: 0, paused: 0 };
     page?.services.forEach((s) => (c[s.status] += 1));
     return c;
   }, [page]);
@@ -347,11 +347,17 @@ export function Dashboard() {
         </span>
         <div className="stack">
           <span className="title">
-            {page.status === "up" ? pickUpHeadline(lang) : t(`overall.${page.status}`)}
+            {page.status === "up"
+              ? pickUpHeadline(lang)
+              : page.status === "recovered"
+              ? pickRecoveredHeadline(lang)
+              : t(`overall.${page.status}`)}
           </span>
           <span className="sub">
             {page.status === "up"
               ? t("overall.subAllUp", { total: page.services.length })
+              : page.status === "recovered"
+              ? t("overall.subRecovered", { n: counts.recovered, total: page.services.length })
               : page.status === "unknown"
               ? t("overall.subUnknown")
               : t("overall.subProblems", {
@@ -388,6 +394,14 @@ export function Dashboard() {
         >
           <StatusDot status="up" /> <b>{counts.up}</b> {t("summary.up")}
         </button>
+        {counts.recovered > 0 && (
+          <button
+            className={`item item-btn ${statusFilter === "recovered" ? "active" : ""}`}
+            onClick={() => setStatusFilter((f) => (f === "recovered" ? null : "recovered"))}
+          >
+            <StatusDot status="recovered" /> <b>{counts.recovered}</b> {t("summary.recovered")}
+          </button>
+        )}
         {counts.degraded > 0 && (
           <button
             className={`item item-btn ${statusFilter === "degraded" ? "active" : ""}`}
@@ -491,8 +505,10 @@ export function Dashboard() {
                     <Timeline points={svcBar} count={svcBar.length} />
                   </span>
                 )}
-                {svcUptime != null && <span className="muted small">{svcUptime}%</span>}
-                <StatusBadge status={service.status} />
+                {svcUptime != null && !(isMobile && isCollapsed) && (
+                  <span className="muted small">{svcUptime}%</span>
+                )}
+                <StatusBadge status={service.status} short={isMobile} />
               </div>
             </div>
             {!isCollapsed &&
@@ -527,7 +543,7 @@ export function Dashboard() {
                           <Timeline points={srvBar} count={srvBar.length} />
                         </span>
                       )}
-                      {srvUptime != null && (
+                      {srvUptime != null && !(isMobile && srvCollapsed) && (
                         <span className="muted small">{srvUptime}% · {t(`range.${range}`)}</span>
                       )}
                     </div>
@@ -546,7 +562,7 @@ export function Dashboard() {
                         <div className="probe-main">
                           <StatusDot status={probe.status} />
                           <span className="name">{probe.name}</span>
-                          <span className="pill">{probe.type}</span>
+                          <span className={`pill type-${probe.type}`}>{probe.type}</span>
                           {probe.status === "paused" && <span className="pill">{t("status.paused")}</span>}
                           {probe.stale && <span className="pill stale-pill">{t("dash.stale")}</span>}
                           {probe.error && probe.status !== "up" && (

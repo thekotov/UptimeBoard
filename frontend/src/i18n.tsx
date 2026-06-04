@@ -29,25 +29,36 @@ const ru: Dict = {
 
   // status labels
   "status.up": "Работает",
+  "status.recovered": "Снова в строю 🎉",
   "status.degraded": "Деградация",
   "status.down": "Недоступен",
   "status.unknown": "Неизвестно",
   "status.paused": "На паузе",
   "status.maintenance": "Обслуживание",
+  // ultra-short status labels for the mobile service header (saves room for the name)
+  "status.up.short": "ОК",
+  "status.recovered.short": "ОК 🎉",
+  "status.degraded.short": "Сбоит",
+  "status.down.short": "Не ОК",
+  "status.unknown.short": "?",
+  "status.paused.short": "Пауза",
   "probe.pause": "Поставить на паузу",
   "probe.resume": "Возобновить",
 
   // overall headlines
   "overall.up": "Все системы работают штатно",
+  "overall.recovered": "Снова в строю 🎉",
   "overall.degraded": "Частичная деградация",
   "overall.down": "Серьёзный сбой",
   "overall.unknown": "Статус неизвестен",
   "overall.subAllUp": "Под наблюдением: {total} сервис(ов)",
+  "overall.subRecovered": "Оправились после недавнего сбоя: {n} из {total} сервисов",
   "overall.subProblems": "{n} из {total} сервисов с проблемами",
   "overall.subUnknown": "Статус пока не определён",
 
   // summary counts
   "summary.up": "работают",
+  "summary.recovered": "восстановлены",
   "summary.degraded": "деградация",
   "summary.down": "недоступны",
 
@@ -370,23 +381,34 @@ const en: Dict = {
   nothingFound: "Nothing found",
 
   "status.up": "Operational",
+  "status.recovered": "Back online 🎉",
   "status.degraded": "Degraded",
   "status.down": "Down",
   "status.unknown": "Unknown",
   "status.paused": "Paused",
   "status.maintenance": "Maintenance",
+  // ultra-short status labels for the mobile service header (saves room for the name)
+  "status.up.short": "OK",
+  "status.recovered.short": "OK 🎉",
+  "status.degraded.short": "Degr.",
+  "status.down.short": "Not OK",
+  "status.unknown.short": "?",
+  "status.paused.short": "Paused",
   "probe.pause": "Pause",
   "probe.resume": "Resume",
 
   "overall.up": "All systems operational",
+  "overall.recovered": "Back online 🎉",
   "overall.degraded": "Partial degradation",
   "overall.down": "Major outage",
   "overall.unknown": "Status unknown",
   "overall.subAllUp": "Monitoring {total} service(s)",
+  "overall.subRecovered": "Recovered from a recent incident: {n} of {total} services",
   "overall.subProblems": "{n} of {total} services affected",
   "overall.subUnknown": "Status not yet determined",
 
   "summary.up": "operational",
+  "summary.recovered": "recovered",
   "summary.degraded": "degraded",
   "summary.down": "down",
 
@@ -786,6 +808,44 @@ export const UP_HEADLINES: Record<Lang, string[]> = {
   ],
 };
 
+/** Playful "just recovered" headlines, one pool per language. Shown for an hour
+ *  after an incident is resolved and everything is green again. The very first
+ *  entry is the neutral default; the rest are the fun ones. */
+export const RECOVERED_HEADLINES: Record<Lang, string[]> = {
+  ru: [
+    "Снова в строю 🎉",
+    "Оклемались 💪",
+    "Кризис миновал 😮‍💨",
+    "Восстановились после сбоя ✅",
+    "Феникс восстал из пепла 🔥🐦",
+    "Худшее позади ✨",
+    "Системы вернулись к жизни 🌱",
+    "Шторм прошёл ⛅",
+    "Откачали пациента 🩺",
+    "Снова на ногах 🦿",
+    "Перезагрузились и поехали 🚀",
+    "Всё починилось, можно выдохнуть",
+    "Ожили после падения",
+    "Пережили и стали сильнее",
+  ],
+  en: [
+    "Back online 🎉",
+    "Back on our feet 🦿",
+    "Crisis averted 😮‍💨",
+    "Rose from the ashes 🔥🐦",
+    "The worst is behind us ✨",
+    "Patched up and running 🩺",
+    "The storm has passed ⛅",
+    "Recovered and stronger 💪",
+    "Back from the dead 🧟",
+    "Systems revived 🌱",
+    "We made it back, phew 😮‍💨",
+    "Up and breathing again",
+    "Back in business 💼",
+    "Rebooted and rolling 🚀",
+  ],
+};
+
 /** Pick an "all up" headline that depends on the current time rather than on page
  *  reloads: it stays stable within each hour and rotates pseudo-randomly as the
  *  hour changes (the hash keeps consecutive hours from just stepping through in order). */
@@ -793,6 +853,15 @@ export function pickUpHeadline(lang: Lang, now: number = Date.now()): string {
   const list = UP_HEADLINES[lang] ?? UP_HEADLINES.ru;
   const hourBucket = Math.floor(now / 3_600_000);
   const hash = Math.abs(Math.imul(hourBucket ^ 0x9e3779b9, 0x85ebca6b));
+  return list[hash % list.length];
+}
+
+/** Like {@link pickUpHeadline} but for the "just recovered" pool. A different
+ *  hash seed decorrelates it from the up-headline rotation. */
+export function pickRecoveredHeadline(lang: Lang, now: number = Date.now()): string {
+  const list = RECOVERED_HEADLINES[lang] ?? RECOVERED_HEADLINES.ru;
+  const hourBucket = Math.floor(now / 3_600_000);
+  const hash = Math.abs(Math.imul(hourBucket ^ 0x7f4a7c15, 0xc2b2ae35));
   return list[hash % list.length];
 }
 

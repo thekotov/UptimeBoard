@@ -3,18 +3,19 @@ import { useI18n } from "../i18n";
 
 const GLYPHS: Record<Status, string> = {
   up: "✓",
+  recovered: "🎉",
   degraded: "!",
   down: "✕",
   unknown: "?",
   paused: "⏸",
 };
 
-export function StatusBadge({ status }: { status: Status }) {
+export function StatusBadge({ status, short }: { status: Status; short?: boolean }) {
   const { t } = useI18n();
   return (
     <span className={`badge ${status}`}>
       <span aria-hidden>{GLYPHS[status]}</span>
-      {t(`status.${status}`)}
+      {t(short ? `status.${status}.short` : `status.${status}`)}
     </span>
   );
 }
@@ -38,6 +39,7 @@ export function IncidentBadge({ ongoing, status }: { ongoing: boolean; status: S
 
 export const overallGlyph: Record<Status, string> = {
   up: "🟢",
+  recovered: "🎉",
   degraded: "🟠",
   down: "🔴",
   unknown: "⚪",

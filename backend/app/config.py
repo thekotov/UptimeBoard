@@ -52,6 +52,11 @@ class Settings(BaseSettings):
     stale_factor: int = 3
     stale_grace_sec: int = 30
 
+    # After an incident is resolved, a probe/server/service that is back up keeps
+    # a celebratory "recovered" status for this long (so a recent outage stays
+    # visible even after everything is green again). Default: 1 hour.
+    recovery_window_sec: int = 3600
+
     # Alert delivery: retry a failed send (network blip, 5xx from Telegram/SMTP)
     # this many times with exponential backoff before giving up.
     alert_retry_attempts: int = 3

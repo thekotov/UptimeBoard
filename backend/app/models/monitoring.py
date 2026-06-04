@@ -24,6 +24,10 @@ STATUS_DOWN = "down"
 STATUS_UNKNOWN = "unknown"
 STATUS_PAUSED = "paused"  # probe disabled/paused — excluded from aggregation
 STATUS_MAINTENANCE = "maintenance"  # check ran during a maintenance window — excluded from SLA/stats
+# Derived (not stored): up again, but an incident resolved within the recovery
+# window — shown as a celebratory "recovered" state so a recent outage stays
+# visible for a while after everything is green. See status_service.py.
+STATUS_RECOVERED = "recovered"
 
 PROBE_TYPES = ("icmp", "tcp", "http", "tls", "heartbeat")
 
@@ -45,7 +49,7 @@ class Page(Base):
     # collapsed (click to reveal probes); when False, everything is expanded.
     default_collapsed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     # Default monitoring-noise tolerance pre-filled for new probes on this page.
-    default_tolerance_checks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    default_tolerance_checks: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     # When True, server IP addresses are masked on the public page (the last
     # octet/group is hidden, e.g. 22.33.22.11 → 22.33.22.**). Hostnames are
     # shown as-is. Admin views always show the real address.
@@ -119,25 +123,25 @@ class Probe(Base):
     config: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
 
     # Open an incident only after this many consecutive bad checks (flap guard).
-    failure_threshold: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    failure_threshold: Mapped[int] = mapped_column(Integer, default=2, nullable=False)
     # Optional: mark "degraded" when latency exceeds this (ms), even if reachable.
     latency_degraded_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Visual tiering of a failing probe by consecutive failures: it shows as
     # "degraded" once it has failed this many times in a row, and as "down" once
     # it reaches `down_threshold`. With both at 1 a failure is "down" immediately.
     degraded_threshold: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-    down_threshold: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    down_threshold: Mapped[int] = mapped_column(Integer, default=2, nullable=False)
     # Monitoring noise tolerance: the first N consecutive bad checks (any severity)
     # are treated as noise and recorded as "up", so isolated blips don't affect
     # uptime, graphs or the timeline. A real outage (longer than N) counts fully.
-    tolerance_checks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    tolerance_checks: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     # Resolve an open incident only after this many consecutive good checks
     # (recovery confirmation / anti-flap on the close side). 1 = resolve at once.
-    recovery_threshold: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    recovery_threshold: Mapped[int] = mapped_column(Integer, default=2, nullable=False)
     # On a failed check, retry up to this many times (short backoff between) before
     # the result is accepted. Kills transient single-sample blips without waiting a
     # whole interval. 0 = single attempt, no retry.
-    retries: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    retries: Mapped[int] = mapped_column(Integer, default=2, nullable=False)
 
     # Denormalised latest result (kept in sync by the worker) for fast snapshots
     # and live status in the admin UI without scanning probe_results.

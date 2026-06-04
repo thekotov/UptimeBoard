@@ -82,7 +82,7 @@ export function ProbeModal({
       title={
         <span className="inline">
           {probeName}
-          {data && <span className="pill">{data.type}</span>}
+          {data && <span className={`pill type-${data.type}`}>{data.type}</span>}
         </span>
       }
       onClose={onClose}

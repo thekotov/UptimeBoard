@@ -38,13 +38,13 @@ class ProbeBase(BaseModel):
     timeout_sec: int = Field(default=10, ge=1, le=300)
     enabled: bool = True
     order: int = 0
-    failure_threshold: int = Field(default=1, ge=1, le=20)
+    failure_threshold: int = Field(default=2, ge=1, le=20)
     latency_degraded_ms: int | None = Field(default=None, ge=1)
     degraded_threshold: int = Field(default=1, ge=1, le=20)
-    down_threshold: int = Field(default=1, ge=1, le=20)
-    tolerance_checks: int = Field(default=0, ge=0, le=20)
-    recovery_threshold: int = Field(default=1, ge=1, le=20)
-    retries: int = Field(default=1, ge=0, le=5)
+    down_threshold: int = Field(default=2, ge=1, le=20)
+    tolerance_checks: int = Field(default=1, ge=0, le=20)
+    recovery_threshold: int = Field(default=2, ge=1, le=20)
+    retries: int = Field(default=2, ge=0, le=5)
     config: dict = {}
 
 
@@ -158,7 +158,7 @@ class PageBase(BaseModel):
     is_published: bool = True
     is_private: bool = False
     default_collapsed: bool = True
-    default_tolerance_checks: int = Field(default=0, ge=0, le=20)
+    default_tolerance_checks: int = Field(default=1, ge=0, le=20)
     mask_ip: bool = False
 
 
