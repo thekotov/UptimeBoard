@@ -13,16 +13,22 @@ def execute(host: str, config: dict, timeout_sec: int) -> ProbeOutcome:
     config keys:
       port        TLS port (default 443)
       warn_days   mark "degraded" when fewer than this many days remain (default 14)
-
-    The happy path does a single verified handshake. On a verification failure
-    (expired / hostname mismatch / self-signed / untrusted CA) the error is
-    classified and a second *unverified* handshake fetches the certificate so its
-    metadata (issuer, expiry, SANs) can still be reported. ``outcome.meta`` carries
-    that metadata when available: {expires_at, not_before, issuer, subject, sans}.
     """
     port = int(config.get("port", 443))
     warn_days = int(config.get("warn_days", 14))
+    return check_certificate(host, port, timeout_sec, warn_days)
 
+
+def check_certificate(host: str, port: int, timeout_sec: int, warn_days: int = 14) -> ProbeOutcome:
+    """Inspect the TLS certificate served at ``host:port`` and judge its health.
+
+    Reused by the standalone TLS probe and by the HTTP probe's optional
+    certificate tracking. The happy path does a single verified handshake. On a
+    verification failure (expired / hostname mismatch / self-signed / untrusted
+    CA) the error is classified and a second *unverified* handshake fetches the
+    certificate so its metadata can still be reported. ``outcome.meta`` carries
+    that metadata when available: {expires_at, not_before, issuer, subject, sans}.
+    """
     ctx = ssl.create_default_context()
     start = time.perf_counter()
     try:

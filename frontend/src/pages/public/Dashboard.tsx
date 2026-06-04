@@ -610,7 +610,7 @@ export function Dashboard() {
                           <StatusDot status={probe.status} />
                           <span className="name">{probe.name}</span>
                           <span className={`pill type-${probe.type}`}>{probe.type}</span>
-                          {probe.type === "tls" && probe.cert_expires_at && (
+                          {probe.cert_expires_at && (
                             <CertBadge expiresAt={probe.cert_expires_at} />
                           )}
                           {probe.status === "paused" && <span className="pill">{t("status.paused")}</span>}

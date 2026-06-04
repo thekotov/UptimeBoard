@@ -27,6 +27,8 @@ case "$1" in
   api)
     wait_for_db
     alembic upgrade head
+    # Idempotent: create the admin from ADMIN_EMAIL/ADMIN_PASSWORD on first run.
+    python -c "from scripts.seed import bootstrap_admin; bootstrap_admin()"
     exec uvicorn app.main:app --host 0.0.0.0 --port 8000
     ;;
   worker)

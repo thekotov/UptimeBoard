@@ -66,6 +66,7 @@ export function ProbeForm({
   const [bodyRegex, setBodyRegex] = useState(cfg.expected_body_regex ?? "");
   const [jsonPath, setJsonPath] = useState(cfg.json_path ?? "");
   const [jsonExpected, setJsonExpected] = useState(cfg.json_expected ?? "");
+  const [checkCert, setCheckCert] = useState<boolean>(cfg.check_cert ?? false);
   // tcp / tls / icmp / heartbeat
   const [port, setPort] = useState(num(cfg.port, 443));
   const [count, setCount] = useState(num(cfg.count, 3));
@@ -100,6 +101,11 @@ export function ProbeForm({
       if (basicUser.trim()) { c.basic_user = basicUser.trim(); c.basic_pass = basicPass; }
       if (bearer.trim()) c.bearer_token = bearer.trim();
       if (jsonPath.trim()) { c.json_path = jsonPath.trim(); if (jsonExpected !== "") c.json_expected = jsonExpected; }
+      // SSL certificate tracking — only meaningful for https endpoints. Always
+      // emit the flag so toggling it off persists when editing (config is merged).
+      const isHttps = /^https:\/\//i.test(url.trim());
+      c.check_cert = isHttps && checkCert;
+      if (c.check_cert) c.warn_days = Number(warnDays);
       return c;
     }
     if (type === "tcp") return { port: Number(port) };
@@ -147,7 +153,7 @@ export function ProbeForm({
       });
       const lat = res.latency_ms != null ? ` (${res.latency_ms.toFixed(0)} ${t("dash.ms")})` : "";
       let cert = "";
-      if (type === "tls" && res.meta?.expires_at) {
+      if (res.meta?.expires_at) {
         const days = Math.floor((new Date(res.meta.expires_at).getTime() - Date.now()) / 864e5);
         const when = days < 0 ? t("cert.expired") : t("cert.expiresIn", { days });
         cert = ` · 🔒 ${when}${res.meta.issuer ? ` · ${res.meta.issuer}` : ""}`;
@@ -206,6 +212,19 @@ export function ProbeForm({
             <label>{t("probe.expected")}</label>
             <input type="number" value={expectedStatus} onChange={(e) => setExpectedStatus(+e.target.value)} />
           </div>
+          {/^https:\/\//i.test(url.trim()) && (
+            <>
+              <label className="check-cell full">
+                <input type="checkbox" checked={checkCert} onChange={(e) => setCheckCert(e.target.checked)} /> 🔒 {t("probe.checkCert")}
+              </label>
+              {checkCert && (
+                <div>
+                  <label>{t("probe.warnDays")}</label>
+                  <input type="number" min={1} value={warnDays} onChange={(e) => setWarnDays(+e.target.value)} />
+                </div>
+              )}
+            </>
+          )}
           <details className="full advanced">
             <summary>{t("probe.advanced")}</summary>
             <div className="form-grid" style={{ marginTop: 10 }}>

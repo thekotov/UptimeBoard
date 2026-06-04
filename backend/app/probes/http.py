@@ -1,10 +1,11 @@
 import re
 import time
+from urllib.parse import urlsplit
 
 import httpx
 
-from app.models.monitoring import STATUS_DOWN, STATUS_UP
-from app.probes.base import ProbeOutcome
+from app.models.monitoring import STATUS_DEGRADED, STATUS_DOWN, STATUS_UP
+from app.probes.base import ProbeOutcome, is_timeout_error
 
 
 def _resolve_json_path(data, path: str):
@@ -40,8 +41,22 @@ def execute(host: str, config: dict, timeout_sec: int) -> ProbeOutcome:
       expected_body_regex  regex that must match the body
       json_path/json_expected  resolve a JSON path and compare to expected (string)
       follow_redirects     bool (default True)
+      check_cert           also inspect the TLS certificate (https URLs only)
+      warn_days            cert "degraded" threshold in days (default 14)
     """
     url = config.get("url") or f"http://{host}"
+    http_outcome = _http_check(url, config, timeout_sec)
+
+    # Optional certificate tracking: when enabled on an https endpoint, also judge
+    # the cert (expiry/trust) and fold it into the result. The probe status becomes
+    # the worse of the HTTP and certificate verdicts, and cert metadata is attached.
+    if config.get("check_cert") and urlsplit(url).scheme == "https":
+        cert_outcome = _cert_for_url(url, config, timeout_sec)
+        return _merge(http_outcome, cert_outcome)
+    return http_outcome
+
+
+def _http_check(url: str, config: dict, timeout_sec: int) -> ProbeOutcome:
     method = (config.get("method") or "GET").upper()
     expected_status = int(config.get("expected_status", 200))
     follow_redirects = bool(config.get("follow_redirects", True))
@@ -54,8 +69,16 @@ def execute(host: str, config: dict, timeout_sec: int) -> ProbeOutcome:
         auth = (config["basic_user"], config.get("basic_pass", ""))
 
     start = time.perf_counter()
-    with httpx.Client(timeout=timeout_sec, follow_redirects=follow_redirects) as client:
-        resp = client.request(method, url, headers=headers or None, auth=auth)
+    try:
+        with httpx.Client(timeout=timeout_sec, follow_redirects=follow_redirects) as client:
+            resp = client.request(method, url, headers=headers or None, auth=auth)
+    except httpx.HTTPError as exc:
+        # Surface request failures here (instead of letting the runner wrap them)
+        # so certificate tracking can still run and classify a TLS error nicely.
+        return ProbeOutcome(
+            status=STATUS_DOWN, error=str(exc),
+            kind="timeout" if is_timeout_error(exc) else None,
+        )
     latency_ms = (time.perf_counter() - start) * 1000
 
     def down(msg: str) -> ProbeOutcome:
@@ -81,3 +104,37 @@ def execute(host: str, config: dict, timeout_sec: int) -> ProbeOutcome:
             return down(f"json path = {value!r}, expected {expected!r}")
 
     return ProbeOutcome(status=STATUS_UP, latency_ms=latency_ms)
+
+
+def _cert_for_url(url: str, config: dict, timeout_sec: int) -> ProbeOutcome:
+    """Evaluate the TLS certificate of an https URL's host."""
+    # Imported lazily to avoid a circular import at module load.
+    from app.probes.tls import check_certificate
+
+    parts = urlsplit(url)
+    host = parts.hostname or ""
+    port = parts.port or 443
+    warn_days = int(config.get("warn_days", 14))
+    return check_certificate(host, port, timeout_sec, warn_days)
+
+
+# Status severity for folding the HTTP and certificate verdicts together.
+_RANK = {STATUS_UP: 0, STATUS_DEGRADED: 1, STATUS_DOWN: 2}
+
+
+def _merge(http_outcome: ProbeOutcome, cert_outcome: ProbeOutcome) -> ProbeOutcome:
+    """Combine the HTTP and certificate verdicts into one outcome: status is the
+    worse of the two, and a bad certificate wins ties (its message is the most
+    actionable). Certificate metadata is always carried through."""
+    cert_bad = cert_outcome.status != STATUS_UP
+    if cert_bad and _RANK[cert_outcome.status] >= _RANK[http_outcome.status]:
+        chosen = cert_outcome
+    else:
+        chosen = http_outcome
+    return ProbeOutcome(
+        status=chosen.status,
+        latency_ms=http_outcome.latency_ms,
+        error=chosen.error,
+        kind=chosen.kind,
+        meta=cert_outcome.meta,
+    )

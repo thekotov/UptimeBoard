@@ -119,7 +119,8 @@ class Probe(Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     order: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # type-specific settings: http {url, method, expected_status, expected_body_substr,
-    # follow_redirects}; tcp {port}; icmp {count, packet_size}; tls {port, warn_days}
+    # follow_redirects, check_cert, warn_days}; tcp {port}; icmp {count, packet_size};
+    # tls {port, warn_days}
     config: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
 
     # Open an incident only after this many consecutive bad checks (flap guard).

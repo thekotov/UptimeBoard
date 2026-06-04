@@ -570,7 +570,7 @@ export function PageEditor() {
                                 )}
                                 <span className="pill">{probe.type}</span>
                                 {!probe.enabled && <span className="pill">{t("status.paused")}</span>}
-                                {probe.type === "tls" && probe.tls_expires_at && (() => {
+                                {probe.tls_expires_at && (() => {
                                   const days = Math.floor((new Date(probe.tls_expires_at).getTime() - Date.now()) / 864e5);
                                   const cls = days < 0 ? "cert-bad" : days <= 14 ? "cert-warn" : days <= 30 ? "cert-soon" : "cert-ok";
                                   const label = days < 0 ? t("cert.expired") : days === 0 ? t("cert.expiresToday") : days === 1 ? t("cert.expiresInDay") : t("cert.expiresIn", { days });

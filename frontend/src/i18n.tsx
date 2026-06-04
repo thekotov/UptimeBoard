@@ -131,6 +131,7 @@ const ru: Dict = {
 
   // probe extras
   "probe.tls": "TLS",
+  "probe.checkCert": "Проверять и отслеживать SSL-сертификат",
   "probe.warnDays": "Предупреждать за (дней)",
   "probe.failureThreshold": "Сбоев подряд до алерта",
   "probe.failureThresholdHint": "«Сбой» — неудачная проверка (проба ответила degraded или down). «Подряд» — идущие друг за другом без единой успешной между ними: первая же успешная проверка обнуляет счётчик. После стольких сбоев подряд по этой пробе уходит оповещение в каналы алертов (Telegram, e-mail, webhook). 1 — алерт при первом же сбое; больше — чтобы не реагировать на разовые сетевые всплески.",
@@ -541,6 +542,7 @@ const en: Dict = {
   "toast.cloned": "Cloned",
 
   "probe.tls": "TLS",
+  "probe.checkCert": "Check & track SSL certificate",
   "probe.warnDays": "Warn before (days)",
   "probe.failureThreshold": "Failures before alert",
   "probe.failureThresholdHint": "A “failure” is a failed check (the probe came back degraded or down). “In a row” means back-to-back with no successful check between them — the first successful check resets the counter. After this many failures in a row an alert is sent to your notification channels (Telegram, e-mail, webhook). 1 = alert on the very first failure; higher = ignore one-off network blips.",
