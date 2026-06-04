@@ -20,6 +20,10 @@ class ProbeOutcome:
     # marks a no-response-in-time failure, which the runner renders as "degraded"
     # (slow ≠ hard outage) rather than "down". None for other outcomes.
     kind: str | None = None
+    # Optional probe-specific metadata, persisted by the runner. The TLS probe
+    # fills this with certificate info: {expires_at, not_before, issuer, subject,
+    # sans}. None for probes that carry no metadata.
+    meta: dict | None = None
 
 
 def is_timeout_error(exc: BaseException) -> bool:

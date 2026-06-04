@@ -114,6 +114,7 @@ def build_page_status(db: Session, page: Page) -> PageStatus:
                             id=probe.id, name=probe.name, type=probe.type,
                             status=STATUS_PAUSED, latency_ms=probe.last_latency_ms,
                             error=None, checked_at=probe.last_checked_at, stale=False,
+                            cert_expires_at=probe.tls_expires_at, cert_issuer=probe.tls_issuer,
                         )
                     )
                     continue
@@ -134,6 +135,8 @@ def build_page_status(db: Session, page: Page) -> PageStatus:
                         error=probe.last_error,
                         checked_at=probe.last_checked_at,
                         stale=stale,
+                        cert_expires_at=probe.tls_expires_at,
+                        cert_issuer=probe.tls_issuer,
                     )
                 )
             # Paused probes do not count toward the server's aggregated status.

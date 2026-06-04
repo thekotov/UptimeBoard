@@ -340,6 +340,30 @@ input.invalid, textarea.invalid { border-color: var(--down); box-shadow: 0 0 0 3
 .lat.lat-warn { color: var(--degraded-text); }
 .lat.lat-bad { color: var(--down-text); }
 
+/* ---- TLS certificate expiry ---- */
+.cert-pill {
+  display: inline-flex; align-items: center; gap: 3px; flex: 0 0 auto;
+  font-size: 10.5px; padding: 1px 6px; border-radius: 5px; font-weight: 600;
+  letter-spacing: .02em; white-space: nowrap;
+  background: var(--up-soft); color: var(--up-text);
+}
+.cert-pill.cert-soon { background: var(--panel-3); color: var(--muted); }
+.cert-pill.cert-warn { background: var(--degraded-soft); color: var(--degraded-text); }
+.cert-pill.cert-bad  { background: var(--down-soft); color: var(--down-text); }
+.cert-text.cert-ok   { color: var(--up-text); }
+.cert-text.cert-soon { color: var(--text); }
+.cert-text.cert-warn { color: var(--degraded-text); }
+.cert-text.cert-bad  { color: var(--down-text); }
+.cert-card {
+  border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px;
+  margin-bottom: 14px; background: var(--panel-3);
+}
+.cert-card-title { font-size: 13px; font-weight: 650; }
+.cert-grid {
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 14px;
+  margin-top: 6px; font-size: 13px; align-items: baseline;
+}
+
 /* ---- timeline (compact sparkline) ---- */
 .timeline { display: flex; gap: 2px; align-items: flex-end; }
 .tl-cell { width: 4px; height: 16px; border-radius: 1px; background: var(--unknown-soft); transition: opacity .1s; }

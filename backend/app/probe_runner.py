@@ -88,6 +88,7 @@ def _apply_latency_threshold(probe: Probe, outcome: ProbeOutcome) -> ProbeOutcom
             status=STATUS_DEGRADED,
             latency_ms=outcome.latency_ms,
             error=f"latency {outcome.latency_ms:.0f}ms > {probe.latency_degraded_ms}ms",
+            meta=outcome.meta,
         )
     return outcome
 
@@ -100,7 +101,7 @@ def _soften_timeout(outcome: ProbeOutcome) -> ProbeOutcome:
     if outcome.kind == "timeout" and outcome.status == STATUS_DOWN:
         return ProbeOutcome(
             status=STATUS_DEGRADED, latency_ms=outcome.latency_ms,
-            error=outcome.error, kind="timeout",
+            error=outcome.error, kind="timeout", meta=outcome.meta,
         )
     return outcome
 
@@ -147,6 +148,25 @@ def _store_suppressed(db: Session, probe: Probe, now: datetime, outcome: ProbeOu
         probe.id, probe.type, probe.server.host, outcome.error,
     )
     return outcome
+
+
+def _apply_cert_meta(probe: Probe, meta: dict) -> None:
+    """Denormalise TLS certificate metadata from a probe outcome onto the probe,
+    so dashboards can show expiry/issuer without re-fetching the cert."""
+    def _dt(value: str | None) -> datetime | None:
+        if not value:
+            return None
+        try:
+            return datetime.fromisoformat(value)
+        except ValueError:
+            return None
+
+    probe.tls_expires_at = _dt(meta.get("expires_at"))
+    probe.tls_not_before = _dt(meta.get("not_before"))
+    probe.tls_issuer = meta.get("issuer")
+    probe.tls_subject = meta.get("subject")
+    sans = meta.get("sans") or []
+    probe.tls_sans = ", ".join(sans) if sans else None
 
 
 def _evaluate_heartbeat(probe: Probe, now: datetime) -> ProbeOutcome:
@@ -273,6 +293,8 @@ def execute_and_store(db: Session, probe: Probe) -> ProbeOutcome:
     probe.last_latency_ms = outcome.latency_ms
     probe.last_checked_at = now
     probe.last_error = outcome.error
+    if outcome.meta:
+        _apply_cert_meta(probe, outcome.meta)
     db.flush()
 
     # Incident/alert logic intentionally keys off the raw outcome + thresholds,

@@ -83,6 +83,12 @@ class ProbeOut(ProbeBase):
     last_checked_at: datetime | None = None
     last_error: str | None = None
     last_ping_at: datetime | None = None
+    # TLS probes only: denormalised certificate metadata from the latest check.
+    tls_expires_at: datetime | None = None
+    tls_not_before: datetime | None = None
+    tls_issuer: str | None = None
+    tls_subject: str | None = None
+    tls_sans: str | None = None
 
     model_config = {"from_attributes": True}
 

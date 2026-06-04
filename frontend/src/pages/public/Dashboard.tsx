@@ -56,6 +56,41 @@ function aggregateBar(arrs: Pt[][], range: TimeRange, n = 40): Pt[] {
   );
 }
 
+/** Days remaining until a TLS certificate expires (floored; negative = expired). */
+function certDaysLeft(expiresAt: string): number {
+  return Math.floor((new Date(expiresAt).getTime() - Date.now()) / 864e5);
+}
+
+/** Small "🔒 expires in N days" badge for TLS probes, coloured by urgency. */
+function CertBadge({ expiresAt }: { expiresAt: string }) {
+  const { t } = useI18n();
+  const days = certDaysLeft(expiresAt);
+  let cls = "cert-ok";
+  let label: string;
+  if (days < 0) {
+    cls = "cert-bad";
+    label = t("cert.expired");
+  } else if (days === 0) {
+    cls = "cert-bad";
+    label = t("cert.expiresToday");
+  } else if (days === 1) {
+    cls = "cert-warn";
+    label = t("cert.expiresInDay");
+  } else {
+    label = t("cert.expiresIn", { days });
+    if (days <= 14) cls = "cert-warn";
+    else if (days <= 30) cls = "cert-soon";
+  }
+  return (
+    <span
+      className={`cert-pill ${cls}`}
+      title={t("cert.validUntil", { date: new Date(expiresAt).toLocaleString() })}
+    >
+      🔒 {label}
+    </span>
+  );
+}
+
 /** Colour the latency value relative to the probe's own recent median:
  *  noticeably slower than usual → amber, much slower → red. */
 function latClass(latency: number | null, points: { latency_ms: number | null }[]): string {
@@ -84,7 +119,12 @@ export function Dashboard() {
   const [collapsedSrv, setCollapsedSrv] = useState<Set<number>>(new Set());
   const [range, setRange] = useState<TimeRange>("24h");
   const [updateSeq, setUpdateSeq] = useState(0);
-  const [selectedProbe, setSelectedProbe] = useState<{ id: number; name: string } | null>(null);
+  const [selectedProbe, setSelectedProbe] = useState<{
+    id: number;
+    name: string;
+    certExpiresAt?: string | null;
+    certIssuer?: string | null;
+  } | null>(null);
   const [statusFilter, setStatusFilter] = useState<Status | null>(null);
   const [flashIds, setFlashIds] = useState<Set<number>>(new Set());
   const [liveMsg, setLiveMsg] = useState("");
@@ -556,13 +596,23 @@ export function Dashboard() {
                       <div
                         className={`probe-row clickable ${flashIds.has(probe.id) ? "flash" : ""}`}
                         key={probe.id}
-                        onClick={() => setSelectedProbe({ id: probe.id, name: probe.name })}
+                        onClick={() =>
+                          setSelectedProbe({
+                            id: probe.id,
+                            name: probe.name,
+                            certExpiresAt: probe.cert_expires_at,
+                            certIssuer: probe.cert_issuer,
+                          })
+                        }
                         title={t("modal.history")}
                       >
                         <div className="probe-main">
                           <StatusDot status={probe.status} />
                           <span className="name">{probe.name}</span>
                           <span className={`pill type-${probe.type}`}>{probe.type}</span>
+                          {probe.type === "tls" && probe.cert_expires_at && (
+                            <CertBadge expiresAt={probe.cert_expires_at} />
+                          )}
                           {probe.status === "paused" && <span className="pill">{t("status.paused")}</span>}
                           {probe.stale && <span className="pill stale-pill">{t("dash.stale")}</span>}
                           {probe.error && probe.status !== "up" && (
@@ -610,6 +660,8 @@ export function Dashboard() {
           slug={slug!}
           probeId={selectedProbe.id}
           probeName={selectedProbe.name}
+          certExpiresAt={selectedProbe.certExpiresAt}
+          certIssuer={selectedProbe.certIssuer}
           onClose={() => setSelectedProbe(null)}
         />
       )}

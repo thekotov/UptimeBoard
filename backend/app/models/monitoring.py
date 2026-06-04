@@ -154,6 +154,15 @@ class Probe(Base):
     # For heartbeat probes: timestamp of the last external ping received.
     last_ping_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # For TLS probes: denormalised certificate metadata from the latest check, so
+    # the dashboard/admin can show "expires in N days" and issuer details without
+    # re-fetching. Populated by the runner from the probe outcome's metadata.
+    tls_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    tls_not_before: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    tls_issuer: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tls_subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    tls_sans: Mapped[str | None] = mapped_column(Text, nullable=True)
+
     server: Mapped["Server"] = relationship(back_populates="probes")
     results: Mapped[list["ProbeResult"]] = relationship(
         back_populates="probe",

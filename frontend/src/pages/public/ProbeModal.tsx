@@ -50,15 +50,42 @@ function binCells(points: { checked_at: string; status: string }[], range: TimeR
   return cells;
 }
 
+/** Inline coloured "expires in N days / expired" text for the cert card. */
+function CertCountdown({ expiresAt }: { expiresAt: string }) {
+  const { t } = useI18n();
+  const days = Math.floor((new Date(expiresAt).getTime() - Date.now()) / 864e5);
+  let cls = "cert-ok";
+  let label: string;
+  if (days < 0) {
+    cls = "cert-bad";
+    label = t("cert.expired");
+  } else if (days === 0) {
+    cls = "cert-bad";
+    label = t("cert.expiresToday");
+  } else if (days === 1) {
+    cls = "cert-warn";
+    label = t("cert.expiresInDay");
+  } else {
+    label = t("cert.expiresIn", { days });
+    if (days <= 14) cls = "cert-warn";
+    else if (days <= 30) cls = "cert-soon";
+  }
+  return <b className={`cert-text ${cls}`}>{label}</b>;
+}
+
 export function ProbeModal({
   slug,
   probeId,
   probeName,
+  certExpiresAt,
+  certIssuer,
   onClose,
 }: {
   slug: string;
   probeId: number;
   probeName: string;
+  certExpiresAt?: string | null;
+  certIssuer?: string | null;
   onClose: () => void;
 }) {
   const { t, lang } = useI18n();
@@ -103,6 +130,25 @@ export function ProbeModal({
           ))}
         </div>
       </div>
+
+      {certExpiresAt && (
+        <div className="cert-card">
+          <span className="cert-card-title">🔒 {t("cert.title")}</span>
+          <div className="cert-grid">
+            <span className="muted small">{t("cert.expiresAt")}</span>
+            <span>
+              {new Date(certExpiresAt).toLocaleString()} ·{" "}
+              <CertCountdown expiresAt={certExpiresAt} />
+            </span>
+            {certIssuer && (
+              <>
+                <span className="muted small">{t("cert.issuer")}</span>
+                <span>{certIssuer}</span>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {loading || !data ? (
         <Spinner />

@@ -107,6 +107,19 @@ const ru: Dict = {
   "modal.uptime": "Аптайм",
   "modal.checks": "проверок",
 
+  // TLS-сертификат
+  "cert.title": "TLS-сертификат",
+  "cert.expiresIn": "истекает через {days} дн.",
+  "cert.expiresInDay": "истекает завтра",
+  "cert.expiresToday": "истекает сегодня",
+  "cert.expired": "сертификат истёк",
+  "cert.validUntil": "действителен до {date}",
+  "cert.issuer": "Издатель",
+  "cert.subject": "Субъект",
+  "cert.sans": "Домены (SAN)",
+  "cert.notBefore": "Действителен с",
+  "cert.expiresAt": "Истекает",
+
   // check now / toasts
   "probe.checkNow": "Проверить",
   "probe.checking": "Проверка…",
@@ -505,6 +518,19 @@ const en: Dict = {
   "modal.latencyApprox": "Approximate: over long ranges percentiles are computed from aggregates (rollups).",
   "modal.uptime": "Uptime",
   "modal.checks": "checks",
+
+  // TLS certificate
+  "cert.title": "TLS certificate",
+  "cert.expiresIn": "expires in {days}d",
+  "cert.expiresInDay": "expires tomorrow",
+  "cert.expiresToday": "expires today",
+  "cert.expired": "certificate expired",
+  "cert.validUntil": "valid until {date}",
+  "cert.issuer": "Issuer",
+  "cert.subject": "Subject",
+  "cert.sans": "Domains (SAN)",
+  "cert.notBefore": "Valid from",
+  "cert.expiresAt": "Expires",
 
   "probe.checkNow": "Check",
   "probe.checking": "Checking…",

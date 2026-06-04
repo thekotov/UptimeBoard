@@ -146,7 +146,13 @@ export function ProbeForm({
         timeout_sec: Number(timeout), config: buildConfig(),
       });
       const lat = res.latency_ms != null ? ` (${res.latency_ms.toFixed(0)} ${t("dash.ms")})` : "";
-      toast.show(`${t(`status.${res.status}`)}${lat}${res.error ? " — " + res.error : ""}`,
+      let cert = "";
+      if (type === "tls" && res.meta?.expires_at) {
+        const days = Math.floor((new Date(res.meta.expires_at).getTime() - Date.now()) / 864e5);
+        const when = days < 0 ? t("cert.expired") : t("cert.expiresIn", { days });
+        cert = ` · 🔒 ${when}${res.meta.issuer ? ` · ${res.meta.issuer}` : ""}`;
+      }
+      toast.show(`${t(`status.${res.status}`)}${lat}${res.error ? " — " + res.error : ""}${cert}`,
         res.status === "up" ? "success" : "error");
     } catch {
       toast.error(t("probe.checkFail"));

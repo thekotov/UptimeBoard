@@ -297,6 +297,7 @@ def check_probe_now(probe_id: int, db: Session = Depends(get_db)):
         "status": outcome.status,
         "latency_ms": outcome.latency_ms,
         "error": outcome.error,
+        "meta": outcome.meta,
     }
 
 
@@ -310,7 +311,8 @@ def test_probe(payload: ProbeTest, db: Session = Depends(get_db)):
     if not host:
         raise HTTPException(status_code=400, detail="host or server_id required")
     outcome = run_probe(payload.type, host, payload.config or {}, payload.timeout_sec)
-    return {"status": outcome.status, "latency_ms": outcome.latency_ms, "error": outcome.error}
+    return {"status": outcome.status, "latency_ms": outcome.latency_ms,
+            "error": outcome.error, "meta": outcome.meta}
 
 
 def _clone_probe(src: Probe, *, copy_name: bool = True) -> Probe:

@@ -43,6 +43,8 @@ export interface ProbeStatus {
   error: string | null;
   checked_at: string | null;
   stale: boolean;
+  cert_expires_at?: string | null;
+  cert_issuer?: string | null;
 }
 
 export interface MaintenanceInfo {
@@ -130,6 +132,11 @@ export interface Probe {
   last_latency_ms: number | null;
   last_checked_at: string | null;
   last_error: string | null;
+  tls_expires_at?: string | null;
+  tls_not_before?: string | null;
+  tls_issuer?: string | null;
+  tls_subject?: string | null;
+  tls_sans?: string | null;
 }
 export interface Server {
   id: number;
@@ -217,10 +224,18 @@ export interface Incident {
   ongoing: boolean;
   acknowledged_at: string | null;
 }
+export interface CertMeta {
+  expires_at: string | null;
+  not_before: string | null;
+  issuer: string | null;
+  subject: string | null;
+  sans: string[];
+}
 export interface CheckResult {
   status: Status;
   latency_ms: number | null;
   error: string | null;
+  meta?: CertMeta | null;
 }
 
 export type TimeRange = "15m" | "24h" | "7d" | "30d" | "90d";

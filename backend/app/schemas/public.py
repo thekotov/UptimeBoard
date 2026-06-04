@@ -12,6 +12,9 @@ class ProbeStatus(BaseModel):
     error: str | None = None
     checked_at: datetime | None = None
     stale: bool = False
+    # TLS probes only: certificate expiry + issuer, for the "expires in N days" hint.
+    cert_expires_at: datetime | None = None
+    cert_issuer: str | None = None
 
 
 class MaintenanceInfo(BaseModel):
