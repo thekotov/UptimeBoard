@@ -322,6 +322,11 @@ input.invalid, textarea.invalid { border-color: var(--down); box-shadow: 0 0 0 3
 
 /* empty slot in a fixed time grid — faint, no texture */
 .tl-cell.none { background: var(--unknown-soft); opacity: .4; }
+/* maintenance window — blue, excluded from uptime/SLA */
+.tl-cell.maintenance {
+  background-color: #3b82f6;
+  background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.25) 0 2px, transparent 2px 4px);
+}
 
 /* full-width status bar (probe modal) — cells stretch to fill */
 .status-bar .timeline { gap: 1px; }

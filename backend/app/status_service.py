@@ -1,5 +1,6 @@
 """Build status snapshots for a page from the denormalised probe status."""
 
+import ipaddress
 from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session, selectinload
@@ -24,6 +25,24 @@ from app.schemas.public import (
     ServerStatus,
     ServiceStatus,
 )
+
+
+def mask_host(host: str) -> str:
+    """Hide the last segment of an IP address for public display
+    (e.g. ``22.33.22.11`` → ``22.33.22.**``). Hostnames are returned unchanged."""
+    h = host.strip()
+    try:
+        ipaddress.IPv4Address(h)
+        return ".".join(h.split(".")[:-1] + ["**"])
+    except ValueError:
+        pass
+    try:
+        ipaddress.IPv6Address(h)
+        head, _, _ = h.rpartition(":")
+        return f"{head}:**" if head else "**"
+    except ValueError:
+        pass
+    return host
 
 
 def _is_stale(probe: Probe, now: datetime) -> bool:
@@ -85,7 +104,7 @@ def build_page_status(db: Session, page: Page) -> PageStatus:
                 ServerStatus(
                     id=server.id,
                     name=server.name,
-                    host=server.host,
+                    host=mask_host(server.host) if page.mask_ip else server.host,
                     status=server_status,
                     probes=probe_statuses,
                 )

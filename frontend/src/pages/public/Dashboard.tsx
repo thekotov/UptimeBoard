@@ -22,7 +22,7 @@ const RANGES: TimeRange[] = ["15m", "24h", "7d", "30d", "90d"];
 
 const isProblem = (st: Status) => st === "down" || st === "degraded";
 const STATUS_GLYPH: Record<Status, string> = { up: "✓", degraded: "!", down: "✕", unknown: "?", paused: "⏸" };
-const SEV: Record<string, number> = { down: 4, degraded: 3, unknown: 2, paused: 1, up: 0 };
+const SEV: Record<string, number> = { down: 4, degraded: 3, unknown: 2, paused: 1, up: 0, maintenance: -1 };
 type Pt = { checked_at: string; status: string; latency_ms: number | null };
 /** Aggregate per-bucket worst status across several probe timelines (right-aligned). */
 function aggregateBar(arrs: Pt[][]): Pt[] {
@@ -503,7 +503,7 @@ export function Dashboard() {
                           <span className="pill">{probe.type}</span>
                           {probe.status === "paused" && <span className="pill">{t("status.paused")}</span>}
                           {probe.stale && <span className="pill stale-pill">{t("dash.stale")}</span>}
-                          {probe.error && (
+                          {probe.error && probe.status !== "up" && (
                             <span className="probe-err" title={probe.error}>
                               {probe.error}
                             </span>

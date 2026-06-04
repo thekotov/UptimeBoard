@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.alert import AlertChannel
+from app.realtime import get_sync_redis
 
 logger = logging.getLogger("alerts")
 
@@ -142,20 +143,29 @@ _last_group_alert: dict[tuple[int, str], float] = {}
 
 
 def _group_allows(server_id: int | None, event: str) -> bool:
-    """True if an alert for (server, event-class) may be sent now (storm grouping)."""
+    """True if an alert for (server, event-class) may be sent now (storm grouping).
+
+    Backed by Redis (SET NX EX) so grouping works across multiple worker
+    processes; falls back to an in-memory gate if Redis is unavailable."""
     window = settings.alert_group_window_sec
     if window <= 0 or server_id is None:
         return True
     # group "ongoing"/"escalated" with their base class
     cls = "down" if event in ("opened", "ongoing", "escalated") else "resolved"
-    key = (server_id, cls)
-    now = time.time()
-    with _gate_lock:
-        last = _last_group_alert.get(key)
-        if last is not None and now - last < window:
-            return False
-        _last_group_alert[key] = now
-        return True
+    try:
+        # Acquire a per-(server, class) gate that auto-expires after the window.
+        # set(nx=True) returns True only for the first caller within the window.
+        acquired = get_sync_redis().set(f"alert:grp:{server_id}:{cls}", "1", nx=True, ex=window)
+        return bool(acquired)
+    except Exception as exc:  # noqa: BLE001 — Redis down: degrade to in-memory
+        logger.warning("storm-group Redis gate failed, using in-memory: %s", exc)
+        now = time.time()
+        with _gate_lock:
+            last = _last_group_alert.get((server_id, cls))
+            if last is not None and now - last < window:
+                return False
+            _last_group_alert[(server_id, cls)] = now
+            return True
 
 
 def _deliver(fn) -> None:

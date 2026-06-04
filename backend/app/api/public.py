@@ -20,7 +20,7 @@ from app.schemas.public import (
     ProbeHistory,
     ProbeUptime,
 )
-from app.status_service import build_page_status
+from app.status_service import build_page_status, mask_host
 
 router = APIRouter(prefix="/api/public", tags=["public"])
 
@@ -132,7 +132,8 @@ def _latency_stats_raw(db: Session, probe_id: int, since: datetime) -> LatencySt
                    percentile_cont(0.99) WITHIN GROUP (ORDER BY latency_ms),
                    min(latency_ms), max(latency_ms)
             FROM probe_results
-            WHERE probe_id = :pid AND checked_at >= :since AND latency_ms IS NOT NULL
+            WHERE probe_id = :pid AND checked_at >= :since
+                  AND latency_ms IS NOT NULL AND status <> 'maintenance'
             """
         ),
         {"pid": probe_id, "since": since},
@@ -245,7 +246,8 @@ def get_timeline(
 
     result = []
     for pid, results in by_probe.items():
-        total = len(results)
+        # Maintenance checks are excluded from uptime (planned, not an outage).
+        total = sum(1 for r in results if r.status != "maintenance")
         up = sum(1 for r in results if r.status == "up")
         uptime_pct = (up / total * 100) if total else 0.0
         points = _series_points(results, since, window, _TIMELINE_BUCKETS)
@@ -334,7 +336,7 @@ def get_probe_history(
             .order_by(asc(ProbeResult.checked_at))
             .all()
         )
-        total = len(results)
+        total = sum(1 for r in results if r.status != "maintenance")
         up = sum(1 for r in results if r.status == "up")
         uptime_pct = (up / total * 100) if total else 0.0
         points = _series_points(results, since, window, n_buckets)
@@ -363,7 +365,7 @@ def get_probe_history(
         name=probe.name,
         type=probe.type,
         server_name=probe.server.name,
-        host=probe.server.host,
+        host=mask_host(probe.server.host) if page.mask_ip else probe.server.host,
         uptime_pct=round(uptime_pct, 2),
         total=total,
         points=points,

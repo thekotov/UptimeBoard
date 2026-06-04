@@ -10,12 +10,16 @@ Rules:
 from app.models.monitoring import (
     STATUS_DEGRADED,
     STATUS_DOWN,
+    STATUS_MAINTENANCE,
     STATUS_UNKNOWN,
     STATUS_UP,
 )
 
-# Ordering from best to worst for "worst wins" aggregation.
-_SEVERITY = {STATUS_UP: 0, STATUS_UNKNOWN: 1, STATUS_DEGRADED: 2, STATUS_DOWN: 3}
+# Ordering from best to worst for "worst wins" aggregation. Maintenance ranks
+# below everything so a mixed timeline bucket is only "maintenance" when every
+# sample in it was maintenance (it never overrides real up/down data).
+_SEVERITY = {STATUS_MAINTENANCE: -1, STATUS_UP: 0, STATUS_UNKNOWN: 1,
+             STATUS_DEGRADED: 2, STATUS_DOWN: 3}
 
 
 def worst(statuses: list[str]) -> str:

@@ -205,8 +205,12 @@ def delete_server(server_id: int, db: Session = Depends(get_db)):
 
 @router.post("/probes", response_model=ProbeOut, status_code=201)
 def create_probe(payload: ProbeCreate, db: Session = Depends(get_db)):
-    _get_or_404(db, Server, payload.server_id)
+    server = _get_or_404(db, Server, payload.server_id)
     data = payload.model_dump()
+    # Inherit the page's default noise tolerance when the client didn't specify one.
+    if data.get("tolerance_checks") is None:
+        page = server.service.page if server.service is not None else None
+        data["tolerance_checks"] = page.default_tolerance_checks if page is not None else 0
     # Heartbeat probes get a unique push token used in their /api/ping/<token> URL.
     if data["type"] == "heartbeat" and not (data.get("config") or {}).get("token"):
         data.setdefault("config", {})
@@ -279,6 +283,7 @@ def _clone_probe(src: Probe, *, copy_name: bool = True) -> Probe:
         interval_sec=src.interval_sec, timeout_sec=src.timeout_sec, enabled=src.enabled,
         failure_threshold=src.failure_threshold, latency_degraded_ms=src.latency_degraded_ms,
         degraded_threshold=src.degraded_threshold, down_threshold=src.down_threshold,
+        tolerance_checks=src.tolerance_checks, recovery_threshold=src.recovery_threshold,
         config=dict(src.config or {}),
     )
 
@@ -351,6 +356,9 @@ def clone_page(page_id: int, db: Session = Depends(get_db)):
     clone = Page(
         slug=slug, title=f"{src.title} (copy)", description=src.description,
         group_name=src.group_name, is_published=False,
+        default_collapsed=src.default_collapsed,
+        default_tolerance_checks=src.default_tolerance_checks,
+        mask_ip=src.mask_ip,
     )
     clone.services = [
         Service(
@@ -400,6 +408,7 @@ def export_page(page_id: int, db: Session = Depends(get_db)):
         "group_name": page.group_name,
         "default_collapsed": page.default_collapsed,
         "default_tolerance_checks": page.default_tolerance_checks,
+        "mask_ip": page.mask_ip,
         "services": [
             {
                 "name": svc.name, "order": svc.order,
@@ -414,7 +423,8 @@ def export_page(page_id: int, db: Session = Depends(get_db)):
                                 "latency_degraded_ms": p.latency_degraded_ms,
                                 "degraded_threshold": p.degraded_threshold,
                                 "down_threshold": p.down_threshold,
-                                "tolerance_checks": p.tolerance_checks, "config": p.config,
+                                "tolerance_checks": p.tolerance_checks,
+                                "recovery_threshold": p.recovery_threshold, "config": p.config,
                             }
                             for p in s.probes
                         ],
@@ -441,6 +451,7 @@ def import_page(payload: dict = Body(...), db: Session = Depends(get_db)):
         group_name=payload.get("group_name"),
         default_collapsed=payload.get("default_collapsed", True),
         default_tolerance_checks=payload.get("default_tolerance_checks", 0),
+        mask_ip=payload.get("mask_ip", False),
         is_published=False,
     )
     page.services = [
@@ -459,6 +470,7 @@ def import_page(payload: dict = Body(...), db: Session = Depends(get_db)):
                             degraded_threshold=p.get("degraded_threshold", 1),
                             down_threshold=p.get("down_threshold", 1),
                             tolerance_checks=p.get("tolerance_checks", 0),
+                            recovery_threshold=p.get("recovery_threshold", 1),
                             config=p.get("config", {}),
                         )
                         for p in s.get("probes", [])

@@ -23,6 +23,7 @@ STATUS_DEGRADED = "degraded"
 STATUS_DOWN = "down"
 STATUS_UNKNOWN = "unknown"
 STATUS_PAUSED = "paused"  # probe disabled/paused — excluded from aggregation
+STATUS_MAINTENANCE = "maintenance"  # check ran during a maintenance window — excluded from SLA/stats
 
 PROBE_TYPES = ("icmp", "tcp", "http", "tls", "heartbeat")
 
@@ -45,6 +46,10 @@ class Page(Base):
     default_collapsed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     # Default monitoring-noise tolerance pre-filled for new probes on this page.
     default_tolerance_checks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # When True, server IP addresses are masked on the public page (the last
+    # octet/group is hidden, e.g. 22.33.22.11 → 22.33.22.**). Hostnames are
+    # shown as-is. Admin views always show the real address.
+    mask_ip: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -123,6 +128,9 @@ class Probe(Base):
     # are treated as noise and recorded as "up", so isolated blips don't affect
     # uptime, graphs or the timeline. A real outage (longer than N) counts fully.
     tolerance_checks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Resolve an open incident only after this many consecutive good checks
+    # (recovery confirmation / anti-flap on the close side). 1 = resolve at once.
+    recovery_threshold: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
     # Denormalised latest result (kept in sync by the worker) for fast snapshots
     # and live status in the admin UI without scanning probe_results.
@@ -131,6 +139,7 @@ class Probe(Base):
     last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     consecutive_failures: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    consecutive_successes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     # For heartbeat probes: timestamp of the last external ping received.
     last_ping_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 

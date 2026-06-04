@@ -11,7 +11,13 @@ from sqlalchemy.orm import Session
 from app.alerts import all_escalation_channels, base_channels, dispatch, escalation_channels
 from app.config import settings
 from app.models import Incident, MaintenanceWindow, Probe, ProbeResult
-from app.models.monitoring import STATUS_DEGRADED, STATUS_DOWN, STATUS_UNKNOWN, STATUS_UP
+from app.models.monitoring import (
+    STATUS_DEGRADED,
+    STATUS_DOWN,
+    STATUS_MAINTENANCE,
+    STATUS_UNKNOWN,
+    STATUS_UP,
+)
 from app.probes import ProbeOutcome, run_probe
 from app.realtime import publish_status_update
 from app.status_service import find_page_for_probe
@@ -44,12 +50,14 @@ def _display_status(probe: Probe, raw_status: str, consecutive_failures: int) ->
     # Layer 1: within tolerance -> treat as monitoring noise.
     if consecutive_failures <= probe.tolerance_checks:
         return STATUS_UP
-    # Layer 2: down tiering (degraded outcomes pass through unchanged).
+    # Layer 2: down tiering, counted from the first non-tolerated failure
+    # (degraded outcomes pass through unchanged).
+    eff = consecutive_failures - probe.tolerance_checks
     if raw_status != STATUS_DOWN:
         return raw_status
-    if consecutive_failures >= max(1, probe.down_threshold):
+    if eff >= max(1, probe.down_threshold):
         return STATUS_DOWN
-    if consecutive_failures >= max(1, probe.degraded_threshold):
+    if eff >= max(1, probe.degraded_threshold):
         return STATUS_DEGRADED
     return STATUS_UP
 
@@ -150,7 +158,8 @@ def handle_incident(db: Session, probe: Probe, outcome: ProbeOutcome, host: str,
                 if esc:
                     dispatch(esc, event="escalated", started_at=open_incident.started_at, **common)
                     open_incident.escalated_at = now
-    elif open_incident is not None:
+    elif open_incident is not None and probe.consecutive_successes >= max(1, probe.recovery_threshold):
+        # Recovery confirmed (enough good checks in a row) -> close the incident.
         started = open_incident.started_at
         open_incident.resolved_at = now
         if not maint:
@@ -172,25 +181,35 @@ def execute_and_store(db: Session, probe: Probe) -> ProbeOutcome:
             probe, run_probe(probe.type, host, probe.config or {}, probe.timeout_sec)
         )
 
-    # Count consecutive failures from the RAW outcome, then tier it for display.
-    probe.consecutive_failures = probe.consecutive_failures + 1 if _is_bad(outcome.status) else 0
+    # Track consecutive failures (for tiering) and successes (for recovery
+    # confirmation) from the RAW outcome, then tier it for display.
+    if _is_bad(outcome.status):
+        probe.consecutive_failures += 1
+        probe.consecutive_successes = 0
+    else:
+        probe.consecutive_failures = 0
+        probe.consecutive_successes += 1
     display = _display_status(probe, outcome.status, probe.consecutive_failures)
+
+    page = find_page_for_probe(db, probe.id)
+    maint = page is not None and in_maintenance(db, page.id, now)
+    # Checks during a maintenance window are recorded as "maintenance" so they're
+    # excluded from uptime/graphs/rollups (planned work shouldn't count as downtime).
+    stored = STATUS_MAINTENANCE if maint else display
 
     db.add(
         ProbeResult(
-            probe_id=probe.id, status=display, latency_ms=outcome.latency_ms,
+            probe_id=probe.id, status=stored, latency_ms=outcome.latency_ms,
             error=outcome.error, checked_at=now,
         )
     )
-    probe.last_status = display
+    probe.last_status = display  # live status still reflects reality during maintenance
     probe.last_latency_ms = outcome.latency_ms
     probe.last_checked_at = now
     probe.last_error = outcome.error
     db.flush()
 
-    page = find_page_for_probe(db, probe.id)
-    maint = page is not None and in_maintenance(db, page.id, now)
-    # Incident/alert logic intentionally keys off the raw outcome + failure_threshold,
+    # Incident/alert logic intentionally keys off the raw outcome + thresholds,
     # independently of the visual degraded/down tiering above.
     handle_incident(db, probe, outcome, host, page.id if page else None, maint, now)
     db.commit()

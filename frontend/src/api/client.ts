@@ -104,6 +104,7 @@ export interface Page {
   is_private: boolean;
   default_collapsed: boolean;
   default_tolerance_checks: number;
+  mask_ip: boolean;
 }
 export type ProbeType = "icmp" | "tcp" | "http" | "tls" | "heartbeat";
 
@@ -121,6 +122,7 @@ export interface Probe {
   degraded_threshold: number;
   down_threshold: number;
   tolerance_checks: number;
+  recovery_threshold: number;
   config: Record<string, unknown>;
   last_status: Status;
   last_latency_ms: number | null;

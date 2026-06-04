@@ -43,11 +43,14 @@ class ProbeBase(BaseModel):
     degraded_threshold: int = Field(default=1, ge=1, le=20)
     down_threshold: int = Field(default=1, ge=1, le=20)
     tolerance_checks: int = Field(default=0, ge=0, le=20)
+    recovery_threshold: int = Field(default=1, ge=1, le=20)
     config: dict = {}
 
 
 class ProbeCreate(ProbeBase):
     server_id: int
+    # None = inherit the page's default tolerance at creation time.
+    tolerance_checks: int | None = Field(default=None, ge=0, le=20)
 
 
 class ProbeUpdate(BaseModel):
@@ -62,6 +65,7 @@ class ProbeUpdate(BaseModel):
     degraded_threshold: int | None = Field(default=None, ge=1, le=20)
     down_threshold: int | None = Field(default=None, ge=1, le=20)
     tolerance_checks: int | None = Field(default=None, ge=0, le=20)
+    recovery_threshold: int | None = Field(default=None, ge=1, le=20)
     config: dict | None = None
 
 
@@ -151,6 +155,7 @@ class PageBase(BaseModel):
     is_private: bool = False
     default_collapsed: bool = True
     default_tolerance_checks: int = Field(default=0, ge=0, le=20)
+    mask_ip: bool = False
 
 
 class PageCreate(PageBase):
@@ -166,6 +171,7 @@ class PageUpdate(BaseModel):
     is_private: bool | None = None
     default_collapsed: bool | None = None
     default_tolerance_checks: int | None = Field(default=None, ge=0, le=20)
+    mask_ip: bool | None = None
 
 
 class PageOut(PageBase):

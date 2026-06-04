@@ -16,7 +16,7 @@ const RANGE_MS: Record<TimeRange, number> = {
   "90d": 90 * 864e5,
 };
 
-const SEV: Record<string, number> = { down: 4, degraded: 3, unknown: 2, paused: 1, up: 0 };
+const SEV: Record<string, number> = { down: 4, degraded: 3, unknown: 2, paused: 1, up: 0, maintenance: -1 };
 
 interface Cell {
   status: string;
@@ -149,7 +149,7 @@ export function ProbeModal({
               <div className="log-row" key={i}>
                 <StatusDot status={r.status as Status} />
                 <span className="when">{relativeTime(r.checked_at, lang)}</span>
-                {r.error && (
+                {r.error && r.status !== "up" && (
                   <span className="muted" style={{ color: "var(--down-text)" }}>
                     {r.error}
                   </span>
