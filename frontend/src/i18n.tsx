@@ -143,7 +143,7 @@ const ru: Dict = {
   "alerts.event.escalated": "Эскалация",
   "alerts.event.resolved": "Восстановление",
   "alerts.template": "Шаблон сообщения (необязательно)",
-  "alerts.templateHint": "Плейсхолдеры: {probe} {host} {status} {error} {verb} {event}. Пусто = стандартный текст.",
+  "alerts.templateHint": "Плейсхолдеры: {probe} {type} {host} {server} {service} {page} {status} {error} {latency} {duration} {url} {time} {verb} {event}. Пусто = подробное стандартное сообщение (с HTML-форматированием в Telegram).",
 
   // staleness / maintenance
   "dash.stale": "данные устарели",
@@ -462,7 +462,7 @@ const en: Dict = {
   "alerts.event.escalated": "Escalated",
   "alerts.event.resolved": "Resolved",
   "alerts.template": "Message template (optional)",
-  "alerts.templateHint": "Placeholders: {probe} {host} {status} {error} {verb} {event}. Empty = default text.",
+  "alerts.templateHint": "Placeholders: {probe} {type} {host} {server} {service} {page} {status} {error} {latency} {duration} {url} {time} {verb} {event}. Empty = detailed default message (HTML-formatted on Telegram).",
 
   "dash.stale": "data is stale",
   "dash.showProbes": "Show server probes",

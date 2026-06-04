@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     # CORS (comma-separated origins; "*" allows all)
     cors_origins: str = "*"
 
+    # Public base URL of the status site (e.g. https://uptime.example.com), used
+    # to build clickable links in alerts. Empty = omit links.
+    public_base_url: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

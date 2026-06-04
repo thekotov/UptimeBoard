@@ -102,14 +102,29 @@ def handle_incident(db: Session, probe: Probe, outcome: ProbeOutcome, host: str,
     )
     bad = _is_bad(outcome.status)
     threshold = max(1, probe.failure_threshold)
-    common = dict(probe_name=probe.name, server_host=host, status=outcome.status,
-                  error=outcome.error, server_id=probe.server_id)
+
+    # Static context for richly-formatted alerts (server/service/page names + link).
+    server = probe.server
+    service = getattr(server, "service", None)
+    page = getattr(service, "page", None) if service is not None else None
+    page_url = (
+        f"{settings.public_base_url.rstrip('/')}/status/{page.slug}"
+        if page is not None and settings.public_base_url
+        else ""
+    )
+    common = dict(
+        probe_name=probe.name, server_host=host, status=outcome.status, error=outcome.error,
+        server_id=probe.server_id, probe_type=probe.type, server_name=server.name,
+        service_name=service.name if service is not None else "",
+        page_title=page.title if page is not None else "", page_url=page_url,
+        latency_ms=outcome.latency_ms, occurred_at=now,
+    )
 
     if bad:
         if open_incident is None:
             if probe.consecutive_failures >= threshold and not maint:
                 db.add(Incident(probe_id=probe.id, last_status=outcome.status, last_notified_at=now))
-                dispatch(base_channels(db, page_id), event="opened", **common)
+                dispatch(base_channels(db, page_id), event="opened", started_at=now, **common)
         else:
             open_incident.last_status = outcome.status
             if maint:
@@ -123,20 +138,23 @@ def handle_incident(db: Session, probe: Probe, outcome: ProbeOutcome, host: str,
             if repeat > 0:
                 last = open_incident.last_notified_at or open_incident.started_at
                 if now - last >= timedelta(minutes=repeat):
-                    dispatch(base_channels(db, page_id), event="ongoing", **common)
+                    dispatch(base_channels(db, page_id), event="ongoing",
+                             started_at=open_incident.started_at, **common)
                     open_incident.last_notified_at = now
             # escalate once to escalation channels whose threshold has elapsed
             if open_incident.escalated_at is None:
                 esc = escalation_channels(db, page_id, int(age_min))
                 if esc:
-                    dispatch(esc, event="escalated", **common)
+                    dispatch(esc, event="escalated", started_at=open_incident.started_at, **common)
                     open_incident.escalated_at = now
     elif open_incident is not None:
+        started = open_incident.started_at
         open_incident.resolved_at = now
         if not maint:
-            dispatch(base_channels(db, page_id), event="resolved", **common)
+            dispatch(base_channels(db, page_id), event="resolved", started_at=started, **common)
             if open_incident.escalated_at is not None:
-                dispatch(all_escalation_channels(db, page_id), event="resolved", group=False, **common)
+                dispatch(all_escalation_channels(db, page_id), event="resolved",
+                         group=False, started_at=started, **common)
 
 
 def execute_and_store(db: Session, probe: Probe) -> ProbeOutcome:

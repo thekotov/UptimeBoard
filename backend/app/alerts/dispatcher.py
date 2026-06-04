@@ -7,10 +7,12 @@
   within a short window so a whole-server outage sends one alert, not one per probe.
 """
 
+import html
 import logging
 import smtplib
 import threading
 import time
+from datetime import datetime, timezone
 from email.message import EmailMessage
 
 import httpx
@@ -34,7 +36,86 @@ _VERB = {
 ALERT_EVENTS = tuple(_VERB.keys())
 
 # Placeholders available in a channel's custom config["template"].
-TEMPLATE_FIELDS = ("event", "verb", "probe", "host", "status", "error")
+TEMPLATE_FIELDS = (
+    "event", "verb", "probe", "type", "host", "server", "service", "page",
+    "status", "error", "latency", "duration", "url", "time",
+)
+
+_STATUS_RU = {"up": "работает", "degraded": "деградация", "down": "недоступен",
+              "unknown": "неизвестно", "paused": "на паузе"}
+
+
+def _header(event: str, status: str) -> tuple[str, str]:
+    """(emoji, plain title) for an event, severity-aware for 'opened'."""
+    if event == "opened":
+        return ("🟠", "Деградация") if status == "degraded" else ("🔴", "Сбой")
+    return {
+        "ongoing": ("🔴", "Всё ещё недоступен"),
+        "escalated": ("🔺", "Эскалация"),
+        "resolved": ("🟢", "Восстановлен"),
+    }.get(event, ("⚪", event))
+
+
+def _fmt_duration(seconds: float) -> str:
+    s = int(max(0, seconds))
+    d, rem = divmod(s, 86400)
+    h, rem = divmod(rem, 3600)
+    m, sec = divmod(rem, 60)
+    parts = []
+    if d:
+        parts.append(f"{d} д")
+    if h:
+        parts.append(f"{h} ч")
+    if m:
+        parts.append(f"{m} мин")
+    if sec or not parts:
+        parts.append(f"{sec} с")
+    return " ".join(parts)
+
+
+def _build_messages(ctx: dict) -> tuple[str, str]:
+    """Build (plain, html) alert bodies. HTML uses Telegram-supported tags
+    (<b>, <code>, <a>); plain mirrors it for email/webhook and template fallback."""
+    emoji, title = _header(ctx["event"], ctx["status"])
+    status_ru = _STATUS_RU.get(ctx["status"], ctx["status"])
+
+    def esc(v) -> str:
+        return html.escape(str(v)) if v is not None else ""
+
+    rows: list[tuple[str, str, str]] = []
+    rows.append(("Проба", ctx["probe"] + (f" · {ctx['type'].upper()}" if ctx.get("type") else ""),
+                 esc(ctx["probe"]) + (f" · {esc(ctx['type'].upper())}" if ctx.get("type") else "")))
+    srv = ctx.get("server") or ""
+    rows.append(("Сервер", f"{srv} · {ctx['host']}".strip(" ·"),
+                 (esc(srv) + " · " if srv else "") + f"<code>{esc(ctx['host'])}</code>"))
+    loc = " · ".join(x for x in (ctx.get("service"), ctx.get("page")) if x)
+    if loc:
+        rows.append(("Где", loc, esc(loc)))
+    if ctx.get("latency") is not None:
+        lat = f"{ctx['latency']:.0f} мс"
+        rows.append(("Время ответа", lat, esc(lat)))
+    if ctx.get("error"):
+        rows.append(("Ошибка", ctx["error"], f"<code>{esc(ctx['error'])}</code>"))
+    if ctx.get("duration"):
+        label = "Простой" if ctx["event"] == "resolved" else "Длится уже"
+        rows.append((label, ctx["duration"], esc(ctx["duration"])))
+    rows.append(("Время", ctx["time"], esc(ctx["time"])))
+
+    # Append the current status only when it isn't already implied by the title
+    # (avoids "Деградация · деградация" / "Всё ещё недоступен · недоступен").
+    suffix = "" if status_ru.lower() in title.lower() else f" · {status_ru}"
+    head_plain = f"{emoji} {title.upper()}{suffix.upper()}"
+    head_html = f"{emoji} <b>{esc(title)}</b>{esc(suffix)}"
+    body_plain = "\n".join(f"{label}: {pv}" for label, pv, _ in rows)
+    body_html = "\n".join(f"<b>{esc(label)}:</b> {hv}" for label, _, hv in rows)
+
+    link_plain = link_html = ""
+    if ctx.get("url"):
+        link_plain = f"\n\n🔗 {ctx['url']}"
+        link_html = f'\n\n🔗 <a href="{esc(ctx["url"])}">Открыть статус-страницу</a>'
+
+    return (f"{head_plain}\n\n{body_plain}{link_plain}",
+            f"{head_html}\n\n{body_html}{link_html}")
 
 
 class _SafeDict(dict):
@@ -96,15 +177,17 @@ def _deliver(fn) -> None:
         raise last
 
 
-def _send_telegram(config: dict, text: str) -> None:
+def _send_telegram(config: dict, text: str, parse_mode: str | None = None) -> None:
     token, chat_id = config.get("bot_token"), config.get("chat_id")
     if not token or not chat_id:
         logger.warning("telegram channel misconfigured")
         return
     proxy = config.get("proxy") or None
+    body: dict = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
+    if parse_mode:
+        body["parse_mode"] = parse_mode
     with httpx.Client(timeout=_TIMEOUT, proxy=proxy) as client:
-        resp = client.post(f"https://api.telegram.org/bot{token}/sendMessage",
-                           json={"chat_id": chat_id, "text": text})
+        resp = client.post(f"https://api.telegram.org/bot{token}/sendMessage", json=body)
         resp.raise_for_status()
 
 
@@ -182,18 +265,33 @@ def _channels(db: Session, page_id: int | None):
 
 
 def dispatch(channels: list[AlertChannel], *, event: str, probe_name: str, server_host: str,
-             status: str, error: str | None, server_id: int | None = None, group: bool = True) -> None:
-    """Send an alert to the given channels (best-effort, storm-grouped)."""
+             status: str, error: str | None, server_id: int | None = None, group: bool = True,
+             probe_type: str = "", server_name: str = "", service_name: str = "",
+             page_title: str = "", page_url: str = "", latency_ms: float | None = None,
+             started_at: datetime | None = None, occurred_at: datetime | None = None) -> None:
+    """Send a richly-formatted alert to the given channels (best-effort, storm-grouped)."""
     if not channels:
         return
     if group and not _group_allows(server_id, event):
         logger.info("alert grouped/suppressed: server=%s event=%s", server_id, event)
         return
 
-    verb = _VERB.get(event, event.upper())
-    default_text = f"{verb}: {probe_name} на {server_host}\nстатус: {status}" + (f"\nошибка: {error}" if error else "")
-    fields = {"event": event, "verb": verb, "probe": probe_name,
-              "host": server_host, "status": status, "error": error or ""}
+    now = occurred_at or datetime.now(timezone.utc)
+    duration = _fmt_duration((now - started_at).total_seconds()) if started_at else ""
+    verb_emoji, verb_title = _header(event, status)
+    verb = f"{verb_emoji} {verb_title}"
+
+    ctx = {
+        "event": event, "probe": probe_name, "type": probe_type, "host": server_host,
+        "server": server_name, "service": service_name, "page": page_title,
+        "status": status, "error": error or "", "latency": latency_ms,
+        "duration": duration, "url": page_url,
+        "time": now.strftime("%d.%m.%Y %H:%M:%S UTC"),
+    }
+    default_plain, default_html = _build_messages(ctx)
+
+    # Template fields (strings) for custom templates.
+    fields = {**ctx, "verb": verb, "latency": f"{latency_ms:.0f}" if latency_ms is not None else ""}
 
     for ch in channels:
         cfg = ch.config or {}
@@ -201,12 +299,19 @@ def dispatch(channels: list[AlertChannel], *, event: str, probe_name: str, serve
         subscribed = cfg.get("events")
         if subscribed and event not in subscribed:
             continue
-        text = _render_template(cfg.get("template"), fields, default_text)
-        payload = {"event": event, "probe": probe_name, "host": server_host,
-                   "status": status, "error": error, "text": text}
+        has_tpl = bool(cfg.get("template"))
+        text = _render_template(cfg.get("template"), fields, default_plain)
+        # Custom template -> send plain; default -> use HTML formatting (Telegram).
+        tg_text = text if has_tpl else default_html
+        tg_mode = None if has_tpl else "HTML"
+        payload = {"event": event, "probe": probe_name, "type": probe_type,
+                   "host": server_host, "server": server_name, "service": service_name,
+                   "page": page_title, "status": status, "error": error,
+                   "latency_ms": latency_ms, "duration": duration, "url": page_url,
+                   "occurred_at": now.isoformat(), "text": text}
         try:
             if ch.type == "telegram":
-                _deliver(lambda cfg=cfg, text=text: _send_telegram(cfg, text))
+                _deliver(lambda cfg=cfg, tg_text=tg_text, tg_mode=tg_mode: _send_telegram(cfg, tg_text, tg_mode))
             elif ch.type == "webhook":
                 _deliver(lambda cfg=cfg, payload=payload: _send_webhook(cfg, payload))
             elif ch.type == "email":
