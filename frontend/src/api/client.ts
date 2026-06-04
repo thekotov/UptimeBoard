@@ -103,6 +103,7 @@ export interface Page {
   is_published: boolean;
   is_private: boolean;
   default_collapsed: boolean;
+  default_tolerance_checks: number;
 }
 export type ProbeType = "icmp" | "tcp" | "http" | "tls" | "heartbeat";
 

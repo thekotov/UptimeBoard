@@ -43,6 +43,8 @@ class Page(Base):
     # Default display density on the public page: when True, server blocks start
     # collapsed (click to reveal probes); when False, everything is expanded.
     default_collapsed: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    # Default monitoring-noise tolerance pre-filled for new probes on this page.
+    default_tolerance_checks: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

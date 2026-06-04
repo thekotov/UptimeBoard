@@ -26,11 +26,13 @@ const textToHeaders = (s: string): Record<string, string> => {
 export function ProbeForm({
   serverId,
   probe,
+  pageDefaultTolerance,
   onSaved,
   onCancel,
 }: {
   serverId?: number;
   probe?: Probe;
+  pageDefaultTolerance?: number;
   onSaved: () => void;
   onCancel?: () => void;
 }) {
@@ -48,7 +50,7 @@ export function ProbeForm({
   const [latencyDegraded, setLatencyDegraded] = useState<number | "">(probe?.latency_degraded_ms ?? "");
   const [degradedThreshold, setDegradedThreshold] = useState(probe?.degraded_threshold ?? 1);
   const [downThreshold, setDownThreshold] = useState(probe?.down_threshold ?? 1);
-  const [toleranceChecks, setToleranceChecks] = useState(probe?.tolerance_checks ?? 0);
+  const [toleranceChecks, setToleranceChecks] = useState(probe?.tolerance_checks ?? pageDefaultTolerance ?? 0);
   // http
   const [url, setUrl] = useState(cfg.url ?? "");
   const [method, setMethod] = useState<string>(cfg.method ?? "GET");

@@ -52,6 +52,7 @@ type ModalState =
   | { kind: "maintenance" }
   | { kind: "incidents" }
   | { kind: "announcements" }
+  | { kind: "bulk-tolerance" }
   | null;
 
 /** Client-side staleness mirror of the backend rule (interval*3 + 30s grace). */
@@ -400,6 +401,7 @@ export function PageEditor() {
           </button>
           <button className="secondary btn-sm" onClick={() => bulkSetEnabled(true)}>{t("bulk.enable")}</button>
           <button className="secondary btn-sm" onClick={() => bulkSetEnabled(false)}>{t("bulk.disable")}</button>
+          <button className="secondary btn-sm" onClick={() => setModal({ kind: "bulk-tolerance" })}>{t("bulk.tolerance")}</button>
           <button className="danger btn-sm" onClick={bulkDelete}>{t("delete")}</button>
           <button className="ghost btn-sm" onClick={() => setSelected(new Set())}>✕</button>
         </div>
@@ -620,12 +622,12 @@ export function PageEditor() {
       )}
       {modal?.kind === "probe-add" && (
         <Modal title={t("editor.addProbe")} onClose={() => setModal(null)}>
-          <ProbeForm serverId={modal.serverId} onSaved={onSaved} onCancel={() => setModal(null)} />
+          <ProbeForm serverId={modal.serverId} pageDefaultTolerance={page.default_tolerance_checks} onSaved={onSaved} onCancel={() => setModal(null)} />
         </Modal>
       )}
       {modal?.kind === "probe-bulk" && (
         <Modal title={t("bulk.importTitle")} onClose={() => setModal(null)}>
-          <BulkProbeImport serverId={modal.serverId} host={modal.host} onSaved={onSaved} onCancel={() => setModal(null)} />
+          <BulkProbeImport serverId={modal.serverId} host={modal.host} defaultTolerance={page.default_tolerance_checks} onSaved={onSaved} onCancel={() => setModal(null)} />
         </Modal>
       )}
       {modal?.kind === "probe-edit" && (
@@ -648,7 +650,60 @@ export function PageEditor() {
           <AnnouncementsManager pageId={page.id} onClose={() => setModal(null)} />
         </Modal>
       )}
+      {modal?.kind === "bulk-tolerance" && (
+        <Modal title={t("bulk.toleranceTitle")} onClose={() => setModal(null)}>
+          <BulkToleranceForm
+            count={selected.size}
+            onApply={async (n) => {
+              await Promise.all(
+                [...selected].map((pid) => api.patch(`/admin/probes/${pid}`, { tolerance_checks: n }))
+              );
+              toast.success(t("toast.saved"));
+              setSelected(new Set());
+              setModal(null);
+              load();
+            }}
+            onCancel={() => setModal(null)}
+          />
+        </Modal>
+      )}
     </div>
+  );
+}
+
+function BulkToleranceForm({
+  count,
+  onApply,
+  onCancel,
+}: {
+  count: number;
+  onApply: (n: number) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const { t } = useI18n();
+  const [value, setValue] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await onApply(Number(value));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <form onSubmit={submit} className="form-grid">
+      <div className="full">
+        <label>{t("probe.tolerance")}</label>
+        <input type="number" min={0} value={value} autoFocus onChange={(e) => setValue(+e.target.value)} />
+        <div className="muted" style={{ fontSize: "0.85em" }}>{t("bulk.toleranceHint", { n: count })}</div>
+      </div>
+      <div className="form-actions">
+        <button type="button" className="ghost" onClick={onCancel} disabled={busy}>{t("cancel")}</button>
+        <button disabled={busy}>{t("bulk.toleranceApply", { n: count })}</button>
+      </div>
+    </form>
   );
 }
 
@@ -750,6 +805,7 @@ function PageForm({ page, onSaved, onCancel }: { page: PageDetail; onSaved: () =
   const [group, setGroup] = useState(page.group_name ?? "");
   const [isPrivate, setIsPrivate] = useState(page.is_private);
   const [defaultCollapsed, setDefaultCollapsed] = useState(page.default_collapsed);
+  const [defaultTolerance, setDefaultTolerance] = useState(page.default_tolerance_checks);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const slugState = useSlugCheck(slug, page.id);
@@ -763,6 +819,7 @@ function PageForm({ page, onSaved, onCancel }: { page: PageDetail; onSaved: () =
       await api.patch(`/admin/pages/${page.id}`, {
         title, slug, description: description.trim() || null, group_name: group.trim() || null,
         is_private: isPrivate, default_collapsed: defaultCollapsed,
+        default_tolerance_checks: Number(defaultTolerance),
       });
       toast.success(t("toast.saved"));
       onSaved();
@@ -806,6 +863,16 @@ function PageForm({ page, onSaved, onCancel }: { page: PageDetail; onSaved: () =
           <option value="expanded">{t("editor.viewExpanded")}</option>
         </select>
         <div className="muted" style={{ fontSize: "0.85em" }}>{t("editor.defaultViewHint")}</div>
+      </div>
+      <div className="full">
+        <label>{t("editor.defaultTolerance")}</label>
+        <input
+          type="number"
+          min={0}
+          value={defaultTolerance}
+          onChange={(e) => setDefaultTolerance(+e.target.value)}
+        />
+        <div className="muted" style={{ fontSize: "0.85em" }}>{t("editor.defaultToleranceHint")}</div>
       </div>
       <div className="full">
         <label className="check-cell full">

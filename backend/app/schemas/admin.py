@@ -150,6 +150,7 @@ class PageBase(BaseModel):
     is_published: bool = True
     is_private: bool = False
     default_collapsed: bool = True
+    default_tolerance_checks: int = Field(default=0, ge=0, le=20)
 
 
 class PageCreate(PageBase):
@@ -164,6 +165,7 @@ class PageUpdate(BaseModel):
     is_published: bool | None = None
     is_private: bool | None = None
     default_collapsed: bool | None = None
+    default_tolerance_checks: int | None = Field(default=None, ge=0, le=20)
 
 
 class PageOut(PageBase):

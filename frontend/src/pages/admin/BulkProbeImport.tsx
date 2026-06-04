@@ -60,11 +60,13 @@ function parseLine(raw: string, host: string): Parsed | { err: string } | null {
 export function BulkProbeImport({
   serverId,
   host,
+  defaultTolerance = 0,
   onSaved,
   onCancel,
 }: {
   serverId: number;
   host: string;
+  defaultTolerance?: number;
   onSaved: () => void;
   onCancel: () => void;
 }) {
@@ -95,6 +97,7 @@ export function BulkProbeImport({
             type: v.type,
             name: v.name,
             config: v.config,
+            tolerance_checks: defaultTolerance,
           })
         )
       );
