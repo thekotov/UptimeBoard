@@ -218,7 +218,9 @@ input.invalid, textarea.invalid { border-color: var(--down); box-shadow: 0 0 0 3
 /* compact density */
 .container.compact .card { padding: 10px 14px; margin-bottom: 10px; }
 .container.compact .card-head { margin-bottom: 6px; }
-.container.compact .server { padding: 6px 12px; margin-top: 6px; }
+.container.compact .server { margin-top: 6px; }
+.container.compact .server-head { padding: 6px 12px; }
+.container.compact .probe-list { padding: 2px 12px 3px 24px; }
 .container.compact .probe-row { padding: 4px 0; }
 .container.compact .overall { padding: 12px 16px; }
 .container.compact .summary { margin-bottom: 14px; }
@@ -254,23 +256,28 @@ input.invalid, textarea.invalid { border-color: var(--down); box-shadow: 0 0 0 3
 .card-head h3 { margin: 0; font-size: 16px; font-weight: 650; letter-spacing: -0.01em; min-width: 0; }
 .card-head > .stack { min-width: 0; flex: 1 1 200px; }
 
+/* server = a small card; its header is the "lid", probes sit in a recessed well below */
 .server {
-  background: var(--panel-2); border: 1px solid var(--border-soft);
-  border-radius: var(--radius-sm); padding: 8px 14px; margin-top: 8px;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); margin-top: 8px;
+  overflow: hidden;
 }
 .server-head {
   display: flex; justify-content: space-between; align-items: center; gap: 10px;
-  padding: 4px 0 6px;
+  padding: 9px 14px;
 }
+/* when probes are shown, the header reads as a header above them */
+.server:has(.probe-list) .server-head { padding-bottom: 8px; }
 /* server status shown by its dot + a subtle left edge (no duplicate badge) */
 .server.srv-down { border-left: 3px solid var(--down); }
 .server.srv-degraded { border-left: 3px solid var(--degraded); }
 
-/* tree-style indent: probes branch off their server with a subtle guide line */
+/* probes live in a recessed well beneath the server header — clearly nested, not in the same stack */
 .probe-list {
-  margin: 4px 0 2px 5px;
-  padding-left: 16px;
-  border-left: 2px solid var(--border);
+  margin: 0;
+  padding: 2px 14px 4px 26px;
+  background: var(--panel-2);
+  border-top: 1px solid var(--border);
 }
 
 /* dense single-line probe row */
@@ -606,7 +613,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .incident-row:first-of-type { border-top: none; }
 .incident-where { flex: 1; min-width: 0; }
 .incident-where .what { font-weight: 600; }
-.incident-when { color: var(--muted); font-size: 12.5px; white-space: nowrap; text-align: right; }
+.incident-when { color: var(--muted); font-size: 12.5px; white-space: nowrap; text-align: right; flex: 0 0 auto; }
 .dur { font-variant-numeric: tabular-nums; }
 
 /* ---- range tabs (segmented) ---- */
@@ -636,8 +643,13 @@ button:focus:not(:focus-visible) { outline: none; }
 @media (max-width: 640px) {
   .probe-spark { display: none; }
   /* probe rows stack their actions below the name on narrow screens */
-  .probe-row { flex-wrap: wrap; }
+  .probe-row { flex-wrap: wrap; gap: 4px 10px; }
   .probe-main { flex: 1 1 100%; }
+  /* stats sit under the name, aligned to the dot/name (not the row edge) */
+  .probe-stats { flex: 1 1 100%; justify-content: flex-start; padding-left: 16px; gap: 14px; }
+  .probe-stats .lat,
+  .probe-stats > span:nth-child(2),
+  .probe-stats > span:last-child { min-width: 0; text-align: left; }
   .row-actions { flex-wrap: wrap; }
   .server-head { flex-wrap: wrap; }
   .card-head { flex-wrap: wrap; }
@@ -646,19 +658,51 @@ button:focus:not(:focus-visible) { outline: none; }
 }
 
 @media (max-width: 560px) {
-  .container { padding: 20px 12px 56px; }
-  .header { margin-bottom: 20px; }
+  .container { padding: 18px 12px 56px; }
+  .header { margin-bottom: 18px; }
   .header h1 { font-size: 19px; }
-  .overall { padding: 14px 16px; gap: 10px; }
-  .overall .title { font-size: 15px; }
-  .summary { gap: 12px; margin-bottom: 16px; }
-  .probe-stats { gap: 8px; }
-  .card { padding: 14px 14px; }
+  .overall { padding: 14px 16px; gap: 12px; }
+  .overall .title { font-size: 16px; }
+  .overall .sub { font-size: 12.5px; }
+  .status-icon { width: 34px; height: 34px; font-size: 17px; }
+  .summary { gap: 8px 16px; margin-bottom: 14px; }
+  .card { padding: 12px 14px; }
+  .card-head h3 { font-size: 15px; }
+
+  /* service header: keep title left, status/uptime right but allow a clean wrap */
+  .card-head > .inline { gap: 8px; }
+
+  /* server header → tidy two-line block: name (+host +pill) on top, uptime below */
+  .server-head { flex-direction: column; align-items: stretch; gap: 3px; }
+  .server-head > .inline:first-child { flex-wrap: wrap; gap: 4px 8px; }
+  .server-head > .inline:first-child strong { font-size: 14px; }
+  .server-head > .inline:first-child .muted.small {
+    flex: 1 1 auto; min-width: 0; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; font-size: 12px;
+  }
+  .server-head .count-pill { margin-left: 0; }
+  /* uptime line: left-aligned under the name, indented past the chevron+dot */
+  .server-head > .inline:last-child { justify-content: flex-start; padding-left: 22px; }
+
+  /* probe rows: comfortable touch padding */
+  .container.compact .probe-row { padding: 7px 0; }
+  .probe-stats { gap: 14px; font-size: 12.5px; }
+
+  /* incidents: stack so the "restored / duration" never collides with the text */
+  .incident-row { flex-wrap: wrap; align-items: flex-start; gap: 6px 10px; padding: 12px 0; }
+  .incident-where { flex: 1 1 100%; order: 2; }
+  .incident-when {
+    flex: 1 1 100%; order: 3; display: flex; align-items: baseline; gap: 8px;
+    text-align: left; white-space: normal;
+  }
+  .incident-when .dur { margin-left: auto; }
 
   /* toolbar: search takes the full row, controls drop below */
+  .toolbar { gap: 8px; }
   .toolbar .search { flex: 1 1 100%; }
-  .range-tabs { flex: 1 1 auto; }
-  .range-tabs button { flex: 1; }
+  .toggle { flex: 0 0 auto; padding: 10px 14px; }
+  .range-tabs { flex: 1 1 100%; }
+  .range-tabs button { flex: 1; padding: 8px 6px; }
 
   /* heatmap cells a touch smaller */
   .hm-cell { width: 18px; height: 18px; }
