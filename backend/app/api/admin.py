@@ -32,6 +32,7 @@ from app.schemas.admin import (
     PageDetailOut,
     PageOut,
     PageUpdate,
+    ProbeBase,
     ProbeCreate,
     ProbeOut,
     ProbeTest,
@@ -242,6 +243,30 @@ def update_probe(probe_id: int, payload: ProbeUpdate, db: Session = Depends(get_
     db.refresh(probe)
     _notify_schedule_changed()
     return probe
+
+
+# Detection-tuning fields whose defaults the "reset to defaults" action restores.
+# Kept narrow on purpose: type/URL/interval/timeout/name are left untouched.
+PROBE_TUNING_FIELDS = (
+    "failure_threshold",
+    "degraded_threshold",
+    "down_threshold",
+    "tolerance_checks",
+    "recovery_threshold",
+    "retries",
+)
+
+
+@router.post("/probes/reset-defaults")
+def reset_probe_defaults(db: Session = Depends(get_db)):
+    """Reset the detection-tuning fields (thresholds, noise tolerance, retries) of
+    every probe to the current defaults defined on ProbeBase. Leaves type, URL,
+    interval, timeout, name and enabled state untouched."""
+    defaults = {f: ProbeBase.model_fields[f].default for f in PROBE_TUNING_FIELDS}
+    updated = db.query(Probe).update(defaults, synchronize_session=False)
+    db.commit()
+    _notify_schedule_changed()
+    return {"updated": updated, "defaults": defaults}
 
 
 @router.delete("/probes/{probe_id}", status_code=204)

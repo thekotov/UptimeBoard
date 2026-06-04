@@ -291,6 +291,11 @@ export async function clearMetrics(pageId?: number): Promise<number> {
   return data.deleted;
 }
 
+export async function resetProbeDefaults(): Promise<number> {
+  const { data } = await api.post<{ updated: number }>("/admin/probes/reset-defaults");
+  return data.updated;
+}
+
 export async function testChannel(body: {
   type: string;
   config: Record<string, unknown>;

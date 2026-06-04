@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, clearMetrics, importPage, type Page } from "../../api/client";
+import { api, clearMetrics, importPage, resetProbeDefaults, type Page } from "../../api/client";
 import { PencilIcon, TrashIcon } from "../../components/Icons";
 import { Modal } from "../../components/Modal";
 import { Skeleton } from "../../components/Skeleton";
@@ -41,6 +41,16 @@ export function Pages() {
     try {
       const n = await clearMetrics();
       toast.success(t("metrics.cleared", { n }));
+    } catch {
+      toast.error(t("toast.error"));
+    }
+  };
+
+  const applyProbeDefaults = async () => {
+    if (!(await confirm({ message: t("probeDefaults.confirm"), danger: true }))) return;
+    try {
+      const n = await resetProbeDefaults();
+      toast.success(t("probeDefaults.done", { n }));
     } catch {
       toast.error(t("toast.error"));
     }
@@ -101,6 +111,9 @@ export function Pages() {
         />
         <button className="ghost danger" onClick={clearAllMetrics} title={t("metrics.hint")}>
           🧹 {t("metrics.clear")}
+        </button>
+        <button className="ghost" onClick={applyProbeDefaults} title={t("probeDefaults.hint")}>
+          ⚙ {t("probeDefaults.apply")}
         </button>
         <div className="search">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("search")} />

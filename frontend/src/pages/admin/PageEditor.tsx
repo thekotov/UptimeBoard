@@ -71,6 +71,7 @@ export function PageEditor() {
   const confirm = useConfirm();
   const [page, setPage] = useState<PageDetail | null>(null);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
+  const [collapsedServers, setCollapsedServers] = useState<Set<number>>(new Set());
   const [checkingProbe, setCheckingProbe] = useState<number | null>(null);
   const [modal, setModal] = useState<ModalState>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -151,6 +152,7 @@ export function PageEditor() {
       if (!collapseInit.current) {
         collapseInit.current = true;
         setCollapsed(new Set(data.services.map((s) => s.id)));
+        setCollapsedServers(new Set(data.services.flatMap((s) => s.servers.map((sv) => sv.id))));
       }
     });
   };
@@ -322,8 +324,20 @@ export function PageEditor() {
       next.has(sid) ? next.delete(sid) : next.add(sid);
       return next;
     });
-  const expandAll = () => setCollapsed(new Set());
-  const collapseAll = () => setCollapsed(new Set(page.services.map((s) => s.id)));
+  const toggleServer = (svid: number) =>
+    setCollapsedServers((c) => {
+      const next = new Set(c);
+      next.has(svid) ? next.delete(svid) : next.add(svid);
+      return next;
+    });
+  const expandAll = () => {
+    setCollapsed(new Set());
+    setCollapsedServers(new Set());
+  };
+  const collapseAll = () => {
+    setCollapsed(new Set(page.services.map((s) => s.id)));
+    setCollapsedServers(new Set(page.services.flatMap((s) => s.servers.map((sv) => sv.id))));
+  };
 
   return (
     <div className="container fade-in">
@@ -472,29 +486,34 @@ export function PageEditor() {
               <>
                 {service.servers.length === 0 && <div className="empty">{t("editor.noServers")}</div>}
 
-                {service.servers.map((server, sj) => (
+                {service.servers.map((server, sj) => {
+                  const isServerCollapsed = collapsedServers.has(server.id);
+                  return (
                   <div className="server" key={server.id} {...dnd(`srv-${service.id}`, sj, (f, tt) => reorderServers(service, f, tt))}>
-                    <div className="server-head">
+                    <div className="server-head collapse-head" onClick={() => toggleServer(server.id)}>
                       <div className="inline">
                         <span className="grip" title="drag"><GripIcon size={14} /></span>
+                        <span className={`chev ${isServerCollapsed ? "" : "open"}`}>▶</span>{" "}
                         {renaming?.kind === "server" && renaming.id === server.id ? (
                           <input
                             autoFocus
                             className="rename-input"
                             value={renameVal}
+                            onClick={(e) => e.stopPropagation()}
                             onChange={(e) => setRenameVal(e.target.value)}
                             onBlur={saveRename}
                             onKeyDown={(e) => { if (e.key === "Enter") saveRename(); if (e.key === "Escape") setRenaming(null); }}
                           />
                         ) : (
-                          <strong title={t("editor.dblclickRename")} onDoubleClick={() => startRename("server", server.id, server.name)}>
+                          <strong title={t("editor.dblclickRename")} onDoubleClick={(e) => { e.stopPropagation(); startRename("server", server.id, server.name); }}>
                             {server.name}
                           </strong>
                         )}
                         <span className="muted small">{server.host}</span>
                         {server.note && <span className="muted small server-note" title={server.note}>· {server.note}</span>}
+                        <span className="count-pill">{server.probes.length} {t("probe.count")}</span>
                       </div>
-                      <div className="row-actions">
+                      <div className="row-actions" onClick={(e) => e.stopPropagation()}>
                         <button className="secondary btn-sm" onClick={() => setModal({ kind: "probe-add", serverId: server.id })}>
                           + {t("editor.addProbe")}
                         </button>
@@ -517,6 +536,7 @@ export function PageEditor() {
                       </div>
                     </div>
 
+                    {!isServerCollapsed && (
                     <div className="probe-list" {...probeDropServer(server.id)}>
                         {server.probes.length === 0 && <div className="hint">{t("editor.noProbes")}</div>}
                         {server.probes.map((probe, pk) => {
@@ -588,8 +608,10 @@ export function PageEditor() {
                           );
                         })}
                     </div>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
 
                 <div style={{ marginTop: 12 }}>
                   <button className="secondary" onClick={() => setModal({ kind: "server-add", serviceId: service.id })}>
