@@ -12,6 +12,15 @@ const GLYPH: Record<Status, string> = {
 // Sort weight so alarms surface worst-first.
 const SEV: Record<Status, number> = { down: 5, degraded: 4, unknown: 3, paused: 2, recovered: 1, up: 0 };
 
+// Absolute latency hint (no per-probe history in the live snapshot): a subtle cue
+// that one endpoint is much slower than the wall's typical sub-300ms readings.
+function latClass(ms: number | null): string {
+  if (ms == null) return "";
+  if (ms >= 1200) return "bad";
+  if (ms >= 500) return "warn";
+  return "";
+}
+
 interface Tile {
   id: number;
   name: string;
@@ -162,8 +171,12 @@ export function WallBoard() {
 
         <div className="wb-metrics">
           <span className="wb-metric up"><b>{counts.up}</b> {t("status.up")}</span>
-          <span className="wb-metric degraded"><b>{counts.degraded}</b> {t("status.degraded")}</span>
-          <span className="wb-metric down"><b>{counts.down}</b> {t("status.down")}</span>
+          <span className={`wb-metric degraded ${counts.degraded ? "active" : "zero"}`}>
+            <b>{counts.degraded}</b> {t("status.degraded")}
+          </span>
+          <span className={`wb-metric down ${counts.down ? "active" : "zero"}`}>
+            <b>{counts.down}</b> {t("status.down")}
+          </span>
         </div>
 
         <div className="wb-controls">
@@ -171,13 +184,12 @@ export function WallBoard() {
             <span className="dot" /> {live ? t("dash.live") : t("dash.reconnecting")}
           </span>
           <span className="wb-clock" aria-hidden>{clock}</span>
-          <button className="ghost" onClick={() => setOnlyProblems((v) => !v)}
-            title={onlyProblems ? t("wall.showAll") : t("wall.onlyProblems")}>
-            {onlyProblems ? "▦" : "▲"}
+          <button className={`wb-toggle ${onlyProblems ? "on" : ""}`} onClick={() => setOnlyProblems((v) => !v)}>
+            {onlyProblems ? t("wall.showAll") : t("wall.onlyProblems")}
           </button>
-          <button className="ghost" onClick={toggleFullscreen} title={t("wall.fullscreen")}>⛶</button>
+          <button className="wb-icon" onClick={toggleFullscreen} title={t("wall.fullscreen")} aria-label={t("wall.fullscreen")}>⛶</button>
           <ThemeSwitch />
-          <Link className="ghost wb-exit" to={`/status/${slug}`} title={t("wall.exit")}>✕</Link>
+          <Link className="wb-icon" to={`/status/${slug}`} title={t("wall.exit")} aria-label={t("wall.exit")}>✕</Link>
         </div>
       </div>
 
@@ -202,21 +214,28 @@ export function WallBoard() {
         <div className="wb-empty">{onlyProblems ? "🟢 " + t("overall.up") : "—"}</div>
       ) : (
         <div className="wb-grid" style={gridStyle}>
-          {shown.map((tl) => (
-            <div key={tl.id} className={`wb-tile ${tl.status} ${flash.has(tl.id) ? "flash" : ""}`}>
-              <div className="wb-tile-head">
-                <span className="wb-tile-glyph" aria-hidden>{GLYPH[tl.status]}</span>
-                <span className="wb-tile-name" title={tl.name}>{tl.name}</span>
+          {shown.map((tl) => {
+            // When the probe name is just its type ("HTTP"), it can't tell duplicate
+            // tiles apart — lead with the server instead so each tile is identifiable.
+            const generic = tl.name.trim().toLowerCase() === tl.type.toLowerCase();
+            const primary = generic ? tl.server : tl.name;
+            const secondary = generic ? tl.service : `${tl.service} · ${tl.server}`;
+            return (
+              <div key={tl.id} className={`wb-tile ${tl.status} ${flash.has(tl.id) ? "flash" : ""}`}>
+                <div className="wb-tile-head">
+                  <span className={`wb-dot ${tl.status}`} aria-hidden />
+                  <span className="wb-tile-name">{primary}</span>
+                </div>
+                <div className="wb-tile-sub">{secondary}</div>
+                <div className="wb-tile-foot">
+                  <span className="wb-tile-type">{tl.type.toUpperCase()}</span>
+                  {tl.latency != null && (
+                    <span className={`wb-tile-lat ${latClass(tl.latency)}`}>{tl.latency.toFixed(0)} {t("dash.ms")}</span>
+                  )}
+                </div>
               </div>
-              <div className="wb-tile-sub" title={`${tl.service} · ${tl.server} · ${tl.host}`}>
-                {tl.service} · {tl.server}
-              </div>
-              <div className="wb-tile-foot">
-                <span className="wb-tile-type">{tl.type.toUpperCase()}</span>
-                {tl.latency != null && <span className="wb-tile-lat">{tl.latency.toFixed(0)} {t("dash.ms")}</span>}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

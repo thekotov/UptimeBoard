@@ -805,15 +805,15 @@ button:focus:not(:focus-visible) { outline: none; }
   position: fixed; inset: 0; z-index: 50;
   background: var(--bg); color: var(--text);
   overflow-y: auto; overflow-x: hidden;
-  display: flex; flex-direction: column; gap: 14px;
-  padding: 18px 22px 22px;
-  font-size: clamp(14px, 1.1vw, 18px);
+  display: flex; flex-direction: column; gap: 16px;
+  padding: 18px 24px 24px;
+  font-size: clamp(14px, 1.05vw, 18px);
 }
 .wb-top {
   display: flex; align-items: center; justify-content: space-between;
-  flex-wrap: wrap; gap: 12px 20px;
+  flex-wrap: wrap; gap: 12px 24px;
   position: sticky; top: -18px; z-index: 2;
-  background: var(--bg); padding: 4px 0 10px; border-bottom: 1px solid var(--border);
+  background: var(--bg); padding: 4px 0 12px; border-bottom: 1px solid var(--border);
 }
 .wb-title { display: flex; align-items: center; gap: 14px; min-width: 0; }
 .wb-glyph {
@@ -825,27 +825,45 @@ button:focus:not(:focus-visible) { outline: none; }
 .wallboard.degraded .wb-glyph { background: var(--degraded); }
 .wallboard.down .wb-glyph { background: var(--down); animation: wb-pulse 1.6s ease-in-out infinite; }
 .wb-stack { display: flex; flex-direction: column; min-width: 0; }
-.wb-title h1 { font-size: clamp(18px, 2vw, 30px); margin: 0; line-height: 1.15; }
+.wb-title h1 { font-size: clamp(19px, 1.9vw, 30px); margin: 0; line-height: 1.15; }
 .wb-headline { color: var(--muted); font-size: 0.9em; }
 
+/* Summary chips: healthy count stays calm; degraded/down light up only when non-zero. */
 .wb-metrics { display: flex; gap: 10px; flex-wrap: wrap; }
 .wb-metric {
-  display: inline-flex; align-items: baseline; gap: 6px;
-  padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border);
-  background: var(--panel); font-size: 0.85em; color: var(--muted); white-space: nowrap;
+  display: inline-flex; align-items: baseline; gap: 7px;
+  padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--panel); font-size: 0.82em; color: var(--muted); white-space: nowrap;
 }
-.wb-metric b { font-size: 1.5em; font-weight: 800; color: var(--text); }
+.wb-metric b { font-size: 1.55em; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
 .wb-metric.up b { color: var(--up-text); }
-.wb-metric.degraded b { color: var(--degraded-text); }
-.wb-metric.down b { color: var(--down-text); }
+.wb-metric.zero { opacity: 0.5; }
+.wb-metric.zero b { color: var(--muted); }
+.wb-metric.degraded.active { background: var(--degraded-soft); border-color: var(--degraded); color: var(--degraded-text); }
+.wb-metric.degraded.active b { color: var(--degraded-text); }
+.wb-metric.down.active { background: var(--down-soft); border-color: var(--down); color: var(--down-text); }
+.wb-metric.down.active b { color: var(--down-text); }
 
-.wb-controls { display: flex; align-items: center; gap: 8px; }
-.wb-controls .ghost { font-size: 18px; line-height: 1; padding: 6px 9px; text-decoration: none; }
-.wb-clock { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.2em; letter-spacing: 0.02em; }
-.wb-live { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8em; color: var(--muted); }
+.wb-controls { display: flex; align-items: center; gap: 10px; }
+.wb-clock { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.25em; letter-spacing: 0.02em; }
+.wb-live { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78em; color: var(--muted); }
 .wb-live .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--unknown); }
 .wb-live.on .dot { background: var(--up); box-shadow: 0 0 0 4px var(--up-soft); }
 .wb-live.off .dot { background: var(--degraded); }
+/* Uniform, clearly-hittable controls (no cryptic tiny glyphs). */
+.wb-toggle {
+  padding: 9px 14px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--panel); color: var(--text);
+  font-size: 0.82em; font-weight: 600; white-space: nowrap;
+}
+.wb-toggle.on { border-color: var(--degraded); background: var(--degraded-soft); color: var(--degraded-text); }
+.wb-icon, .wb-controls .theme-switch {
+  display: grid; place-items: center; flex: none;
+  width: 40px; height: 40px; border-radius: 10px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--panel); color: var(--text);
+  font-size: 17px; line-height: 1; text-decoration: none;
+}
+.wb-icon:hover, .wb-toggle:hover, .wb-controls .theme-switch:hover { border-color: var(--accent); }
 
 .wb-maint {
   padding: 10px 14px; border-radius: var(--radius);
@@ -866,42 +884,45 @@ button:focus:not(:focus-visible) { outline: none; }
 .wb-alarm.down { border-color: var(--down); color: var(--down-text); }
 .wb-alarm.degraded { border-color: var(--degraded); color: var(--degraded-text); }
 
+/* auto-fit so tiles stretch to fill each row — no ragged empty columns. */
 .wb-grid {
   display: grid; gap: 12px;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 .wb-tile {
-  border-radius: var(--radius); padding: 14px 15px;
+  border-radius: var(--radius); padding: 15px 16px;
   border: 1px solid var(--border); background: var(--panel-2);
-  display: flex; flex-direction: column; gap: 6px; min-width: 0;
-  transition: transform .15s ease;
+  display: flex; flex-direction: column; gap: 5px; min-width: 0; min-height: 108px;
 }
-/* healthy tiles stay quiet */
-.wb-tile.up, .wb-tile.recovered { border-left: 4px solid var(--up); }
-.wb-tile.unknown, .wb-tile.paused { border-left: 4px solid var(--unknown); opacity: 0.85; }
-/* problems shout */
-.wb-tile.degraded { background: var(--degraded-soft); border: 1px solid var(--degraded); }
+.wb-tile.unknown, .wb-tile.paused { opacity: 0.8; }
+/* problems shout: amber fill for degraded, solid red + pulse for down */
+.wb-tile.degraded { background: var(--degraded-soft); border-color: var(--degraded); }
 .wb-tile.down {
-  background: var(--down); border: 1px solid var(--down); color: #fff;
+  background: var(--down); border-color: var(--down); color: #fff;
   animation: wb-pulse 1.6s ease-in-out infinite;
 }
 .wb-tile.down .wb-tile-sub, .wb-tile.down .wb-tile-type, .wb-tile.down .wb-tile-lat { color: rgba(255,255,255,0.85); }
 .wb-tile.flash { animation: wb-flash 1.8s ease-out; }
 
-.wb-tile-head { display: flex; align-items: center; gap: 9px; min-width: 0; }
-.wb-tile-glyph {
-  flex: none; display: grid; place-items: center;
-  width: 24px; height: 24px; border-radius: 7px; font-weight: 800; font-size: 14px;
-  background: var(--up); color: #fff;
+/* one quiet status signal on healthy tiles: a dot, not a repeated filled glyph */
+.wb-tile-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.wb-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--unknown); }
+.wb-dot.up, .wb-dot.recovered { background: var(--up); }
+.wb-dot.degraded { background: var(--degraded); }
+.wb-dot.down { background: #fff; }
+.wb-tile-name {
+  font-weight: 700; font-size: 1.05em; line-height: 1.2;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.wb-tile.degraded .wb-tile-glyph { background: var(--degraded); }
-.wb-tile.down .wb-tile-glyph { background: rgba(255,255,255,0.22); }
-.wb-tile.unknown .wb-tile-glyph, .wb-tile.paused .wb-tile-glyph { background: var(--unknown); }
-.wb-tile-name { font-weight: 700; font-size: 1.05em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wb-tile-sub { color: var(--muted); font-size: 0.82em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.wb-tile-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
-.wb-tile-type { font-size: 0.72em; letter-spacing: 0.04em; color: var(--muted); }
-.wb-tile-lat { font-variant-numeric: tabular-nums; font-size: 0.82em; color: var(--muted); }
+.wb-tile-sub {
+  color: var(--text); opacity: 0.66; font-size: 0.85em;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.wb-tile-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 4px; }
+.wb-tile-type { font-size: 0.68em; letter-spacing: 0.05em; color: var(--muted); }
+.wb-tile-lat { font-variant-numeric: tabular-nums; font-size: 0.9em; font-weight: 600; color: var(--muted); }
+.wb-tile-lat.warn { color: var(--degraded-text); }
+.wb-tile-lat.bad { color: var(--down-text); }
 
 .wb-empty { text-align: center; color: var(--muted); font-size: 1.4em; padding: 12vh 0; }
 .wb-footer { margin-top: auto; color: var(--muted); font-size: 0.8em; text-align: right; }
