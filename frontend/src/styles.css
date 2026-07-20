@@ -797,3 +797,123 @@ button:focus:not(:focus-visible) { outline: none; }
   .table { min-width: 460px; }
   .table th, .table td { padding: 9px 6px; }
 }
+
+/* ===== NOC / wall-board (kiosk) ===== */
+/* Calm while healthy, loud the moment something breaks — built for an always-on
+   ops-room display. Reuses the shared status palette so it tracks the theme. */
+.wallboard {
+  position: fixed; inset: 0; z-index: 50;
+  background: var(--bg); color: var(--text);
+  overflow-y: auto; overflow-x: hidden;
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 18px 22px 22px;
+  font-size: clamp(14px, 1.1vw, 18px);
+}
+.wb-top {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 12px 20px;
+  position: sticky; top: -18px; z-index: 2;
+  background: var(--bg); padding: 4px 0 10px; border-bottom: 1px solid var(--border);
+}
+.wb-title { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.wb-glyph {
+  display: grid; place-items: center; flex: none;
+  width: 48px; height: 48px; border-radius: 12px;
+  font-size: 26px; font-weight: 800; color: #fff; background: var(--unknown);
+}
+.wallboard.up .wb-glyph, .wallboard.recovered .wb-glyph { background: var(--up); }
+.wallboard.degraded .wb-glyph { background: var(--degraded); }
+.wallboard.down .wb-glyph { background: var(--down); animation: wb-pulse 1.6s ease-in-out infinite; }
+.wb-stack { display: flex; flex-direction: column; min-width: 0; }
+.wb-title h1 { font-size: clamp(18px, 2vw, 30px); margin: 0; line-height: 1.15; }
+.wb-headline { color: var(--muted); font-size: 0.9em; }
+
+.wb-metrics { display: flex; gap: 10px; flex-wrap: wrap; }
+.wb-metric {
+  display: inline-flex; align-items: baseline; gap: 6px;
+  padding: 6px 12px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--panel); font-size: 0.85em; color: var(--muted); white-space: nowrap;
+}
+.wb-metric b { font-size: 1.5em; font-weight: 800; color: var(--text); }
+.wb-metric.up b { color: var(--up-text); }
+.wb-metric.degraded b { color: var(--degraded-text); }
+.wb-metric.down b { color: var(--down-text); }
+
+.wb-controls { display: flex; align-items: center; gap: 8px; }
+.wb-controls .ghost { font-size: 18px; line-height: 1; padding: 6px 9px; text-decoration: none; }
+.wb-clock { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.2em; letter-spacing: 0.02em; }
+.wb-live { display: inline-flex; align-items: center; gap: 6px; font-size: 0.8em; color: var(--muted); }
+.wb-live .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--unknown); }
+.wb-live.on .dot { background: var(--up); box-shadow: 0 0 0 4px var(--up-soft); }
+.wb-live.off .dot { background: var(--degraded); }
+
+.wb-maint {
+  padding: 10px 14px; border-radius: var(--radius);
+  background: var(--degraded-soft); color: var(--degraded-text);
+  border: 1px solid var(--degraded); font-weight: 600;
+}
+
+.wb-alarms {
+  border: 1px solid var(--down); border-radius: var(--radius);
+  background: var(--down-soft); padding: 12px 14px;
+}
+.wb-alarms-head { font-weight: 800; color: var(--down-text); margin-bottom: 8px; font-size: 1.05em; }
+.wb-alarms-list { display: flex; flex-wrap: wrap; gap: 8px; }
+.wb-alarm {
+  padding: 5px 11px; border-radius: 999px; font-size: 0.9em;
+  background: var(--panel); border: 1px solid var(--border);
+}
+.wb-alarm.down { border-color: var(--down); color: var(--down-text); }
+.wb-alarm.degraded { border-color: var(--degraded); color: var(--degraded-text); }
+
+.wb-grid {
+  display: grid; gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+.wb-tile {
+  border-radius: var(--radius); padding: 14px 15px;
+  border: 1px solid var(--border); background: var(--panel-2);
+  display: flex; flex-direction: column; gap: 6px; min-width: 0;
+  transition: transform .15s ease;
+}
+/* healthy tiles stay quiet */
+.wb-tile.up, .wb-tile.recovered { border-left: 4px solid var(--up); }
+.wb-tile.unknown, .wb-tile.paused { border-left: 4px solid var(--unknown); opacity: 0.85; }
+/* problems shout */
+.wb-tile.degraded { background: var(--degraded-soft); border: 1px solid var(--degraded); }
+.wb-tile.down {
+  background: var(--down); border: 1px solid var(--down); color: #fff;
+  animation: wb-pulse 1.6s ease-in-out infinite;
+}
+.wb-tile.down .wb-tile-sub, .wb-tile.down .wb-tile-type, .wb-tile.down .wb-tile-lat { color: rgba(255,255,255,0.85); }
+.wb-tile.flash { animation: wb-flash 1.8s ease-out; }
+
+.wb-tile-head { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.wb-tile-glyph {
+  flex: none; display: grid; place-items: center;
+  width: 24px; height: 24px; border-radius: 7px; font-weight: 800; font-size: 14px;
+  background: var(--up); color: #fff;
+}
+.wb-tile.degraded .wb-tile-glyph { background: var(--degraded); }
+.wb-tile.down .wb-tile-glyph { background: rgba(255,255,255,0.22); }
+.wb-tile.unknown .wb-tile-glyph, .wb-tile.paused .wb-tile-glyph { background: var(--unknown); }
+.wb-tile-name { font-weight: 700; font-size: 1.05em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-tile-sub { color: var(--muted); font-size: 0.82em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wb-tile-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
+.wb-tile-type { font-size: 0.72em; letter-spacing: 0.04em; color: var(--muted); }
+.wb-tile-lat { font-variant-numeric: tabular-nums; font-size: 0.82em; color: var(--muted); }
+
+.wb-empty { text-align: center; color: var(--muted); font-size: 1.4em; padding: 12vh 0; }
+.wb-footer { margin-top: auto; color: var(--muted); font-size: 0.8em; text-align: right; }
+
+@keyframes wb-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+@keyframes wb-flash {
+  0% { box-shadow: 0 0 0 3px var(--accent), 0 0 22px var(--accent); }
+  100% { box-shadow: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wallboard.down .wb-glyph, .wb-tile.down, .wb-tile.flash { animation: none; }
+}
