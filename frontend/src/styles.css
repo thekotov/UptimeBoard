@@ -938,3 +938,77 @@ button:focus:not(:focus-visible) { outline: none; }
 @media (prefers-reduced-motion: reduce) {
   .wallboard.down .wb-glyph, .wb-tile.down, .wb-tile.flash { animation: none; }
 }
+
+/* ===== Admin dashboards: activity feed, cert board, monitoring, heatmap ===== */
+.section-head {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 12px; flex-wrap: wrap; margin: 18px 0 6px;
+}
+.section-head h2 { margin: 0; font-size: 20px; }
+.danger-text { color: var(--down-text); }
+
+.filter-pills { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.filter-pills button {
+  padding: 5px 11px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--panel); color: var(--muted); font-size: 13px;
+}
+.filter-pills button.active { border-color: var(--accent); color: var(--text); background: var(--accent-soft); }
+
+/* activity feed */
+.feed { display: flex; flex-direction: column; gap: 8px; }
+.feed-row {
+  display: flex; gap: 12px; align-items: flex-start;
+  padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel);
+}
+.feed-icon { flex: none; width: 26px; text-align: center; font-size: 18px; }
+.feed-body { flex: 1; min-width: 0; }
+.feed-title { display: flex; gap: 8px; align-items: baseline; flex-wrap: wrap; }
+.feed-type { font-weight: 700; }
+.feed-probe { color: var(--muted); font-size: 0.9em; }
+.feed-detail { margin-top: 2px; font-variant-numeric: tabular-nums; word-break: break-word; }
+.feed-meta { margin-top: 3px; color: var(--muted); font-size: 0.8em; }
+.feed-time { flex: none; color: var(--muted); font-size: 0.82em; white-space: nowrap; }
+
+/* certificate expiry board */
+.cert-board { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.cert-card {
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel);
+}
+.cert-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.cert-days { font-weight: 800; font-size: 1.05em; }
+.cert-date { color: var(--muted); font-size: 0.82em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cert-name { font-weight: 600; }
+.cert-host { color: var(--muted); font-size: 0.85em; word-break: break-all; }
+.cert-foot { margin-top: 4px; display: flex; flex-direction: column; gap: 2px; font-size: 0.8em; color: var(--muted); }
+.cert-card.cert-ok .cert-days { color: var(--up-text); }
+.cert-card.cert-soon { border-color: var(--border); }
+.cert-card.cert-soon .cert-days { color: var(--text); }
+.cert-card.cert-warn { border-color: var(--degraded); }
+.cert-card.cert-warn .cert-days { color: var(--degraded-text); }
+.cert-card.cert-bad { border-color: var(--down); }
+.cert-card.cert-bad .cert-days { color: var(--down-text); }
+
+/* heatmap matrix */
+.hm-legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 10px 2px; font-size: 0.82em; color: var(--muted); }
+.hm-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.hm-legend-item .hm-c { flex: none; width: 14px; height: 14px; }
+.heatmap { display: flex; flex-direction: column; gap: 4px; }
+.hm-row { display: flex; align-items: center; gap: 10px; }
+.hm-label { flex: 0 0 190px; min-width: 0; display: flex; flex-direction: column; line-height: 1.15; }
+.hm-name { font-size: 0.9em; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hm-srv { font-size: 0.72em; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hm-track { flex: 1; display: flex; gap: 2px; min-width: 0; }
+.hm-c { flex: 1; height: 20px; border-radius: 2px; background: var(--unknown-soft); }
+.hm-c.up { background: var(--up); }
+.hm-c.recovered { background: var(--recovered); }
+.hm-c.degraded { background: var(--degraded); }
+.hm-c.down { background: var(--down); }
+.hm-c.unknown { background: var(--unknown); }
+.hm-c.maintenance { background: var(--panel-3); }
+.hm-c.none { background: var(--unknown-soft); opacity: 0.5; }
+.hm-uptime { flex: 0 0 52px; text-align: right; font-size: 0.82em; font-variant-numeric: tabular-nums; color: var(--muted); }
+@media (max-width: 640px) {
+  .hm-label { flex-basis: 116px; }
+  .hm-uptime { flex-basis: 44px; }
+}

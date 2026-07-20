@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.alerts import all_escalation_channels, base_channels, dispatch, escalation_channels
 from app.config import settings
-from app.models import Incident, MaintenanceWindow, Probe, ProbeResult
+from app.models import Incident, MaintenanceWindow, Probe, ProbeEvent, ProbeResult
 from app.models.monitoring import (
     STATUS_DEGRADED,
     STATUS_DOWN,
@@ -181,6 +181,12 @@ def _evaluate_heartbeat(probe: Probe, now: datetime) -> ProbeOutcome:
     return ProbeOutcome(status=STATUS_DOWN, error=f"no ping for {int(age)}s")
 
 
+def _record_event(db: Session, probe: Probe, type_: str, detail: str, now: datetime) -> None:
+    """Persist a change event for the admin activity feed (best-effort log kept
+    independently of whether any alert channel is configured)."""
+    db.add(ProbeEvent(probe_id=probe.id, type=type_, detail=detail, created_at=now))
+
+
 def _alert_common(probe: Probe, host: str, outcome: ProbeOutcome, now: datetime) -> dict:
     """Static context shared by all alert kinds (server/service/page names + link)."""
     server = probe.server
@@ -213,8 +219,10 @@ def handle_ip_change(db: Session, probe: Probe, outcome: ProbeOutcome, host: str
     old_ip = probe.last_ip
     probe.last_ip = new_ip
     if old_ip and old_ip != new_ip and not maint:
+        detail = f"{old_ip} → {new_ip}"
+        _record_event(db, probe, "ip_changed", detail, now)
         common = _alert_common(probe, host, outcome, now)
-        common["error"] = f"{old_ip} → {new_ip}"
+        common["error"] = detail
         # group=False: each IP change is a distinct, meaningful event and must not
         # be coalesced with the server's down/resolved storm-grouping window.
         dispatch(base_channels(db, page_id), event="ip_changed", group=False, **common)
@@ -232,8 +240,10 @@ def handle_content_change(db: Session, probe: Probe, outcome: ProbeOutcome, host
     old_hash = probe.last_content_hash
     probe.last_content_hash = new_hash
     if old_hash and old_hash != new_hash and not maint:
+        detail = f"{old_hash[:12]}… → {new_hash[:12]}…"
+        _record_event(db, probe, "content_changed", detail, now)
         common = _alert_common(probe, host, outcome, now)
-        common["error"] = f"{old_hash[:12]}… → {new_hash[:12]}…"
+        common["error"] = detail
         dispatch(base_channels(db, page_id), event="content_changed", group=False, **common)
 
 
@@ -277,6 +287,7 @@ def handle_cert_expiry(db: Session, probe: Probe, outcome: ProbeOutcome, host: s
               else f"истекает через {days_left} дн. · {when}")
     if probe.tls_issuer:
         detail += f" · издатель: {probe.tls_issuer}"
+    _record_event(db, probe, "cert_expiring", detail, now)
     common = _alert_common(probe, host, outcome, now)
     common["error"] = detail
     dispatch(base_channels(db, page_id), event="cert_expiring", group=False, **common)
@@ -312,8 +323,10 @@ def handle_cert_change(db: Session, probe: Probe, outcome: ProbeOutcome, host: s
     if probe.tls_expires_at is not None:
         changes.append(f"действует до {probe.tls_expires_at.strftime('%d.%m.%Y')}")
 
+    detail = " · ".join(changes)
+    _record_event(db, probe, "cert_changed", detail, now)
     common = _alert_common(probe, host, outcome, now)
-    common["error"] = " · ".join(changes)
+    common["error"] = detail
     dispatch(base_channels(db, page_id), event="cert_changed", group=False, **common)
 
 

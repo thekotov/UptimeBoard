@@ -93,6 +93,78 @@ export function Stats() {
             />
           </div>
 
+          {/* monitoring health: is the monitor itself doing its job? */}
+          {(() => {
+            const mon = stats.monitoring;
+            const healthy = mon.overdue_count === 0 && mon.failing_channels.length === 0;
+            return (
+              <div className="card">
+                <div className="card-head">
+                  <h3>{t("stats.monitoring")}</h3>
+                  <span className={`badge ${healthy ? "up" : "down"}`}>
+                    <span className={`dot ${healthy ? "up" : "down"}`} />
+                    {healthy ? t("stats.monHealthy") : t("stats.monIssues")}
+                  </span>
+                </div>
+                {healthy ? (
+                  <p className="muted small" style={{ margin: 0 }}>{t("stats.monAllGood")}</p>
+                ) : (
+                  <div style={{ display: "grid", gap: 16 }}>
+                    {mon.overdue.length > 0 && (
+                      <div>
+                        <div className="muted small" style={{ marginBottom: 6 }}>
+                          {t("stats.overdue")}: <b>{num(mon.overdue_count)}</b>
+                          {mon.never_checked > 0 && ` · ${t("stats.neverChecked")}: ${num(mon.never_checked)}`}
+                        </div>
+                        <div className="table-scroll">
+                          <table className="table">
+                            <thead>
+                              <tr>
+                                <th>{t("stats.probe")}</th>
+                                <th>{t("stats.location")}</th>
+                                <th style={{ textAlign: "right" }}>{t("stats.lastCheck")}</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {mon.overdue.map((p) => (
+                                <tr key={p.probe_id}>
+                                  <td>{p.probe_name} <span className="faint small">· {p.probe_type.toUpperCase()}</span></td>
+                                  <td className="muted small">{p.server_name} · {p.page_title}</td>
+                                  <td style={{ textAlign: "right" }} className={p.last_checked_at ? "" : "danger-text"}>
+                                    {p.last_checked_at ? relativeTime(p.last_checked_at, lang) : t("stats.never")}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                    {mon.failing_channels.length > 0 && (
+                      <div>
+                        <div className="muted small" style={{ marginBottom: 6 }}>
+                          {t("stats.failingChannels")}: <b>{mon.failing_channels.length}</b>
+                        </div>
+                        <div className="feed">
+                          {mon.failing_channels.map((c) => (
+                            <div key={c.id} className="feed-row cert_expiring">
+                              <span className="feed-icon" aria-hidden>⚠</span>
+                              <div className="feed-body">
+                                <div className="feed-title"><span className="feed-probe">{c.name} · {c.type}</span></div>
+                                {c.last_error && <div className="feed-detail">{c.last_error}</div>}
+                                {c.last_sent_at && <div className="feed-meta">{relativeTime(c.last_sent_at, lang)}</div>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* database tables */}
           <div className="card">
             <div className="card-head">

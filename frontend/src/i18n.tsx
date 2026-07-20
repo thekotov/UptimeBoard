@@ -297,12 +297,43 @@ const ru: Dict = {
   "nav.admin": "Администрирование",
   "nav.pages": "Страницы",
   "nav.alerts": "Каналы оповещений",
+  "nav.events": "События",
+  "nav.certs": "Сертификаты",
   "nav.stats": "Статистика",
   "nav.logout": "Выйти",
 
+  // activity feed
+  "events.title": "Лента изменений",
+  "events.hint": "Изменения, замеченные на пробах: сменился IP / сертификат / содержимое, приближается истечение. Не инциденты — информационные события.",
+  "events.all": "Все",
+  "events.empty": "Событий пока нет",
+
+  // certificate expiry board
+  "certs.title": "Сроки сертификатов",
+  "certs.hint": "Все пробы с отслеживанием TLS-сертификата, ближайшие к истечению — сверху.",
+  "certs.summary": "всего {total}, в ближайшие 30 дней {soon}",
+  "certs.empty": "Нет проб с отслеживанием сертификата",
+
+  // heatmap
+  "heatmap.title": "Тепловая карта",
+  "heatmap.open": "Тепловая карта",
+  "heatmap.empty": "Нет проб для отображения",
+
   // admin statistics
   "stats.refresh": "Обновить",
+  "stats.loading": "Загрузка…",
   "stats.worker": "Воркер",
+  "stats.monitoring": "Здоровье мониторинга",
+  "stats.monHealthy": "В порядке",
+  "stats.monIssues": "Есть проблемы",
+  "stats.monAllGood": "Все пробы проверяются вовремя, доставка алертов работает.",
+  "stats.overdue": "Просроченные проверки",
+  "stats.neverChecked": "ни разу не проверялись",
+  "stats.probe": "Проба",
+  "stats.location": "Расположение",
+  "stats.lastCheck": "Последняя проверка",
+  "stats.never": "никогда",
+  "stats.failingChannels": "Каналы с ошибкой доставки",
   "stats.totalDbSize": "Размер базы",
   "stats.database": "База данных",
   "stats.table": "Таблица",
@@ -722,12 +753,43 @@ const en: Dict = {
   "nav.admin": "Admin",
   "nav.pages": "Pages",
   "nav.alerts": "Alert channels",
+  "nav.events": "Events",
+  "nav.certs": "Certificates",
   "nav.stats": "Statistics",
   "nav.logout": "Logout",
 
+  // activity feed
+  "events.title": "Activity feed",
+  "events.hint": "Changes detected on probes: IP / certificate / content changed, expiry approaching. Not incidents — informational events.",
+  "events.all": "All",
+  "events.empty": "No events yet",
+
+  // certificate expiry board
+  "certs.title": "Certificate expiry",
+  "certs.hint": "All probes tracking a TLS certificate, soonest to expire first.",
+  "certs.summary": "{total} total, {soon} within 30 days",
+  "certs.empty": "No probes tracking a certificate",
+
+  // heatmap
+  "heatmap.title": "Heatmap",
+  "heatmap.open": "Heatmap",
+  "heatmap.empty": "No probes to display",
+
   // admin statistics
   "stats.refresh": "Refresh",
+  "stats.loading": "Loading…",
   "stats.worker": "Worker",
+  "stats.monitoring": "Monitoring health",
+  "stats.monHealthy": "Healthy",
+  "stats.monIssues": "Issues found",
+  "stats.monAllGood": "All probes are checked on time and alert delivery works.",
+  "stats.overdue": "Overdue checks",
+  "stats.neverChecked": "never checked",
+  "stats.probe": "Probe",
+  "stats.location": "Location",
+  "stats.lastCheck": "Last check",
+  "stats.never": "never",
+  "stats.failingChannels": "Channels failing delivery",
   "stats.totalDbSize": "Database size",
   "stats.database": "Database",
   "stats.table": "Table",

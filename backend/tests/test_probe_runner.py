@@ -83,6 +83,19 @@ def test_display_status_passes_through_non_down():
 _NOW = datetime(2026, 7, 20, 12, 0, 0, tzinfo=timezone.utc)
 
 
+class _FakeDB:
+    """Minimal stand-in: the change handlers persist a ProbeEvent via db.add()."""
+
+    def __init__(self):
+        self.added = []
+
+    def add(self, obj):
+        self.added.append(obj)
+
+
+_DB = _FakeDB()
+
+
 def _ip_probe(last_ip):
     server = SimpleNamespace(name="srv", service=SimpleNamespace(name="svc", page=None))
     return SimpleNamespace(id=1, name="p", type="http", server_id=2, server=server, last_ip=last_ip)
@@ -99,7 +112,7 @@ def test_ip_change_alerts_on_change(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _ip_probe("1.1.1.1")
     outcome = ProbeOutcome(status=STATUS_UP, meta={"resolved_ips": ["2.2.2.2"]})
-    pr.handle_ip_change(None, probe, outcome, "example.com", 3, False, _NOW)
+    pr.handle_ip_change(_DB, probe, outcome, "example.com", 3, False, _NOW)
     assert probe.last_ip == "2.2.2.2"
     assert len(calls) == 1
     assert calls[0]["event"] == "ip_changed"
@@ -111,7 +124,7 @@ def test_ip_change_first_observation_is_silent(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _ip_probe(None)
     outcome = ProbeOutcome(status=STATUS_UP, meta={"resolved_ips": ["1.1.1.1"]})
-    pr.handle_ip_change(None, probe, outcome, "example.com", 3, False, _NOW)
+    pr.handle_ip_change(_DB, probe, outcome, "example.com", 3, False, _NOW)
     assert probe.last_ip == "1.1.1.1"
     assert calls == []
 
@@ -120,7 +133,7 @@ def test_ip_change_same_set_no_alert(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _ip_probe("1.1.1.1, 2.2.2.2")
     outcome = ProbeOutcome(status=STATUS_UP, meta={"resolved_ips": ["1.1.1.1", "2.2.2.2"]})
-    pr.handle_ip_change(None, probe, outcome, "example.com", 3, False, _NOW)
+    pr.handle_ip_change(_DB, probe, outcome, "example.com", 3, False, _NOW)
     assert calls == []
 
 
@@ -128,7 +141,7 @@ def test_ip_change_suppressed_in_maintenance(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _ip_probe("1.1.1.1")
     outcome = ProbeOutcome(status=STATUS_UP, meta={"resolved_ips": ["2.2.2.2"]})
-    pr.handle_ip_change(None, probe, outcome, "example.com", 3, True, _NOW)
+    pr.handle_ip_change(_DB, probe, outcome, "example.com", 3, True, _NOW)
     # still records the new set, but sends nothing during maintenance
     assert probe.last_ip == "2.2.2.2"
     assert calls == []
@@ -137,7 +150,7 @@ def test_ip_change_suppressed_in_maintenance(monkeypatch):
 def test_ip_change_no_meta_is_noop(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _ip_probe("1.1.1.1")
-    pr.handle_ip_change(None, probe, ProbeOutcome(status=STATUS_UP), "example.com", 3, False, _NOW)
+    pr.handle_ip_change(_DB, probe, ProbeOutcome(status=STATUS_UP), "example.com", 3, False, _NOW)
     assert probe.last_ip == "1.1.1.1"
     assert calls == []
 
@@ -161,7 +174,7 @@ def test_cert_change_alerts_on_new_fingerprint(monkeypatch):
     probe = _cert_probe(True, issuer="ZeroSSL")
     outcome = ProbeOutcome(status=STATUS_UP, meta={"fingerprint": "new"})
     prev = ("old", "Let's Encrypt", "example.com")  # (fp, issuer, subject)
-    pr.handle_cert_change(None, probe, outcome, "example.com", 3, False, _NOW, prev)
+    pr.handle_cert_change(_DB, probe, outcome, "example.com", 3, False, _NOW, prev)
     assert len(calls) == 1
     assert calls[0]["event"] == "cert_changed" and calls[0]["group"] is False
     # issuer moved -> shown as old → new
@@ -172,7 +185,7 @@ def test_cert_change_first_observation_is_silent(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _cert_probe(True)
     outcome = ProbeOutcome(status=STATUS_UP, meta={"fingerprint": "first"})
-    pr.handle_cert_change(None, probe, outcome, "h", 3, False, _NOW, (None, None, None))
+    pr.handle_cert_change(_DB, probe, outcome, "h", 3, False, _NOW, (None, None, None))
     assert calls == []
 
 
@@ -180,7 +193,7 @@ def test_cert_change_same_fingerprint_no_alert(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _cert_probe(True)
     outcome = ProbeOutcome(status=STATUS_UP, meta={"fingerprint": "same"})
-    pr.handle_cert_change(None, probe, outcome, "h", 3, False, _NOW, ("same", "i", "s"))
+    pr.handle_cert_change(_DB, probe, outcome, "h", 3, False, _NOW, ("same", "i", "s"))
     assert calls == []
 
 
@@ -188,7 +201,7 @@ def test_cert_change_disabled_is_noop(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _cert_probe(False)
     outcome = ProbeOutcome(status=STATUS_UP, meta={"fingerprint": "new"})
-    pr.handle_cert_change(None, probe, outcome, "h", 3, False, _NOW, ("old", "i", "s"))
+    pr.handle_cert_change(_DB, probe, outcome, "h", 3, False, _NOW, ("old", "i", "s"))
     assert calls == []
 
 
@@ -196,14 +209,14 @@ def test_cert_change_suppressed_in_maintenance(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _cert_probe(True)
     outcome = ProbeOutcome(status=STATUS_UP, meta={"fingerprint": "new"})
-    pr.handle_cert_change(None, probe, outcome, "h", 3, True, _NOW, ("old", "i", "s"))
+    pr.handle_cert_change(_DB, probe, outcome, "h", 3, True, _NOW, ("old", "i", "s"))
     assert calls == []
 
 
 def test_cert_change_no_fingerprint_is_noop(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _cert_probe(True)
-    pr.handle_cert_change(None, probe, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW, ("old", "i", "s"))
+    pr.handle_cert_change(_DB, probe, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW, ("old", "i", "s"))
     assert calls == []
 
 
@@ -220,7 +233,7 @@ def test_content_change_alerts_on_change(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _content_probe(True, "aaaaaaaaaaaaaa")
     outcome = ProbeOutcome(status=STATUS_UP, meta={"content_hash": "bbbbbbbbbbbbbb"})
-    pr.handle_content_change(None, probe, outcome, "h", 3, False, _NOW)
+    pr.handle_content_change(_DB, probe, outcome, "h", 3, False, _NOW)
     assert probe.last_content_hash == "bbbbbbbbbbbbbb"
     assert len(calls) == 1 and calls[0]["event"] == "content_changed" and calls[0]["group"] is False
 
@@ -228,28 +241,28 @@ def test_content_change_alerts_on_change(monkeypatch):
 def test_content_change_first_observation_is_silent(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _content_probe(True, None)
-    pr.handle_content_change(None, probe, ProbeOutcome(status=STATUS_UP, meta={"content_hash": "x"}), "h", 3, False, _NOW)
+    pr.handle_content_change(_DB, probe, ProbeOutcome(status=STATUS_UP, meta={"content_hash": "x"}), "h", 3, False, _NOW)
     assert probe.last_content_hash == "x" and calls == []
 
 
 def test_content_change_same_hash_no_alert(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _content_probe(True, "same")
-    pr.handle_content_change(None, probe, ProbeOutcome(status=STATUS_UP, meta={"content_hash": "same"}), "h", 3, False, _NOW)
+    pr.handle_content_change(_DB, probe, ProbeOutcome(status=STATUS_UP, meta={"content_hash": "same"}), "h", 3, False, _NOW)
     assert calls == []
 
 
 def test_content_change_suppressed_in_maintenance(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _content_probe(True, "a")
-    pr.handle_content_change(None, probe, ProbeOutcome(status=STATUS_UP, meta={"content_hash": "b"}), "h", 3, True, _NOW)
+    pr.handle_content_change(_DB, probe, ProbeOutcome(status=STATUS_UP, meta={"content_hash": "b"}), "h", 3, True, _NOW)
     assert probe.last_content_hash == "b" and calls == []
 
 
 def test_content_change_no_meta_is_noop(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _content_probe(True, "a")
-    pr.handle_content_change(None, probe, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
+    pr.handle_content_change(_DB, probe, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
     assert probe.last_content_hash == "a" and calls == []
 
 
@@ -280,7 +293,7 @@ def _expiry_probe(days_left, reminders=True, reminder_days=None):
 def test_cert_expiry_alerts_when_crossing_threshold(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _expiry_probe(10)  # inside 14-day bucket, none sent yet
-    pr.handle_cert_expiry(None, probe, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
+    pr.handle_cert_expiry(_DB, probe, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
     assert probe.tls_reminder_days == 14
     assert len(calls) == 1 and calls[0]["event"] == "cert_expiring"
     assert "истекает через 10" in calls[0]["error"]
@@ -289,36 +302,36 @@ def test_cert_expiry_alerts_when_crossing_threshold(monkeypatch):
 def test_cert_expiry_no_repeat_same_bucket(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _expiry_probe(10, reminder_days=14)  # already reminded at 14
-    pr.handle_cert_expiry(None, probe, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
+    pr.handle_cert_expiry(_DB, probe, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
     assert calls == []
 
 
 def test_cert_expiry_realerts_on_tighter_bucket(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _expiry_probe(5, reminder_days=14)  # was 14, now inside 7
-    pr.handle_cert_expiry(None, probe, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
+    pr.handle_cert_expiry(_DB, probe, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
     assert probe.tls_reminder_days == 7 and len(calls) == 1
 
 
 def test_cert_expiry_resets_after_renewal(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _expiry_probe(80, reminder_days=7)  # renewed: plenty of days again
-    pr.handle_cert_expiry(None, probe, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
+    pr.handle_cert_expiry(_DB, probe, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
     assert probe.tls_reminder_days is None and calls == []
 
 
 def test_cert_expiry_suppressed_in_maintenance(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _expiry_probe(3)
-    pr.handle_cert_expiry(None, probe, ProbeOutcome(status=STATUS_UP), "h", 3, True, _NOW)
+    pr.handle_cert_expiry(_DB, probe, ProbeOutcome(status=STATUS_UP), "h", 3, True, _NOW)
     # neither alerts nor consumes the reminder, so it still fires post-maintenance
     assert probe.tls_reminder_days is None and calls == []
 
 
 def test_cert_expiry_disabled_or_no_cert_is_noop(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
-    pr.handle_cert_expiry(None, _expiry_probe(3, reminders=False), ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
+    pr.handle_cert_expiry(_DB, _expiry_probe(3, reminders=False), ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
     noexp = _expiry_probe(3)
     noexp.tls_expires_at = None
-    pr.handle_cert_expiry(None, noexp, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
+    pr.handle_cert_expiry(_DB, noexp, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
     assert calls == []

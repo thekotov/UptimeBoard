@@ -455,10 +455,91 @@ export interface AdminStats {
     alert_channels: number;
     alert_channels_enabled: number;
   };
+  monitoring: {
+    overdue: OverdueProbe[];
+    overdue_count: number;
+    never_checked: number;
+    failing_channels: FailingChannel[];
+  };
   worker: { status: "ok" | "stale" | "unknown"; last_beat_age_sec: number | null; stale_after_sec: number };
+}
+export interface OverdueProbe {
+  probe_id: number;
+  probe_name: string;
+  probe_type: string;
+  server_name: string;
+  page_slug: string;
+  page_title: string;
+  interval_sec: number;
+  last_checked_at: string | null;
+  overdue_sec: number | null;
+}
+export interface FailingChannel {
+  id: number;
+  name: string;
+  type: string;
+  last_error: string | null;
+  last_sent_at: string | null;
 }
 export async function getAdminStats(): Promise<AdminStats> {
   const { data } = await api.get<AdminStats>("/admin/stats");
+  return data;
+}
+
+// ---- Activity feed ----
+export type ChangeEventType = "ip_changed" | "cert_changed" | "content_changed" | "cert_expiring";
+export interface ProbeEventItem {
+  id: number;
+  type: ChangeEventType;
+  detail: string | null;
+  created_at: string;
+  probe_id: number;
+  probe_name: string;
+  probe_type: string;
+  server_name: string;
+  server_host: string;
+  service_name: string;
+  page_title: string;
+  page_slug: string;
+}
+export async function getEvents(params?: { type?: ChangeEventType; limit?: number }): Promise<ProbeEventItem[]> {
+  const { data } = await api.get<ProbeEventItem[]>("/admin/events", { params });
+  return data;
+}
+
+// ---- Certificate expiry board ----
+export interface CertItem {
+  probe_id: number;
+  probe_name: string;
+  probe_type: string;
+  status: Status;
+  server_name: string;
+  server_host: string;
+  service_name: string;
+  page_title: string;
+  page_slug: string;
+  expires_at: string | null;
+  issuer: string | null;
+  subject: string | null;
+}
+export async function getCerts(): Promise<CertItem[]> {
+  const { data } = await api.get<CertItem[]>("/admin/certs");
+  return data;
+}
+
+// ---- Heatmap (public page status + per-probe timeline) ----
+export interface PageTimelineEntry {
+  probe_id: number;
+  uptime_pct: number;
+  total: number;
+  points: { checked_at: string; status: string; latency_ms: number | null }[];
+}
+export async function getPageStatus(slug: string): Promise<PageStatus> {
+  const { data } = await api.get<PageStatus>(`/public/pages/${slug}`);
+  return data;
+}
+export async function getPageTimeline(slug: string, range: TimeRange): Promise<PageTimelineEntry[]> {
+  const { data } = await api.get<PageTimelineEntry[]>(`/public/pages/${slug}/timeline?range=${range}`);
   return data;
 }
 

@@ -15,6 +15,7 @@ from app.models import (
     MaintenanceWindow,
     Page,
     Probe,
+    ProbeEvent,
     ProbeResult,
     ProbeRollup,
     Server,
@@ -758,6 +759,43 @@ def admin_stats(db: Session = Depends(get_db)):
     total_bytes = int(db.execute(text("SELECT pg_database_size(current_database())")).scalar() or 0)
 
     now = datetime.now(timezone.utc)
+
+    # --- monitoring health: is the monitor itself doing its job? ---
+    # Enabled probes that haven't been checked in ~3× their interval (or never).
+    overdue: list[dict] = []
+    for r in (
+        db.query(
+            Probe.id, Probe.name, Probe.type, Probe.interval_sec,
+            Probe.last_checked_at, Server.name.label("server_name"),
+            Page.slug.label("page_slug"), Page.title.label("page_title"),
+        )
+        .join(Server, Probe.server_id == Server.id)
+        .join(Service, Server.service_id == Service.id)
+        .join(Page, Service.page_id == Page.id)
+        .filter(Probe.enabled.is_(True))
+        .all()
+    ):
+        interval = r.interval_sec or 60
+        age = (now - r.last_checked_at).total_seconds() if r.last_checked_at else None
+        if age is None or age > interval * 3:
+            overdue.append({
+                "probe_id": r.id, "probe_name": r.name, "probe_type": r.type,
+                "server_name": r.server_name, "page_slug": r.page_slug, "page_title": r.page_title,
+                "interval_sec": interval,
+                "last_checked_at": r.last_checked_at.isoformat() if r.last_checked_at else None,
+                "overdue_sec": round(age) if age is not None else None,
+            })
+    # never-checked first, then longest overdue.
+    overdue.sort(key=lambda x: (x["overdue_sec"] is None, x["overdue_sec"] or 0), reverse=True)
+
+    failing_channels = [
+        {
+            "id": c.id, "name": c.name, "type": c.type, "last_error": c.last_error,
+            "last_sent_at": c.last_sent_at.isoformat() if c.last_sent_at else None,
+        }
+        for c in db.query(AlertChannel).filter(AlertChannel.last_ok.is_(False)).all()
+    ]
+
     oldest, newest = db.execute(
         text("SELECT min(checked_at), max(checked_at) FROM probe_results")
     ).one()
@@ -791,8 +829,73 @@ def admin_stats(db: Session = Depends(get_db)):
             "alert_channels": db.query(AlertChannel).count(),
             "alert_channels_enabled": db.query(AlertChannel).filter(AlertChannel.enabled.is_(True)).count(),
         },
+        "monitoring": {
+            "overdue": overdue[:50],
+            "overdue_count": len(overdue),
+            "never_checked": sum(1 for x in overdue if x["overdue_sec"] is None),
+            "failing_channels": failing_channels,
+        },
         "worker": _worker_status(),
     }
+
+
+# ---------------- Activity feed & certificates ----------------
+
+
+@router.get("/events")
+def list_events(
+    limit: int = 100,
+    type: str | None = None,
+    db: Session = Depends(get_db),
+):
+    """Recent probe change events (IP / certificate / content changed, cert expiring)
+    across all probes, newest first — the admin activity feed."""
+    limit = max(1, min(500, limit))
+    q = (
+        db.query(ProbeEvent, Probe, Server, Service, Page)
+        .join(Probe, ProbeEvent.probe_id == Probe.id)
+        .join(Server, Probe.server_id == Server.id)
+        .join(Service, Server.service_id == Service.id)
+        .join(Page, Service.page_id == Page.id)
+        .order_by(ProbeEvent.created_at.desc())
+    )
+    if type:
+        q = q.filter(ProbeEvent.type == type)
+    return [
+        {
+            "id": ev.id, "type": ev.type, "detail": ev.detail,
+            "created_at": ev.created_at.isoformat(),
+            "probe_id": ev.probe_id, "probe_name": pr.name, "probe_type": pr.type,
+            "server_name": srv.name, "server_host": srv.host,
+            "service_name": svc.name, "page_title": pg.title, "page_slug": pg.slug,
+        }
+        for ev, pr, srv, svc, pg in q.limit(limit).all()
+    ]
+
+
+@router.get("/certs")
+def list_certs(db: Session = Depends(get_db)):
+    """All probes tracking a TLS certificate, soonest-expiring first — the expiry
+    board. Populated from the denormalised certificate metadata on each probe."""
+    return [
+        {
+            "probe_id": pr.id, "probe_name": pr.name, "probe_type": pr.type,
+            "status": pr.last_status,
+            "server_name": srv.name, "server_host": srv.host,
+            "service_name": svc.name, "page_title": pg.title, "page_slug": pg.slug,
+            "expires_at": pr.tls_expires_at.isoformat() if pr.tls_expires_at else None,
+            "issuer": pr.tls_issuer, "subject": pr.tls_subject,
+        }
+        for pr, srv, svc, pg in (
+            db.query(Probe, Server, Service, Page)
+            .join(Server, Probe.server_id == Server.id)
+            .join(Service, Server.service_id == Service.id)
+            .join(Page, Service.page_id == Page.id)
+            .filter(Probe.tls_expires_at.isnot(None))
+            .order_by(Probe.tls_expires_at.asc())
+            .all()
+        )
+    ]
 
 
 # ---------------- Alert channels ----------------

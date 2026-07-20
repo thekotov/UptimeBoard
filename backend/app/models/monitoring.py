@@ -268,6 +268,28 @@ class Incident(Base):
     probe: Mapped["Probe"] = relationship(back_populates="incidents")
 
 
+class ProbeEvent(Base):
+    """A notable change detected on a probe, persisted for the admin activity feed.
+
+    Distinct from incidents (up/down): these are informational change events —
+    the resolved IP set changed, the TLS certificate was replaced, the response
+    body changed, or a certificate is nearing expiry. One row per detected change,
+    carrying a human-readable ``detail`` (e.g. "1.2.3.4 → 5.6.7.8")."""
+
+    __tablename__ = "probe_events"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    probe_id: Mapped[int] = mapped_column(
+        ForeignKey("probes.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # ip_changed | cert_changed | content_changed | cert_expiring
+    type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    detail: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+
+
 class MaintenanceWindow(Base):
     __tablename__ = "maintenance_windows"
 
