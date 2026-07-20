@@ -167,6 +167,7 @@ def _apply_cert_meta(probe: Probe, meta: dict) -> None:
     probe.tls_subject = meta.get("subject")
     sans = meta.get("sans") or []
     probe.tls_sans = ", ".join(sans) if sans else None
+    probe.tls_fingerprint = meta.get("fingerprint")
 
 
 def _evaluate_heartbeat(probe: Probe, now: datetime) -> ProbeOutcome:
@@ -178,6 +179,80 @@ def _evaluate_heartbeat(probe: Probe, now: datetime) -> ProbeOutcome:
     if age <= probe.interval_sec + grace:
         return ProbeOutcome(status=STATUS_UP, latency_ms=None)
     return ProbeOutcome(status=STATUS_DOWN, error=f"no ping for {int(age)}s")
+
+
+def _alert_common(probe: Probe, host: str, outcome: ProbeOutcome, now: datetime) -> dict:
+    """Static context shared by all alert kinds (server/service/page names + link)."""
+    server = probe.server
+    service = getattr(server, "service", None)
+    page = getattr(service, "page", None) if service is not None else None
+    page_url = (
+        f"{settings.public_base_url.rstrip('/')}/status/{page.slug}"
+        if page is not None and settings.public_base_url
+        else ""
+    )
+    return dict(
+        probe_name=probe.name, server_host=host, status=outcome.status, error=outcome.error,
+        server_id=probe.server_id, probe_type=probe.type, server_name=server.name,
+        service_name=service.name if service is not None else "",
+        page_title=page.title if page is not None else "", page_url=page_url,
+        latency_ms=outcome.latency_ms, occurred_at=now,
+    )
+
+
+def handle_ip_change(db: Session, probe: Probe, outcome: ProbeOutcome, host: str,
+                     page_id: int | None, maint: bool, now: datetime) -> None:
+    """For HTTP probes with IP tracking on: compare the freshly resolved address
+    set with the last observed one, persist it, and fire a one-off ``ip_changed``
+    alert when it changes. This is informational — it never opens an incident or
+    affects uptime. The first observation is recorded silently (no baseline yet)."""
+    ips = (outcome.meta or {}).get("resolved_ips")
+    if not ips:
+        return
+    new_ip = ", ".join(ips)
+    old_ip = probe.last_ip
+    probe.last_ip = new_ip
+    if old_ip and old_ip != new_ip and not maint:
+        common = _alert_common(probe, host, outcome, now)
+        common["error"] = f"{old_ip} → {new_ip}"
+        # group=False: each IP change is a distinct, meaningful event and must not
+        # be coalesced with the server's down/resolved storm-grouping window.
+        dispatch(base_channels(db, page_id), event="ip_changed", group=False, **common)
+
+
+def handle_cert_change(db: Session, probe: Probe, outcome: ProbeOutcome, host: str,
+                       page_id: int | None, maint: bool, now: datetime,
+                       prev: tuple[str | None, str | None, str | None]) -> None:
+    """For probes with SSL-change tracking on (config.track_cert_change): fire a
+    one-off ``cert_changed`` alert when the served certificate's fingerprint
+    differs from the previous check. Informational — never opens an incident or
+    affects uptime. ``prev`` is the (fingerprint, issuer, subject) snapshot taken
+    *before* this check's metadata was applied. The first observation and checks
+    that couldn't read a fingerprint are silent."""
+    if not (probe.config or {}).get("track_cert_change"):
+        return
+    new_fp = (outcome.meta or {}).get("fingerprint")
+    if not new_fp:
+        return
+    prev_fp, prev_issuer, prev_subject = prev
+    if not prev_fp or prev_fp == new_fp or maint:
+        return
+
+    # Build a human summary: highlight issuer/subject moves (the meaningful,
+    # security-relevant changes), else note it's a renewal with the new expiry.
+    changes: list[str] = []
+    if prev_issuer != probe.tls_issuer:
+        changes.append(f"издатель: {prev_issuer or '—'} → {probe.tls_issuer or '—'}")
+    if prev_subject != probe.tls_subject:
+        changes.append(f"subject: {prev_subject or '—'} → {probe.tls_subject or '—'}")
+    if not changes:
+        changes.append(f"издатель: {probe.tls_issuer or '—'}")
+    if probe.tls_expires_at is not None:
+        changes.append(f"действует до {probe.tls_expires_at.strftime('%d.%m.%Y')}")
+
+    common = _alert_common(probe, host, outcome, now)
+    common["error"] = " · ".join(changes)
+    dispatch(base_channels(db, page_id), event="cert_changed", group=False, **common)
 
 
 def handle_incident(db: Session, probe: Probe, outcome: ProbeOutcome, host: str,
@@ -193,22 +268,7 @@ def handle_incident(db: Session, probe: Probe, outcome: ProbeOutcome, host: str,
     # (consistent with them being excluded from uptime/graphs/timeline).
     threshold = max(1, probe.failure_threshold, probe.tolerance_checks + 1)
 
-    # Static context for richly-formatted alerts (server/service/page names + link).
-    server = probe.server
-    service = getattr(server, "service", None)
-    page = getattr(service, "page", None) if service is not None else None
-    page_url = (
-        f"{settings.public_base_url.rstrip('/')}/status/{page.slug}"
-        if page is not None and settings.public_base_url
-        else ""
-    )
-    common = dict(
-        probe_name=probe.name, server_host=host, status=outcome.status, error=outcome.error,
-        server_id=probe.server_id, probe_type=probe.type, server_name=server.name,
-        service_name=service.name if service is not None else "",
-        page_title=page.title if page is not None else "", page_url=page_url,
-        latency_ms=outcome.latency_ms, occurred_at=now,
-    )
+    common = _alert_common(probe, host, outcome, now)
 
     if bad:
         if open_incident is None:
@@ -293,13 +353,21 @@ def execute_and_store(db: Session, probe: Probe) -> ProbeOutcome:
     probe.last_latency_ms = outcome.latency_ms
     probe.last_checked_at = now
     probe.last_error = outcome.error
-    if outcome.meta:
+    # Snapshot the stored certificate identity before this check overwrites it, so
+    # SSL-change detection can compare against the previous certificate.
+    prev_cert = (probe.tls_fingerprint, probe.tls_issuer, probe.tls_subject)
+    if outcome.meta and ("expires_at" in outcome.meta or "fingerprint" in outcome.meta):
         _apply_cert_meta(probe, outcome.meta)
     db.flush()
 
+    page_id = page.id if page else None
     # Incident/alert logic intentionally keys off the raw outcome + thresholds,
     # independently of the visual degraded/down tiering above.
-    handle_incident(db, probe, outcome, host, page.id if page else None, maint, now)
+    handle_incident(db, probe, outcome, host, page_id, maint, now)
+    # IP- and cert-change tracking are independent of incidents (informational,
+    # no downtime).
+    handle_ip_change(db, probe, outcome, host, page_id, maint, now)
+    handle_cert_change(db, probe, outcome, host, page_id, maint, now, prev_cert)
     db.commit()
 
     if page is not None:

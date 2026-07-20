@@ -19,7 +19,7 @@ import { AdminNav } from "./AdminNav";
 
 type ChannelType = "telegram" | "webhook" | "email";
 
-const EVENT_TYPES = ["opened", "ongoing", "escalated", "resolved"] as const;
+const EVENT_TYPES = ["opened", "ongoing", "escalated", "resolved", "ip_changed", "cert_changed"] as const;
 
 const TYPE_META: Record<ChannelType, { icon: string; label: string }> = {
   telegram: { icon: "✈", label: "Telegram" },

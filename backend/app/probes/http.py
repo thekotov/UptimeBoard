@@ -1,4 +1,5 @@
 import re
+import socket
 import time
 from urllib.parse import urlsplit
 
@@ -43,6 +44,8 @@ def execute(host: str, config: dict, timeout_sec: int) -> ProbeOutcome:
       follow_redirects     bool (default True)
       check_cert           also inspect the TLS certificate (https URLs only)
       warn_days            cert "degraded" threshold in days (default 14)
+      track_ip             resolve the host's IPs and report them in meta so the
+                           runner can alert when they change
     """
     url = config.get("url") or f"http://{host}"
     http_outcome = _http_check(url, config, timeout_sec)
@@ -51,9 +54,18 @@ def execute(host: str, config: dict, timeout_sec: int) -> ProbeOutcome:
     # the cert (expiry/trust) and fold it into the result. The probe status becomes
     # the worse of the HTTP and certificate verdicts, and cert metadata is attached.
     if config.get("check_cert") and urlsplit(url).scheme == "https":
-        cert_outcome = _cert_for_url(url, config, timeout_sec)
-        return _merge(http_outcome, cert_outcome)
-    return http_outcome
+        outcome = _merge(http_outcome, _cert_for_url(url, config, timeout_sec))
+    else:
+        outcome = http_outcome
+
+    # Optional IP tracking: resolve the URL host and attach the current address set
+    # to meta. The runner compares it against the last observed set and alerts on a
+    # change. Skipped silently on resolution failure (no set -> no false alert).
+    if config.get("track_ip"):
+        ips = _resolve_ips(urlsplit(url).hostname or host)
+        if ips:
+            outcome.meta = {**(outcome.meta or {}), "resolved_ips": ips}
+    return outcome
 
 
 def _http_check(url: str, config: dict, timeout_sec: int) -> ProbeOutcome:
@@ -104,6 +116,20 @@ def _http_check(url: str, config: dict, timeout_sec: int) -> ProbeOutcome:
             return down(f"json path = {value!r}, expected {expected!r}")
 
     return ProbeOutcome(status=STATUS_UP, latency_ms=latency_ms)
+
+
+def _resolve_ips(host: str) -> list[str] | None:
+    """Resolve ``host`` to the sorted, de-duplicated set of its IP addresses
+    (both IPv4 and IPv6). Returns None if the host is empty, is unresolvable, or
+    is already a bare IP with no addresses to report."""
+    if not host:
+        return None
+    try:
+        infos = socket.getaddrinfo(host, None)
+    except socket.gaierror:
+        return None
+    ips = sorted({info[4][0] for info in infos})
+    return ips or None
 
 
 def _cert_for_url(url: str, config: dict, timeout_sec: int) -> ProbeOutcome:

@@ -67,6 +67,8 @@ export function ProbeForm({
   const [jsonPath, setJsonPath] = useState(cfg.json_path ?? "");
   const [jsonExpected, setJsonExpected] = useState(cfg.json_expected ?? "");
   const [checkCert, setCheckCert] = useState<boolean>(cfg.check_cert ?? false);
+  const [trackIp, setTrackIp] = useState<boolean>(cfg.track_ip ?? false);
+  const [trackCertChange, setTrackCertChange] = useState<boolean>(cfg.track_cert_change ?? false);
   // tcp / tls / icmp / heartbeat
   const [port, setPort] = useState(num(cfg.port, 443));
   const [count, setCount] = useState(num(cfg.count, 3));
@@ -106,10 +108,15 @@ export function ProbeForm({
       const isHttps = /^https:\/\//i.test(url.trim());
       c.check_cert = isHttps && checkCert;
       if (c.check_cert) c.warn_days = Number(warnDays);
+      // SSL-change tracking only makes sense when the certificate is fetched.
+      c.track_cert_change = Boolean(c.check_cert) && trackCertChange;
+      // Alert when the URL host's resolved IP set changes. Always emit the flag so
+      // toggling it off persists on edit (config is merged).
+      c.track_ip = trackIp;
       return c;
     }
     if (type === "tcp") return { port: Number(port) };
-    if (type === "tls") return { port: Number(port), warn_days: Number(warnDays) };
+    if (type === "tls") return { port: Number(port), warn_days: Number(warnDays), track_cert_change: trackCertChange };
     if (type === "heartbeat") return { ...cfg, grace_sec: Number(grace) }; // keep token
     return { count: Number(count), packet_size: Number(packetSize) };
   };
@@ -158,7 +165,8 @@ export function ProbeForm({
         const when = days < 0 ? t("cert.expired") : t("cert.expiresIn", { days });
         cert = ` · 🔒 ${when}${res.meta.issuer ? ` · ${res.meta.issuer}` : ""}`;
       }
-      toast.show(`${t(`status.${res.status}`)}${lat}${res.error ? " — " + res.error : ""}${cert}`,
+      const ips = res.meta?.resolved_ips?.length ? ` · 🔄 ${res.meta.resolved_ips.join(", ")}` : "";
+      toast.show(`${t(`status.${res.status}`)}${lat}${res.error ? " — " + res.error : ""}${cert}${ips}`,
         res.status === "up" ? "success" : "error");
     } catch {
       toast.error(t("probe.checkFail"));
@@ -223,7 +231,28 @@ export function ProbeForm({
                   <input type="number" min={1} value={warnDays} onChange={(e) => setWarnDays(+e.target.value)} />
                 </div>
               )}
+              {checkCert && (
+                <label className="check-cell full">
+                  <input type="checkbox" checked={trackCertChange} onChange={(e) => setTrackCertChange(e.target.checked)} /> 📜 {t("probe.trackCertChange")}
+                </label>
+              )}
+              {checkCert && trackCertChange && (
+                <div className="full">
+                  <span className="hint">{t("probe.trackCertChangeHint")}</span>
+                </div>
+              )}
             </>
+          )}
+          <label className="check-cell full">
+            <input type="checkbox" checked={trackIp} onChange={(e) => setTrackIp(e.target.checked)} /> 🔄 {t("probe.trackIp")}
+          </label>
+          {trackIp && (
+            <div className="full">
+              <span className="hint">
+                {t("probe.trackIpHint")}
+                {editing && probe?.last_ip ? ` ${t("probe.trackIpCurrent")}: ${probe.last_ip}` : ""}
+              </span>
+            </div>
           )}
           <details className="full advanced">
             <summary>{t("probe.advanced")}</summary>
@@ -284,6 +313,14 @@ export function ProbeForm({
             <label>{t("probe.warnDays")}</label>
             <input type="number" value={warnDays} onChange={(e) => setWarnDays(+e.target.value)} />
           </div>
+          <label className="check-cell full">
+            <input type="checkbox" checked={trackCertChange} onChange={(e) => setTrackCertChange(e.target.checked)} /> 📜 {t("probe.trackCertChange")}
+          </label>
+          {trackCertChange && (
+            <div className="full">
+              <span className="hint">{t("probe.trackCertChangeHint")}</span>
+            </div>
+          )}
         </>
       )}
       {type === "icmp" && (

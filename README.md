@@ -44,8 +44,8 @@ docker compose run --rm api python -m scripts.seed
 | `http` | `url`, `method`, `expected_status`, `expected_body_substr`, `follow_redirects` |
 | `tcp`  | `port` |
 | `icmp` | `count`, `packet_size` |
-| `tls`  | `port`, `warn_days` — доступность + срок действия сертификата |
-| `http` (доп.) | `headers`, `basic_user`/`basic_pass`, `bearer_token`, `expected_body_regex`, `json_path`/`json_expected` |
+| `tls`  | `port`, `warn_days` — доступность + срок действия сертификата; `track_cert_change` (алерт при смене сертификата) |
+| `http` (доп.) | `headers`, `basic_user`/`basic_pass`, `bearer_token`, `expected_body_regex`, `json_path`/`json_expected`, `check_cert`/`warn_days` (отслеживание SSL-сертификата) + `track_cert_change` (алерт при смене сертификата), `track_ip` (алерт при смене IP хоста) |
 | `heartbeat` | `grace_sec` — пассивная: крон шлёт `GET/POST /api/ping/<token>`; нет пинга за `период + grace` → `down` |
 
 Также: **`failure_threshold`** (открывать инцидент только после N подряд сбоев — защита

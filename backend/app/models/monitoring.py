@@ -155,6 +155,11 @@ class Probe(Base):
     # For heartbeat probes: timestamp of the last external ping received.
     last_ping_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+    # For HTTP probes with IP tracking enabled (config.track_ip): the last observed
+    # set of resolved IP addresses for the URL's host, stored sorted and comma-joined
+    # (e.g. "1.2.3.4, 5.6.7.8"). When this changes, an "ip_changed" alert is sent.
+    last_ip: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
     # For TLS probes: denormalised certificate metadata from the latest check, so
     # the dashboard/admin can show "expires in N days" and issuer details without
     # re-fetching. Populated by the runner from the probe outcome's metadata.
@@ -163,6 +168,9 @@ class Probe(Base):
     tls_issuer: Mapped[str | None] = mapped_column(String(255), nullable=True)
     tls_subject: Mapped[str | None] = mapped_column(String(255), nullable=True)
     tls_sans: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # SHA-256 of the served certificate (DER). When config.track_cert_change is on,
+    # a "cert_changed" alert fires whenever this differs from the previous check.
+    tls_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     server: Mapped["Server"] = relationship(back_populates="probes")
     results: Mapped[list["ProbeResult"]] = relationship(

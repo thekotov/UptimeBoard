@@ -1,3 +1,4 @@
+import hashlib
 import socket
 import ssl
 import time
@@ -27,7 +28,9 @@ def check_certificate(host: str, port: int, timeout_sec: int, warn_days: int = 1
     verification failure (expired / hostname mismatch / self-signed / untrusted
     CA) the error is classified and a second *unverified* handshake fetches the
     certificate so its metadata can still be reported. ``outcome.meta`` carries
-    that metadata when available: {expires_at, not_before, issuer, subject, sans}.
+    that metadata when available: {expires_at, not_before, issuer, subject, sans,
+    fingerprint}. ``fingerprint`` is the SHA-256 of the DER certificate, used to
+    detect when the served certificate changes.
     """
     ctx = ssl.create_default_context()
     start = time.perf_counter()
@@ -35,6 +38,7 @@ def check_certificate(host: str, port: int, timeout_sec: int, warn_days: int = 1
         with socket.create_connection((host, port), timeout=timeout_sec) as sock:
             with ctx.wrap_socket(sock, server_hostname=host) as ssock:
                 cert = ssock.getpeercert()
+                der = ssock.getpeercert(binary_form=True)
         latency_ms = (time.perf_counter() - start) * 1000
     except ssl.SSLCertVerificationError as exc:
         # Reachable, but the certificate is not trustworthy. Classify the reason
@@ -51,6 +55,7 @@ def check_certificate(host: str, port: int, timeout_sec: int, warn_days: int = 1
         )
 
     meta = _meta_from_peercert(cert)
+    meta["fingerprint"] = _fingerprint(der)
     expires = _parse_cert_time(cert.get("notAfter"))
     if expires is None:
         return ProbeOutcome(status=STATUS_UP, latency_ms=latency_ms, meta=meta)
@@ -68,6 +73,12 @@ def check_certificate(host: str, port: int, timeout_sec: int, warn_days: int = 1
 
 
 # ---- certificate parsing helpers ----
+
+
+def _fingerprint(der: bytes | None) -> str | None:
+    """SHA-256 of the DER-encoded certificate — a stable identity that changes
+    whenever the served certificate is replaced (renewal, reissue, swap)."""
+    return hashlib.sha256(der).hexdigest() if der else None
 
 
 def _parse_cert_time(value: str | None) -> datetime | None:
@@ -122,7 +133,13 @@ def _meta_insecure(host: str, port: int, timeout_sec: int) -> dict:
         with socket.create_connection((host, port), timeout=timeout_sec) as sock:
             with ctx.wrap_socket(sock, server_hostname=host) as ssock:
                 der = ssock.getpeercert(binary_form=True)
-        return _meta_from_der(der)
+        meta = _meta_from_der(der)
+        # Fingerprint needs only hashlib, so attach it even if the x509 parser is
+        # unavailable and the rest of the metadata came back empty.
+        fp = _fingerprint(der)
+        if fp:
+            meta["fingerprint"] = fp
+        return meta
     except Exception:  # noqa: BLE001 - metadata is best-effort; never fail the probe over it
         return {}
 

@@ -132,11 +132,13 @@ export interface Probe {
   last_latency_ms: number | null;
   last_checked_at: string | null;
   last_error: string | null;
+  last_ip?: string | null;
   tls_expires_at?: string | null;
   tls_not_before?: string | null;
   tls_issuer?: string | null;
   tls_subject?: string | null;
   tls_sans?: string | null;
+  tls_fingerprint?: string | null;
 }
 export interface Server {
   id: number;
@@ -230,6 +232,10 @@ export interface CertMeta {
   issuer: string | null;
   subject: string | null;
   sans: string[];
+  // SHA-256 of the served certificate (SSL-change tracking).
+  fingerprint?: string | null;
+  // HTTP probes with IP tracking on: the current resolved-IP set.
+  resolved_ips?: string[];
 }
 export interface CheckResult {
   status: Status;
