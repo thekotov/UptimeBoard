@@ -56,6 +56,8 @@ export function ProbeForm({
   // http
   const [url, setUrl] = useState(cfg.url ?? "");
   const [method, setMethod] = useState<string>(cfg.method ?? "GET");
+  const [reqBody, setReqBody] = useState(cfg.body ?? "");
+  const [contentType, setContentType] = useState(cfg.content_type ?? "");
   const [expectedStatus, setExpectedStatus] = useState(num(cfg.expected_status, 200));
   const [bodySubstr, setBodySubstr] = useState(cfg.expected_body_substr ?? "");
   const [followRedirects, setFollowRedirects] = useState<boolean>(cfg.follow_redirects ?? true);
@@ -68,7 +70,9 @@ export function ProbeForm({
   const [jsonExpected, setJsonExpected] = useState(cfg.json_expected ?? "");
   const [checkCert, setCheckCert] = useState<boolean>(cfg.check_cert ?? false);
   const [trackIp, setTrackIp] = useState<boolean>(cfg.track_ip ?? false);
+  const [trackContent, setTrackContent] = useState<boolean>(cfg.track_content ?? false);
   const [trackCertChange, setTrackCertChange] = useState<boolean>(cfg.track_cert_change ?? false);
+  const [certExpiryReminders, setCertExpiryReminders] = useState<boolean>(cfg.cert_expiry_reminders ?? false);
   // tcp / tls / icmp / heartbeat
   const [port, setPort] = useState(num(cfg.port, 443));
   const [count, setCount] = useState(num(cfg.count, 3));
@@ -96,6 +100,11 @@ export function ProbeForm({
       const c: Record<string, unknown> = {
         url, method, expected_status: Number(expectedStatus), follow_redirects: followRedirects,
       };
+      // Request body for write methods; empty string clears a previously-set body.
+      if (method === "POST" || method === "PUT" || method === "PATCH") {
+        c.body = reqBody;
+        if (contentType.trim()) c.content_type = contentType.trim();
+      }
       if (bodySubstr.trim()) c.expected_body_substr = bodySubstr.trim();
       if (bodyRegex.trim()) c.expected_body_regex = bodyRegex.trim();
       const h = textToHeaders(headers);
@@ -108,15 +117,17 @@ export function ProbeForm({
       const isHttps = /^https:\/\//i.test(url.trim());
       c.check_cert = isHttps && checkCert;
       if (c.check_cert) c.warn_days = Number(warnDays);
-      // SSL-change tracking only makes sense when the certificate is fetched.
+      // Cert-related tracking only makes sense when the certificate is fetched.
       c.track_cert_change = Boolean(c.check_cert) && trackCertChange;
-      // Alert when the URL host's resolved IP set changes. Always emit the flag so
-      // toggling it off persists on edit (config is merged).
+      c.cert_expiry_reminders = Boolean(c.check_cert) && certExpiryReminders;
+      // Alert when the URL host's resolved IP set / page content changes. Always
+      // emit the flags so toggling them off persists on edit (config is merged).
       c.track_ip = trackIp;
+      c.track_content = trackContent;
       return c;
     }
     if (type === "tcp") return { port: Number(port) };
-    if (type === "tls") return { port: Number(port), warn_days: Number(warnDays), track_cert_change: trackCertChange };
+    if (type === "tls") return { port: Number(port), warn_days: Number(warnDays), track_cert_change: trackCertChange, cert_expiry_reminders: certExpiryReminders };
     if (type === "heartbeat") return { ...cfg, grace_sec: Number(grace) }; // keep token
     return { count: Number(count), packet_size: Number(packetSize) };
   };
@@ -166,7 +177,8 @@ export function ProbeForm({
         cert = ` · 🔒 ${when}${res.meta.issuer ? ` · ${res.meta.issuer}` : ""}`;
       }
       const ips = res.meta?.resolved_ips?.length ? ` · 🔄 ${res.meta.resolved_ips.join(", ")}` : "";
-      toast.show(`${t(`status.${res.status}`)}${lat}${res.error ? " — " + res.error : ""}${cert}${ips}`,
+      const content = res.meta?.content_hash ? ` · 📝 ${res.meta.content_hash.slice(0, 12)}…` : "";
+      toast.show(`${t(`status.${res.status}`)}${lat}${res.error ? " — " + res.error : ""}${cert}${ips}${content}`,
         res.status === "up" ? "success" : "error");
     } catch {
       toast.error(t("probe.checkFail"));
@@ -220,6 +232,20 @@ export function ProbeForm({
             <label>{t("probe.expected")}</label>
             <input type="number" value={expectedStatus} onChange={(e) => setExpectedStatus(+e.target.value)} />
           </div>
+          {(method === "POST" || method === "PUT" || method === "PATCH") && (
+            <>
+              <div className="full">
+                <label>{t("probe.reqBody")}</label>
+                <textarea rows={3} value={reqBody} onChange={(e) => setReqBody(e.target.value)}
+                  placeholder={'{"key": "value"}'} />
+              </div>
+              <div className="full">
+                <label>{t("probe.contentType")}</label>
+                <input value={contentType} onChange={(e) => setContentType(e.target.value)}
+                  placeholder="application/json" />
+              </div>
+            </>
+          )}
           {/^https:\/\//i.test(url.trim()) && (
             <>
               <label className="check-cell full">
@@ -241,6 +267,16 @@ export function ProbeForm({
                   <span className="hint">{t("probe.trackCertChangeHint")}</span>
                 </div>
               )}
+              {checkCert && (
+                <label className="check-cell full">
+                  <input type="checkbox" checked={certExpiryReminders} onChange={(e) => setCertExpiryReminders(e.target.checked)} /> ⏳ {t("probe.certExpiryReminders")}
+                </label>
+              )}
+              {checkCert && certExpiryReminders && (
+                <div className="full">
+                  <span className="hint">{t("probe.certExpiryRemindersHint")}</span>
+                </div>
+              )}
             </>
           )}
           <label className="check-cell full">
@@ -252,6 +288,14 @@ export function ProbeForm({
                 {t("probe.trackIpHint")}
                 {editing && probe?.last_ip ? ` ${t("probe.trackIpCurrent")}: ${probe.last_ip}` : ""}
               </span>
+            </div>
+          )}
+          <label className="check-cell full">
+            <input type="checkbox" checked={trackContent} onChange={(e) => setTrackContent(e.target.checked)} /> 📝 {t("probe.trackContent")}
+          </label>
+          {trackContent && (
+            <div className="full">
+              <span className="hint">{t("probe.trackContentHint")}</span>
             </div>
           )}
           <details className="full advanced">
@@ -319,6 +363,14 @@ export function ProbeForm({
           {trackCertChange && (
             <div className="full">
               <span className="hint">{t("probe.trackCertChangeHint")}</span>
+            </div>
+          )}
+          <label className="check-cell full">
+            <input type="checkbox" checked={certExpiryReminders} onChange={(e) => setCertExpiryReminders(e.target.checked)} /> ⏳ {t("probe.certExpiryReminders")}
+          </label>
+          {certExpiryReminders && (
+            <div className="full">
+              <span className="hint">{t("probe.certExpiryRemindersHint")}</span>
             </div>
           )}
         </>

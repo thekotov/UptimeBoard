@@ -129,6 +129,75 @@ def test_http_probe_track_ip_attaches_meta(monkeypatch):
     assert out.meta == {"resolved_ips": ["1.2.3.4"]}
 
 
+def test_http_probe_sends_post_body(monkeypatch):
+    seen = {}
+
+    def handler(request):
+        seen["content"] = request.content
+        seen["ctype"] = request.headers.get("content-type")
+        return httpx.Response(200, text="ok")
+
+    real_client = httpx.Client
+
+    def fake_client(*args, **kwargs):
+        kwargs["transport"] = _mock_transport(handler)
+        return real_client(*args, **kwargs)
+
+    monkeypatch.setattr(http_probe.httpx, "Client", fake_client)
+    out = http_probe.execute(
+        "example.com",
+        {"url": "http://example.com", "method": "POST", "body": '{"a":1}'},
+        5,
+    )
+    assert out.status == STATUS_UP
+    assert seen["content"] == b'{"a":1}'
+    # defaults to JSON when a body is sent without an explicit Content-Type
+    assert seen["ctype"] == "application/json"
+
+
+def test_http_probe_post_body_custom_content_type(monkeypatch):
+    seen = {}
+
+    def handler(request):
+        seen["ctype"] = request.headers.get("content-type")
+        return httpx.Response(200)
+
+    real_client = httpx.Client
+
+    def fake_client(*args, **kwargs):
+        kwargs["transport"] = _mock_transport(handler)
+        return real_client(*args, **kwargs)
+
+    monkeypatch.setattr(http_probe.httpx, "Client", fake_client)
+    http_probe.execute(
+        "example.com",
+        {"url": "http://example.com", "method": "POST", "body": "a=1",
+         "content_type": "application/x-www-form-urlencoded"},
+        5,
+    )
+    assert seen["ctype"] == "application/x-www-form-urlencoded"
+
+
+def test_http_probe_track_content_hash(monkeypatch):
+    def handler(request):
+        return httpx.Response(200, text="hello world")
+
+    real_client = httpx.Client
+
+    def fake_client(*args, **kwargs):
+        kwargs["transport"] = _mock_transport(handler)
+        return real_client(*args, **kwargs)
+
+    monkeypatch.setattr(http_probe.httpx, "Client", fake_client)
+    out = http_probe.execute(
+        "example.com",
+        {"url": "http://example.com", "track_content": True},
+        5,
+    )
+    assert out.status == STATUS_UP
+    assert out.meta == {"content_hash": hashlib.sha256(b"hello world").hexdigest()}
+
+
 def test_tls_fingerprint_of_der():
     der = b"\x30\x82fake-der-bytes"
     assert tls_probe._fingerprint(der) == hashlib.sha256(der).hexdigest()

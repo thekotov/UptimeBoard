@@ -1,3 +1,4 @@
+import hashlib
 import re
 import socket
 import time
@@ -35,6 +36,8 @@ def execute(host: str, config: dict, timeout_sec: int) -> ProbeOutcome:
 
     config keys:
       url, method (GET), expected_status (200)
+      body                 request body sent with POST/PUT/PATCH
+      content_type         Content-Type for the request body (default JSON)
       headers              dict of extra request headers
       basic_user/basic_pass   HTTP Basic auth
       bearer_token         Authorization: Bearer <token>
@@ -46,6 +49,8 @@ def execute(host: str, config: dict, timeout_sec: int) -> ProbeOutcome:
       warn_days            cert "degraded" threshold in days (default 14)
       track_ip             resolve the host's IPs and report them in meta so the
                            runner can alert when they change
+      track_content        hash the response body and report it in meta so the
+                           runner can alert when the page content changes
     """
     url = config.get("url") or f"http://{host}"
     http_outcome = _http_check(url, config, timeout_sec)
@@ -80,10 +85,21 @@ def _http_check(url: str, config: dict, timeout_sec: int) -> ProbeOutcome:
     if config.get("basic_user"):
         auth = (config["basic_user"], config.get("basic_pass", ""))
 
+    # Optional request body for write methods. Default the Content-Type to JSON
+    # when a body is sent and none was set explicitly (via config or headers).
+    content = None
+    if method in ("POST", "PUT", "PATCH") and config.get("body"):
+        content = str(config["body"]).encode("utf-8")
+        ct = config.get("content_type")
+        if ct:
+            headers["Content-Type"] = ct
+        elif not any(k.lower() == "content-type" for k in headers):
+            headers["Content-Type"] = "application/json"
+
     start = time.perf_counter()
     try:
         with httpx.Client(timeout=timeout_sec, follow_redirects=follow_redirects) as client:
-            resp = client.request(method, url, headers=headers or None, auth=auth)
+            resp = client.request(method, url, headers=headers or None, auth=auth, content=content)
     except httpx.HTTPError as exc:
         # Surface request failures here (instead of letting the runner wrap them)
         # so certificate tracking can still run and classify a TLS error nicely.
@@ -93,8 +109,14 @@ def _http_check(url: str, config: dict, timeout_sec: int) -> ProbeOutcome:
         )
     latency_ms = (time.perf_counter() - start) * 1000
 
+    # Content tracking: hash the raw response body so the runner can detect when
+    # the served page changes. Attached to every outcome below (even failures).
+    meta = None
+    if config.get("track_content"):
+        meta = {"content_hash": hashlib.sha256(resp.content).hexdigest()}
+
     def down(msg: str) -> ProbeOutcome:
-        return ProbeOutcome(status=STATUS_DOWN, latency_ms=latency_ms, error=msg)
+        return ProbeOutcome(status=STATUS_DOWN, latency_ms=latency_ms, error=msg, meta=meta)
 
     if resp.status_code != expected_status:
         return down(f"expected status {expected_status}, got {resp.status_code}")
@@ -115,7 +137,7 @@ def _http_check(url: str, config: dict, timeout_sec: int) -> ProbeOutcome:
         if expected is not None and str(value) != str(expected):
             return down(f"json path = {value!r}, expected {expected!r}")
 
-    return ProbeOutcome(status=STATUS_UP, latency_ms=latency_ms)
+    return ProbeOutcome(status=STATUS_UP, latency_ms=latency_ms, meta=meta)
 
 
 def _resolve_ips(host: str) -> list[str] | None:
@@ -151,16 +173,18 @@ _RANK = {STATUS_UP: 0, STATUS_DEGRADED: 1, STATUS_DOWN: 2}
 def _merge(http_outcome: ProbeOutcome, cert_outcome: ProbeOutcome) -> ProbeOutcome:
     """Combine the HTTP and certificate verdicts into one outcome: status is the
     worse of the two, and a bad certificate wins ties (its message is the most
-    actionable). Certificate metadata is always carried through."""
+    actionable). Metadata from both sides is carried through (HTTP content hash +
+    certificate fields)."""
     cert_bad = cert_outcome.status != STATUS_UP
     if cert_bad and _RANK[cert_outcome.status] >= _RANK[http_outcome.status]:
         chosen = cert_outcome
     else:
         chosen = http_outcome
+    meta = {**(http_outcome.meta or {}), **(cert_outcome.meta or {})}
     return ProbeOutcome(
         status=chosen.status,
         latency_ms=http_outcome.latency_ms,
         error=chosen.error,
         kind=chosen.kind,
-        meta=cert_outcome.meta,
+        meta=meta or None,
     )

@@ -34,6 +34,8 @@ _VERB = {
     "resolved": "🟢 ВОССТАНОВЛЕН",
     "ip_changed": "🔄 IP ИЗМЕНИЛСЯ",
     "cert_changed": "📜 СЕРТИФИКАТ ИЗМЕНИЛСЯ",
+    "content_changed": "📝 КОНТЕНТ ИЗМЕНИЛСЯ",
+    "cert_expiring": "⏳ СЕРТИФИКАТ ИСТЕКАЕТ",
 }
 
 # Event types a channel may subscribe to via config["events"].
@@ -59,6 +61,8 @@ def _header(event: str, status: str) -> tuple[str, str]:
         "resolved": ("🟢", "Восстановлен"),
         "ip_changed": ("🔄", "IP-адрес изменился"),
         "cert_changed": ("📜", "SSL-сертификат изменился"),
+        "content_changed": ("📝", "Содержимое страницы изменилось"),
+        "cert_expiring": ("⏳", "Сертификат скоро истекает"),
     }.get(event, ("⚪", event))
 
 
@@ -101,7 +105,10 @@ def _build_messages(ctx: dict) -> tuple[str, str]:
         lat = f"{ctx['latency']:.0f} мс"
         rows.append(("Время ответа", lat, esc(lat)))
     if ctx.get("error"):
-        err_label = {"ip_changed": "IP", "cert_changed": "Сертификат"}.get(ctx["event"], "Ошибка")
+        err_label = {
+            "ip_changed": "IP", "cert_changed": "Сертификат",
+            "content_changed": "Контент", "cert_expiring": "Сертификат",
+        }.get(ctx["event"], "Ошибка")
         rows.append((err_label, ctx["error"], f"<code>{esc(ctx['error'])}</code>"))
     if ctx.get("duration"):
         label = "Простой" if ctx["event"] == "resolved" else "Длится уже"
@@ -112,7 +119,8 @@ def _build_messages(ctx: dict) -> tuple[str, str]:
     # (avoids "Деградация · деградация" / "Всё ещё недоступен · недоступен"). The
     # IP-/cert-change alerts are about the address/certificate, not the up/down
     # state, so they carry no status suffix.
-    suffix = "" if (ctx["event"] in ("ip_changed", "cert_changed") or status_ru.lower() in title.lower()) else f" · {status_ru}"
+    _no_suffix = ("ip_changed", "cert_changed", "content_changed", "cert_expiring")
+    suffix = "" if (ctx["event"] in _no_suffix or status_ru.lower() in title.lower()) else f" · {status_ru}"
     head_plain = f"{emoji} {title.upper()}{suffix.upper()}"
     head_html = f"{emoji} <b>{esc(title)}</b>{esc(suffix)}"
     body_plain = "\n".join(f"{label}: {pv}" for label, pv, _ in rows)

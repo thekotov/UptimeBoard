@@ -159,6 +159,9 @@ class Probe(Base):
     # set of resolved IP addresses for the URL's host, stored sorted and comma-joined
     # (e.g. "1.2.3.4, 5.6.7.8"). When this changes, an "ip_changed" alert is sent.
     last_ip: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # For HTTP probes with content tracking on (config.track_content): SHA-256 of the
+    # last response body. When it changes, a "content_changed" alert is sent.
+    last_content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     # For TLS probes: denormalised certificate metadata from the latest check, so
     # the dashboard/admin can show "expires in N days" and issuer details without
@@ -171,6 +174,10 @@ class Probe(Base):
     # SHA-256 of the served certificate (DER). When config.track_cert_change is on,
     # a "cert_changed" alert fires whenever this differs from the previous check.
     tls_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # For probes with cert-expiry reminders on (config.cert_expiry_reminders): the
+    # most-urgent lead-time bucket (in days) already alerted for the current cert,
+    # so each reminder threshold fires once. Reset to null when the cert renews.
+    tls_reminder_days: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     server: Mapped["Server"] = relationship(back_populates="probes")
     results: Mapped[list["ProbeResult"]] = relationship(

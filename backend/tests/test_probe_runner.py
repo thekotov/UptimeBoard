@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 from app import probe_runner as pr
@@ -204,4 +204,121 @@ def test_cert_change_no_fingerprint_is_noop(monkeypatch):
     calls = _capture_dispatch(monkeypatch)
     probe = _cert_probe(True)
     pr.handle_cert_change(None, probe, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW, ("old", "i", "s"))
+    assert calls == []
+
+
+# ---- content-change tracking (handle_content_change) ----
+
+
+def _content_probe(track, last_hash):
+    server = SimpleNamespace(name="srv", service=SimpleNamespace(name="svc", page=None))
+    return SimpleNamespace(id=1, name="p", type="http", server_id=2, server=server,
+                           config={"track_content": track}, last_content_hash=last_hash)
+
+
+def test_content_change_alerts_on_change(monkeypatch):
+    calls = _capture_dispatch(monkeypatch)
+    probe = _content_probe(True, "aaaaaaaaaaaaaa")
+    outcome = ProbeOutcome(status=STATUS_UP, meta={"content_hash": "bbbbbbbbbbbbbb"})
+    pr.handle_content_change(None, probe, outcome, "h", 3, False, _NOW)
+    assert probe.last_content_hash == "bbbbbbbbbbbbbb"
+    assert len(calls) == 1 and calls[0]["event"] == "content_changed" and calls[0]["group"] is False
+
+
+def test_content_change_first_observation_is_silent(monkeypatch):
+    calls = _capture_dispatch(monkeypatch)
+    probe = _content_probe(True, None)
+    pr.handle_content_change(None, probe, ProbeOutcome(status=STATUS_UP, meta={"content_hash": "x"}), "h", 3, False, _NOW)
+    assert probe.last_content_hash == "x" and calls == []
+
+
+def test_content_change_same_hash_no_alert(monkeypatch):
+    calls = _capture_dispatch(monkeypatch)
+    probe = _content_probe(True, "same")
+    pr.handle_content_change(None, probe, ProbeOutcome(status=STATUS_UP, meta={"content_hash": "same"}), "h", 3, False, _NOW)
+    assert calls == []
+
+
+def test_content_change_suppressed_in_maintenance(monkeypatch):
+    calls = _capture_dispatch(monkeypatch)
+    probe = _content_probe(True, "a")
+    pr.handle_content_change(None, probe, ProbeOutcome(status=STATUS_UP, meta={"content_hash": "b"}), "h", 3, True, _NOW)
+    assert probe.last_content_hash == "b" and calls == []
+
+
+def test_content_change_no_meta_is_noop(monkeypatch):
+    calls = _capture_dispatch(monkeypatch)
+    probe = _content_probe(True, "a")
+    pr.handle_content_change(None, probe, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
+    assert probe.last_content_hash == "a" and calls == []
+
+
+# ---- cert-expiry reminders (handle_cert_expiry) ----
+
+
+def test_cert_reminder_bucket():
+    th = [1, 7, 14]
+    assert pr._cert_reminder_bucket(20, th) is None
+    assert pr._cert_reminder_bucket(14, th) == 14
+    assert pr._cert_reminder_bucket(10, th) == 14
+    assert pr._cert_reminder_bucket(7, th) == 7
+    assert pr._cert_reminder_bucket(3, th) == 7
+    assert pr._cert_reminder_bucket(1, th) == 1
+    assert pr._cert_reminder_bucket(-2, th) == 1
+
+
+def _expiry_probe(days_left, reminders=True, reminder_days=None):
+    server = SimpleNamespace(name="srv", service=SimpleNamespace(name="svc", page=None))
+    cfg = {"cert_expiry_reminders": reminders}
+    return SimpleNamespace(
+        id=1, name="p", type="tls", server_id=2, server=server, config=cfg,
+        tls_expires_at=_NOW + timedelta(days=days_left), tls_issuer="Let's Encrypt",
+        tls_reminder_days=reminder_days,
+    )
+
+
+def test_cert_expiry_alerts_when_crossing_threshold(monkeypatch):
+    calls = _capture_dispatch(monkeypatch)
+    probe = _expiry_probe(10)  # inside 14-day bucket, none sent yet
+    pr.handle_cert_expiry(None, probe, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
+    assert probe.tls_reminder_days == 14
+    assert len(calls) == 1 and calls[0]["event"] == "cert_expiring"
+    assert "истекает через 10" in calls[0]["error"]
+
+
+def test_cert_expiry_no_repeat_same_bucket(monkeypatch):
+    calls = _capture_dispatch(monkeypatch)
+    probe = _expiry_probe(10, reminder_days=14)  # already reminded at 14
+    pr.handle_cert_expiry(None, probe, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
+    assert calls == []
+
+
+def test_cert_expiry_realerts_on_tighter_bucket(monkeypatch):
+    calls = _capture_dispatch(monkeypatch)
+    probe = _expiry_probe(5, reminder_days=14)  # was 14, now inside 7
+    pr.handle_cert_expiry(None, probe, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
+    assert probe.tls_reminder_days == 7 and len(calls) == 1
+
+
+def test_cert_expiry_resets_after_renewal(monkeypatch):
+    calls = _capture_dispatch(monkeypatch)
+    probe = _expiry_probe(80, reminder_days=7)  # renewed: plenty of days again
+    pr.handle_cert_expiry(None, probe, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
+    assert probe.tls_reminder_days is None and calls == []
+
+
+def test_cert_expiry_suppressed_in_maintenance(monkeypatch):
+    calls = _capture_dispatch(monkeypatch)
+    probe = _expiry_probe(3)
+    pr.handle_cert_expiry(None, probe, ProbeOutcome(status=STATUS_UP), "h", 3, True, _NOW)
+    # neither alerts nor consumes the reminder, so it still fires post-maintenance
+    assert probe.tls_reminder_days is None and calls == []
+
+
+def test_cert_expiry_disabled_or_no_cert_is_noop(monkeypatch):
+    calls = _capture_dispatch(monkeypatch)
+    pr.handle_cert_expiry(None, _expiry_probe(3, reminders=False), ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
+    noexp = _expiry_probe(3)
+    noexp.tls_expires_at = None
+    pr.handle_cert_expiry(None, noexp, ProbeOutcome(status=STATUS_UP), "h", 3, False, _NOW)
     assert calls == []

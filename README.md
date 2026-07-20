@@ -44,8 +44,8 @@ docker compose run --rm api python -m scripts.seed
 | `http` | `url`, `method`, `expected_status`, `expected_body_substr`, `follow_redirects` |
 | `tcp`  | `port` |
 | `icmp` | `count`, `packet_size` |
-| `tls`  | `port`, `warn_days` — доступность + срок действия сертификата; `track_cert_change` (алерт при смене сертификата) |
-| `http` (доп.) | `headers`, `basic_user`/`basic_pass`, `bearer_token`, `expected_body_regex`, `json_path`/`json_expected`, `check_cert`/`warn_days` (отслеживание SSL-сертификата) + `track_cert_change` (алерт при смене сертификата), `track_ip` (алерт при смене IP хоста) |
+| `tls`  | `port`, `warn_days` — доступность + срок действия сертификата; `track_cert_change` (алерт при смене сертификата), `cert_expiry_reminders` (напоминания об истечении) |
+| `http` (доп.) | `headers`, `body`/`content_type` (тело POST/PUT/PATCH), `basic_user`/`basic_pass`, `bearer_token`, `expected_body_regex`, `json_path`/`json_expected`, `check_cert`/`warn_days` (отслеживание SSL) + `track_cert_change` (смена сертификата) + `cert_expiry_reminders` (напоминания об истечении), `track_ip` (смена IP), `track_content` (смена содержимого) |
 | `heartbeat` | `grace_sec` — пассивная: крон шлёт `GET/POST /api/ping/<token>`; нет пинга за `период + grace` → `down` |
 
 Также: **`failure_threshold`** (открывать инцидент только после N подряд сбоев — защита

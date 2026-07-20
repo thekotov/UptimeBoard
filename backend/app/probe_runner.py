@@ -220,6 +220,68 @@ def handle_ip_change(db: Session, probe: Probe, outcome: ProbeOutcome, host: str
         dispatch(base_channels(db, page_id), event="ip_changed", group=False, **common)
 
 
+def handle_content_change(db: Session, probe: Probe, outcome: ProbeOutcome, host: str,
+                          page_id: int | None, maint: bool, now: datetime) -> None:
+    """For HTTP probes with content tracking on (config.track_content): compare the
+    response-body hash with the last one, persist it, and fire a one-off
+    ``content_changed`` alert when it changes. Informational — never opens an
+    incident or affects uptime. The first observation is recorded silently."""
+    new_hash = (outcome.meta or {}).get("content_hash")
+    if not new_hash:
+        return
+    old_hash = probe.last_content_hash
+    probe.last_content_hash = new_hash
+    if old_hash and old_hash != new_hash and not maint:
+        common = _alert_common(probe, host, outcome, now)
+        common["error"] = f"{old_hash[:12]}… → {new_hash[:12]}…"
+        dispatch(base_channels(db, page_id), event="content_changed", group=False, **common)
+
+
+# Default cert-expiry reminder lead times (days). A reminder fires once as the
+# certificate crosses into each ever-tighter bucket. Overridable per probe via
+# config["cert_reminder_days"].
+DEFAULT_CERT_REMINDER_DAYS = (14, 7, 1)
+
+
+def _cert_reminder_bucket(days_left: int, thresholds) -> int | None:
+    """The tightest reminder threshold the certificate has entered, or None when it
+    still has more days left than the widest threshold."""
+    hit = [t for t in thresholds if days_left <= t]
+    return min(hit) if hit else None
+
+
+def handle_cert_expiry(db: Session, probe: Probe, outcome: ProbeOutcome, host: str,
+                       page_id: int | None, maint: bool, now: datetime) -> None:
+    """For probes with cert-expiry reminders on (config.cert_expiry_reminders): send
+    a proactive ``cert_expiring`` alert as the certificate crosses each lead-time
+    threshold (default 14/7/1 days), once per threshold. Resets when the cert renews
+    (plenty of days again), so the next cycle reminds afresh. Suppressed during
+    maintenance without consuming the reminder, so it still fires afterwards."""
+    if not (probe.config or {}).get("cert_expiry_reminders") or probe.tls_expires_at is None:
+        return
+    if maint:
+        return
+    days_left = (probe.tls_expires_at - now).days
+    raw = (probe.config or {}).get("cert_reminder_days") or DEFAULT_CERT_REMINDER_DAYS
+    thresholds = sorted({int(t) for t in raw if int(t) > 0})
+    bucket = _cert_reminder_bucket(days_left, thresholds)
+    if bucket is None:
+        probe.tls_reminder_days = None  # healthy/renewed -> clear so it re-arms
+        return
+    if probe.tls_reminder_days == bucket:
+        return  # already reminded at this urgency
+    probe.tls_reminder_days = bucket
+
+    when = probe.tls_expires_at.strftime("%d.%m.%Y")
+    detail = (f"истёк {-days_left} дн. назад · {when}" if days_left < 0
+              else f"истекает через {days_left} дн. · {when}")
+    if probe.tls_issuer:
+        detail += f" · издатель: {probe.tls_issuer}"
+    common = _alert_common(probe, host, outcome, now)
+    common["error"] = detail
+    dispatch(base_channels(db, page_id), event="cert_expiring", group=False, **common)
+
+
 def handle_cert_change(db: Session, probe: Probe, outcome: ProbeOutcome, host: str,
                        page_id: int | None, maint: bool, now: datetime,
                        prev: tuple[str | None, str | None, str | None]) -> None:
@@ -364,10 +426,13 @@ def execute_and_store(db: Session, probe: Probe) -> ProbeOutcome:
     # Incident/alert logic intentionally keys off the raw outcome + thresholds,
     # independently of the visual degraded/down tiering above.
     handle_incident(db, probe, outcome, host, page_id, maint, now)
-    # IP- and cert-change tracking are independent of incidents (informational,
-    # no downtime).
+    # Change/expiry tracking is independent of incidents (informational, no
+    # downtime): resolved-IP set, response-body content, certificate identity and
+    # certificate expiry lead times.
     handle_ip_change(db, probe, outcome, host, page_id, maint, now)
+    handle_content_change(db, probe, outcome, host, page_id, maint, now)
     handle_cert_change(db, probe, outcome, host, page_id, maint, now, prev_cert)
+    handle_cert_expiry(db, probe, outcome, host, page_id, maint, now)
     db.commit()
 
     if page is not None:
