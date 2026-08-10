@@ -103,7 +103,7 @@ export function Heatmap() {
       {rows.length === 0 ? (
         <div className="card empty"><span className="e-emoji">📊</span>{t("heatmap.empty")}</div>
       ) : (
-        <div className="card heatmap">
+        <div className="card hm-board">
           {rows.map((row) => {
             const cells = binRow(timeline[row.id]?.points ?? [], range);
             const uptime = timeline[row.id]?.uptime_pct;

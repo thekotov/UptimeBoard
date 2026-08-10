@@ -58,23 +58,23 @@ export function Certs() {
           {loading ? t("stats.loading") : t("certs.empty")}
         </div>
       ) : (
-        <div className="cert-board">
+        <div className="cx-board">
           {certs.map((c) => {
             const d = c.expires_at ? daysLeft(c.expires_at) : null;
             const u = d != null ? urgency(d, t) : null;
             return (
-              <div key={c.probe_id} className={`cert-card ${u?.cls ?? ""}`}>
-                <div className="cert-card-top">
-                  <span className="cert-days">{u?.label ?? "—"}</span>
+              <div key={c.probe_id} className={`cx-card ${u?.cls ?? ""}`}>
+                <div className="cx-top">
+                  <span className="cx-days">{u?.label ?? "—"}</span>
                   {c.expires_at && (
-                    <span className="cert-date">{new Date(c.expires_at).toLocaleDateString(lang)}</span>
+                    <span className="cx-date">{new Date(c.expires_at).toLocaleDateString(lang)}</span>
                   )}
                 </div>
-                <div className="cert-name">{c.probe_name} · {c.server_name}</div>
-                <div className="cert-host">{c.server_host}</div>
-                <div className="cert-foot">
-                  {c.issuer && <span className="cert-issuer" title={c.subject ?? undefined}>🔒 {c.issuer}</span>}
-                  <span className="cert-loc">{c.service_name} · {c.page_title}</span>
+                <div className="cx-name">{c.probe_name} · {c.server_name}</div>
+                <div className="cx-host">{c.server_host}</div>
+                <div className="cx-foot">
+                  {c.issuer && <span className="cx-issuer" title={c.subject ?? undefined}>🔒 {c.issuer}</span>}
+                  <span className="cx-loc">{c.service_name} · {c.page_title}</span>
                 </div>
               </div>
             );

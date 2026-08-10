@@ -969,31 +969,31 @@ button:focus:not(:focus-visible) { outline: none; }
 .feed-meta { margin-top: 3px; color: var(--muted); font-size: 0.8em; }
 .feed-time { flex: none; color: var(--muted); font-size: 0.82em; white-space: nowrap; }
 
-/* certificate expiry board */
-.cert-board { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
-.cert-card {
+/* certificate expiry board (cx- prefix avoids the cert-card used in ProbeModal) */
+.cx-board { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.cx-card {
   display: flex; flex-direction: column; gap: 4px;
   padding: 14px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--panel);
 }
-.cert-card-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.cert-days { font-weight: 800; font-size: 1.05em; }
-.cert-date { color: var(--muted); font-size: 0.82em; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.cert-name { font-weight: 600; }
-.cert-host { color: var(--muted); font-size: 0.85em; word-break: break-all; }
-.cert-foot { margin-top: 4px; display: flex; flex-direction: column; gap: 2px; font-size: 0.8em; color: var(--muted); }
-.cert-card.cert-ok .cert-days { color: var(--up-text); }
-.cert-card.cert-soon { border-color: var(--border); }
-.cert-card.cert-soon .cert-days { color: var(--text); }
-.cert-card.cert-warn { border-color: var(--degraded); }
-.cert-card.cert-warn .cert-days { color: var(--degraded-text); }
-.cert-card.cert-bad { border-color: var(--down); }
-.cert-card.cert-bad .cert-days { color: var(--down-text); }
+.cx-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.cx-days { font-weight: 800; font-size: 1.05em; }
+.cx-date { color: var(--muted); font-size: 0.82em; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cx-name { font-weight: 600; }
+.cx-host { color: var(--muted); font-size: 0.85em; word-break: break-all; }
+.cx-foot { margin-top: 4px; display: flex; flex-direction: column; gap: 2px; font-size: 0.8em; color: var(--muted); }
+.cx-card.cert-ok .cx-days { color: var(--up-text); }
+.cx-card.cert-soon { border-color: var(--border); }
+.cx-card.cert-soon .cx-days { color: var(--text); }
+.cx-card.cert-warn { border-color: var(--degraded); }
+.cx-card.cert-warn .cx-days { color: var(--degraded-text); }
+.cx-card.cert-bad { border-color: var(--down); }
+.cx-card.cert-bad .cx-days { color: var(--down-text); }
 
 /* heatmap matrix */
 .hm-legend { display: flex; gap: 14px; flex-wrap: wrap; margin: 10px 2px; font-size: 0.82em; color: var(--muted); }
 .hm-legend-item { display: inline-flex; align-items: center; gap: 6px; }
 .hm-legend-item .hm-c { flex: none; width: 14px; height: 14px; }
-.heatmap { display: flex; flex-direction: column; gap: 4px; }
+.hm-board { display: flex; flex-direction: column; gap: 4px; }
 .hm-row { display: flex; align-items: center; gap: 10px; }
 .hm-label { flex: 0 0 190px; min-width: 0; display: flex; flex-direction: column; line-height: 1.15; }
 .hm-name { font-size: 0.9em; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
