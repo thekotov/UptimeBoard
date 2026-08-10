@@ -11,6 +11,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -266,6 +267,13 @@ class Incident(Base):
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     probe: Mapped["Probe"] = relationship(back_populates="incidents")
+
+    __table_args__ = (
+        # "Does this probe have an open incident?" is checked on every single
+        # probe check — a partial index over just the open subset keeps that
+        # lookup (and the admin open-incidents count) cheap as history grows.
+        Index("ix_incidents_open_probe_id", "probe_id", postgresql_where=text("resolved_at IS NULL")),
+    )
 
 
 class ProbeEvent(Base):

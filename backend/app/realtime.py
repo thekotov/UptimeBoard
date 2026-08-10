@@ -6,12 +6,15 @@ matching messages to connected browsers.
 """
 
 import json
+import logging
 import time
 
 import redis
 import redis.asyncio as aioredis
 
 from app.config import settings
+
+logger = logging.getLogger("realtime")
 
 _sync_client: redis.Redis | None = None
 
@@ -28,9 +31,10 @@ def publish_status_update(page_slug: str, payload: dict) -> None:
     message = json.dumps({"slug": page_slug, **payload})
     try:
         get_sync_redis().publish(settings.redis_status_channel, message)
-    except redis.RedisError:
-        # Real-time delivery is best-effort; never break the probe loop.
-        pass
+    except redis.RedisError as exc:
+        # Real-time delivery is best-effort; never break the probe loop, but
+        # log it — silent SSE outages are otherwise invisible.
+        logger.warning("status update publish failed: %s", exc)
 
 
 def write_worker_heartbeat() -> None:
@@ -42,8 +46,8 @@ def write_worker_heartbeat() -> None:
             str(time.time()),
             ex=settings.worker_stale_sec * 3,
         )
-    except redis.RedisError:
-        pass
+    except redis.RedisError as exc:
+        logger.warning("worker heartbeat write failed: %s", exc)
 
 
 def get_worker_heartbeat_age() -> float | None:

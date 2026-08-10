@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from sqlalchemy import or_, text
 from sqlalchemy.exc import IntegrityError
@@ -64,6 +66,8 @@ from app.probe_runner import execute_and_store
 from app.probes import run_probe
 from app.schemas.public import IncidentItem
 
+logger = logging.getLogger("admin")
+
 router = APIRouter(
     prefix="/api/admin",
     tags=["admin"],
@@ -82,8 +86,11 @@ def _notify_schedule_changed() -> None:
     """Tell the worker to reload its probe schedule."""
     try:
         get_sync_redis().publish(settings.redis_status_channel + ":reload", "1")
-    except Exception:  # noqa: BLE001
-        pass
+    except Exception as exc:  # noqa: BLE001
+        # Best-effort: the worker still picks up schedule changes on its next
+        # periodic reload, but log it — a silent failure here previously gave
+        # no signal that the reload nudge was lost.
+        logger.warning("schedule-reload notify failed: %s", exc)
 
 
 # ---------------- Pages ----------------
