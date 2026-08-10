@@ -201,6 +201,11 @@ class PageOut(PageBase):
 
 class PageDetailOut(PageOut):
     services: list[ServiceOut] = []
+    # Counts of announcements/maintenance windows active right now (starts_at <=
+    # now <= ends_at) — surfaced as a badge on the editor's "more actions" menu
+    # so admins don't have to open it just to check.
+    active_announcements: int = 0
+    active_maintenance: int = 0
 
 
 # ---- Alert channel ----

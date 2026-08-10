@@ -130,7 +130,19 @@ def get_page(page_id: int, db: Session = Depends(get_db)):
     )
     if page is None:
         raise HTTPException(status_code=404, detail="Page not found")
-    return page
+    now = datetime.now(timezone.utc)
+    resp = PageDetailOut.model_validate(page)
+    resp.active_announcements = (
+        db.query(Announcement)
+        .filter(Announcement.page_id == page_id, Announcement.starts_at <= now, Announcement.ends_at >= now)
+        .count()
+    )
+    resp.active_maintenance = (
+        db.query(MaintenanceWindow)
+        .filter(MaintenanceWindow.page_id == page_id, MaintenanceWindow.starts_at <= now, MaintenanceWindow.ends_at >= now)
+        .count()
+    )
+    return resp
 
 
 @router.patch("/pages/{page_id}", response_model=PageOut)

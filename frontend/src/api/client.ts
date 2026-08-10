@@ -160,6 +160,8 @@ export interface Service {
 }
 export interface PageDetail extends Page {
   services: Service[];
+  active_announcements: number;
+  active_maintenance: number;
 }
 export interface AlertChannel {
   id: number;

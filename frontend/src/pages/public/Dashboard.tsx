@@ -498,21 +498,6 @@ export function Dashboard() {
         <div className="item">{t("dash.updated", { time: updated })}</div>
       </div>
 
-      {manyServices && (
-        <div className="heatmap">
-          {page.services.map((s) => (
-            <button
-              key={s.id}
-              className={`hm-cell ${s.status}`}
-              title={`${s.name} — ${t(`status.${s.status}`)}`}
-              onClick={() =>
-                document.getElementById(`svc-${s.id}`)?.scrollIntoView({ behavior: "smooth", block: "start" })
-              }
-            />
-          ))}
-        </div>
-      )}
-
       <div className="toolbar sticky-toolbar">
         {manyServices && (
           <div className="search">

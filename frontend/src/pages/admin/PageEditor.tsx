@@ -386,18 +386,27 @@ export function PageEditor() {
             <button className="secondary btn-sm" onClick={() => nav(`/admin/pages/${page.id}/certs`)}>
               🔒 {t("nav.certs")}
             </button>
+            <button className="secondary btn-sm" onClick={() => setModal({ kind: "incidents" })}>
+              🔔 {t("incidents.manage")}
+            </button>
 
             <details className="views-menu" ref={moreRef}>
-              <summary className="secondary btn-sm">⋯ {t("editor.moreActions")}</summary>
+              <summary className="secondary btn-sm">
+                ⋯ {t("editor.moreActions")}
+                {page.active_announcements + page.active_maintenance > 0 && (
+                  <span className="menu-badge" title={t("editor.moreActionsBadgeHint")}>
+                    {page.active_announcements + page.active_maintenance}
+                  </span>
+                )}
+              </summary>
               <div className="views-pop">
                 <button onClick={() => { closeMore(); setModal({ kind: "announcements" }); }}>
                   📢 {t("ann.title")}
-                </button>
-                <button onClick={() => { closeMore(); setModal({ kind: "incidents" }); }}>
-                  🔔 {t("incidents.manage")}
+                  {page.active_announcements > 0 && <span className="count-pill">{page.active_announcements}</span>}
                 </button>
                 <button onClick={() => { closeMore(); setModal({ kind: "maintenance" }); }}>
                   🛠 {t("maintenance.title")}
+                  {page.active_maintenance > 0 && <span className="count-pill">{page.active_maintenance}</span>}
                 </button>
                 <div className="views-sep" />
                 <button onClick={() => { closeMore(); doExport(); }}>⬇ {t("io.export")}</button>

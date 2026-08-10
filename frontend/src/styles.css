@@ -1058,6 +1058,13 @@ a.feed-row:hover { border-color: var(--accent); background: var(--panel-3); colo
 .views-pop button.danger-item { color: var(--down-text); }
 .views-pop button.danger-item:hover { background: var(--down-soft); }
 .views-pop .views-sep { height: 1px; background: var(--border); margin: 4px 6px; }
+.views-pop .count-pill { margin-left: auto; }
+.menu-badge {
+  position: absolute; top: -6px; right: -6px; z-index: 1;
+  min-width: 16px; height: 16px; padding: 0 4px; border-radius: 999px;
+  background: var(--down); color: #fff; font-size: 10px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; line-height: 1;
+}
 
 /* collapsed repeat count + humanized error in the probe modal's recent list */
 .rep-chip {
