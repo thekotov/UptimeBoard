@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { getToken } from "./api/client";
 import { CommandPalette } from "./components/CommandPalette";
+import { VersionBadge } from "./components/VersionBadge";
 import { AlertChannels } from "./pages/admin/AlertChannels";
 import { Certs } from "./pages/admin/Certs";
 import { Events } from "./pages/admin/Events";
@@ -22,6 +23,7 @@ export function App() {
   return (
     <>
       <CommandPalette />
+      <VersionBadge />
     <Routes>
       <Route path="/" element={<Home />} />
       <Route path="/status/:slug" element={<Dashboard />} />

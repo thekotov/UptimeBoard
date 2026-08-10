@@ -72,6 +72,8 @@ const ru: Dict = {
   "wall.onlyProblems": "Только проблемы",
   "wall.showAll": "Показать все",
   "views.title": "Виды",
+  "changelog.title": "История версий",
+  "changelog.open": "Что нового — список изменений",
 
   // человекочитаемые подсказки к ошибкам проверок
   "err.unreachable": "Нет маршрута до хоста (сеть / файрвол / редирект в недоступную сеть)",
@@ -572,6 +574,8 @@ const en: Dict = {
   "wall.onlyProblems": "Problems only",
   "wall.showAll": "Show all",
   "views.title": "Views",
+  "changelog.title": "Version history",
+  "changelog.open": "What's new — changelog",
 
   // human-readable hints for check errors
   "err.unreachable": "No route to host (network / firewall / redirect into an unreachable network)",

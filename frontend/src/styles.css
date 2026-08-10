@@ -442,7 +442,7 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
 }
 .icon-btn {
-  width: 32px; height: 32px; padding: 0; border-radius: var(--radius-sm);
+  width: 32px; height: 32px; padding: 0; border-radius: var(--radius-sm); font-size: 15px;
   background: transparent; border: 1px solid transparent; color: var(--muted);
   display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
   transition: background .12s, color .12s, border-color .12s; text-decoration: none;
@@ -452,6 +452,11 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .icon-btn.danger { background: transparent; border-color: transparent; color: var(--muted); }
 .icon-btn.danger:hover { background: var(--down-soft); color: var(--down-text); border-color: transparent; }
 .icon-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* toolbar cluster: tighter icon spacing + a thin separator between groups */
+.page-toolbar { gap: 3px; }
+.page-toolbar .btn-sm { margin-left: 3px; }
+.toolbar-sep { width: 1px; height: 20px; background: var(--border); margin: 0 5px; flex: none; }
 
 .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
 .row > * { flex: 1; min-width: 120px; }
@@ -1070,3 +1075,15 @@ a.feed-row:hover { border-color: var(--accent); background: var(--panel-3); colo
 .check-result .cr-url {
   color: var(--muted); max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
+
+/* version badge + changelog */
+.version-badge {
+  position: fixed; right: 12px; bottom: 10px; z-index: 5;
+  padding: 4px 7px; border: none; background: transparent; cursor: pointer;
+  color: var(--faint); font-size: 11px; font-variant-numeric: tabular-nums;
+}
+.version-badge:hover { color: var(--accent); text-decoration: underline; }
+.changelog { display: flex; flex-direction: column; gap: 16px; }
+.cl-entry .cl-head { margin-bottom: 4px; }
+.changelog ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 3px; }
+.changelog li { font-size: 14px; line-height: 1.45; }

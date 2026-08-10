@@ -1,0 +1,44 @@
+// Single source of truth for the app version + changelog shown by the version
+// badge. Newest entry first; VERSION is derived from it. When you commit & push
+// a user-visible change, add/append an entry here and the badge updates.
+export interface ChangelogEntry {
+  version: string;
+  date: string; // YYYY-MM-DD
+  changes: string[];
+}
+
+export const CHANGELOG: ChangelogEntry[] = [
+  {
+    version: "1.2.0",
+    date: "2026-08-10",
+    changes: [
+      "Человекочитаемые тексты ошибок проверок вместо сырых [Errno …]",
+      "Дип-линки на пробу и диапазон в URL (шеринг, кнопка «назад» закрывает модалку)",
+      "Кнопки 🔗 копирования ссылки на пробу (модалка и админ-список)",
+      "Кликабельные дашборды: события/сертификаты/просроченные ведут на пробу",
+      "Скелетоны загрузки вместо «Загрузка…», фавикон по статусу",
+      "Богатый результат «Тест»: итоговый URL, редиректы, подсказка про статус",
+    ],
+  },
+  {
+    version: "1.1.0",
+    date: "2026-07-21",
+    changes: [
+      "NOC / wall-board (kiosk-режим) и тепловая карта проб",
+      "Дашборды: лента изменений, сроки сертификатов, здоровье мониторинга",
+      "Настенный борд: читаемость и полировка UI",
+    ],
+  },
+  {
+    version: "1.0.0",
+    date: "2026-07-20",
+    changes: [
+      "Алерты при смене IP хоста, SSL-сертификата и содержимого страницы",
+      "Проактивные напоминания об истечении сертификата (14/7/1 день)",
+      "Тело запроса для POST/PUT/PATCH-проб",
+      "Скрипт деплоя deploy.sh",
+    ],
+  },
+];
+
+export const VERSION = CHANGELOG[0].version;

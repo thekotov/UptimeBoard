@@ -361,31 +361,41 @@ export function PageEditor() {
               </a>
             </span>
           </div>
-          <div className="row-actions">
-            <button className="secondary btn-sm" onClick={() => nav(`/admin/pages/${page.id}/events`)}>
-              🗞 {t("nav.events")}
+          <div className="row-actions page-toolbar">
+            <button className="icon-btn" title={t("nav.events")} aria-label={t("nav.events")}
+              onClick={() => nav(`/admin/pages/${page.id}/events`)}>
+              🗞
             </button>
-            <button className="secondary btn-sm" onClick={() => nav(`/admin/pages/${page.id}/certs`)}>
-              🔒 {t("nav.certs")}
+            <button className="icon-btn" title={t("nav.certs")} aria-label={t("nav.certs")}
+              onClick={() => nav(`/admin/pages/${page.id}/certs`)}>
+              🔒
             </button>
-            <button className="secondary btn-sm" onClick={() => setModal({ kind: "announcements" })}>
-              📢 {t("ann.title")}
+            <button className="icon-btn" title={t("ann.title")} aria-label={t("ann.title")}
+              onClick={() => setModal({ kind: "announcements" })}>
+              📢
             </button>
-            <button className="secondary btn-sm" onClick={() => setModal({ kind: "incidents" })}>
-              🔔 {t("incidents.manage")}
+            <button className="icon-btn" title={t("incidents.manage")} aria-label={t("incidents.manage")}
+              onClick={() => setModal({ kind: "incidents" })}>
+              🔔
             </button>
-            <button className="secondary btn-sm" onClick={() => setModal({ kind: "maintenance" })}>
-              🛠 {t("maintenance.title")}
+            <button className="icon-btn" title={t("maintenance.title")} aria-label={t("maintenance.title")}
+              onClick={() => setModal({ kind: "maintenance" })}>
+              🛠
             </button>
-            <button className="secondary btn-sm" onClick={doExport}>
-              ⬇ {t("io.export")}
+
+            <span className="toolbar-sep" />
+
+            <button className="icon-btn" title={t("io.export")} aria-label={t("io.export")} onClick={doExport}>
+              ⬇
             </button>
-            <button className="secondary btn-sm" onClick={clearPageMetrics} title={t("metrics.hintPage")}>
-              🧹 {t("metrics.clear")}
+            <button className="icon-btn danger" title={t("metrics.hintPage")} aria-label={t("metrics.clear")}
+              onClick={clearPageMetrics}>
+              🧹
             </button>
             <button
-              className="secondary btn-sm"
+              className="icon-btn"
               title={t("io.copyLink")}
+              aria-label={t("io.copyLink")}
               onClick={() => {
                 navigator.clipboard?.writeText(`${location.origin}/status/${page.slug}`);
                 toast.success(t("io.copied"));
@@ -393,6 +403,9 @@ export function PageEditor() {
             >
               🔗
             </button>
+
+            <span className="toolbar-sep" />
+
             <button className="secondary btn-sm" onClick={() => setModal({ kind: "page" })}>
               <PencilIcon size={14} /> {t("edit")}
             </button>
