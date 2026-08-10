@@ -6,6 +6,7 @@ import { Spinner } from "../../components/Spinner";
 import { StatusDot } from "../../components/StatusBadge";
 import { classifyError } from "../../errors";
 import { relativeTime, useI18n } from "../../i18n";
+import { useToast } from "../../toast";
 
 interface RecentGroup {
   status: string;
@@ -114,6 +115,7 @@ export function ProbeModal({
   onClose: () => void;
 }) {
   const { t, lang } = useI18n();
+  const toast = useToast();
   const [range, setRange] = useState<TimeRange>("24h");
   const [data, setData] = useState<ProbeHistory | null>(null);
   const [loading, setLoading] = useState(true);
@@ -147,6 +149,11 @@ export function ProbeModal({
           </span>
         )}
         <span className="spacer" />
+        <button className="ghost btn-sm" title={t("modal.copyLink")} aria-label={t("modal.copyLink")}
+          onClick={() => {
+            navigator.clipboard?.writeText(`${location.origin}/status/${slug}?probe=${probeId}&range=${range}`);
+            toast.success(t("io.copied"));
+          }}>🔗</button>
         <div className="range-tabs">
           {RANGES.map((r) => (
             <button key={r} className={range === r ? "active" : ""} onClick={() => setRange(r)}>

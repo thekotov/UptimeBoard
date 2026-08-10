@@ -507,7 +507,9 @@ export interface ProbeEventItem {
   page_title: string;
   page_slug: string;
 }
-export async function getEvents(params?: { type?: ChangeEventType; limit?: number }): Promise<ProbeEventItem[]> {
+export async function getEvents(
+  params?: { type?: ChangeEventType; limit?: number; page_id?: number }
+): Promise<ProbeEventItem[]> {
   const { data } = await api.get<ProbeEventItem[]>("/admin/events", { params });
   return data;
 }
@@ -527,8 +529,8 @@ export interface CertItem {
   issuer: string | null;
   subject: string | null;
 }
-export async function getCerts(): Promise<CertItem[]> {
-  const { data } = await api.get<CertItem[]>("/admin/certs");
+export async function getCerts(params?: { page_id?: number }): Promise<CertItem[]> {
+  const { data } = await api.get<CertItem[]>("/admin/certs", { params });
   return data;
 }
 

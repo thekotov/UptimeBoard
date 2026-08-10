@@ -846,10 +846,12 @@ def admin_stats(db: Session = Depends(get_db)):
 def list_events(
     limit: int = 100,
     type: str | None = None,
+    page_id: int | None = None,
     db: Session = Depends(get_db),
 ):
-    """Recent probe change events (IP / certificate / content changed, cert expiring)
-    across all probes, newest first — the admin activity feed."""
+    """Recent probe change events (IP / certificate / content changed, cert expiring),
+    newest first — the admin activity feed. Scoped to one page when page_id is given,
+    otherwise across all probes."""
     limit = max(1, min(500, limit))
     q = (
         db.query(ProbeEvent, Probe, Server, Service, Page)
@@ -861,6 +863,8 @@ def list_events(
     )
     if type:
         q = q.filter(ProbeEvent.type == type)
+    if page_id is not None:
+        q = q.filter(Page.id == page_id)
     return [
         {
             "id": ev.id, "type": ev.type, "detail": ev.detail,
@@ -874,9 +878,19 @@ def list_events(
 
 
 @router.get("/certs")
-def list_certs(db: Session = Depends(get_db)):
+def list_certs(page_id: int | None = None, db: Session = Depends(get_db)):
     """All probes tracking a TLS certificate, soonest-expiring first — the expiry
-    board. Populated from the denormalised certificate metadata on each probe."""
+    board. Populated from the denormalised certificate metadata on each probe.
+    Scoped to one page when page_id is given, otherwise across all pages."""
+    q = (
+        db.query(Probe, Server, Service, Page)
+        .join(Server, Probe.server_id == Server.id)
+        .join(Service, Server.service_id == Service.id)
+        .join(Page, Service.page_id == Page.id)
+        .filter(Probe.tls_expires_at.isnot(None))
+    )
+    if page_id is not None:
+        q = q.filter(Page.id == page_id)
     return [
         {
             "probe_id": pr.id, "probe_name": pr.name, "probe_type": pr.type,
@@ -886,15 +900,7 @@ def list_certs(db: Session = Depends(get_db)):
             "expires_at": pr.tls_expires_at.isoformat() if pr.tls_expires_at else None,
             "issuer": pr.tls_issuer, "subject": pr.tls_subject,
         }
-        for pr, srv, svc, pg in (
-            db.query(Probe, Server, Service, Page)
-            .join(Server, Probe.server_id == Server.id)
-            .join(Service, Server.service_id == Service.id)
-            .join(Page, Service.page_id == Page.id)
-            .filter(Probe.tls_expires_at.isnot(None))
-            .order_by(Probe.tls_expires_at.asc())
-            .all()
-        )
+        for pr, srv, svc, pg in q.order_by(Probe.tls_expires_at.asc()).all()
     ]
 
 

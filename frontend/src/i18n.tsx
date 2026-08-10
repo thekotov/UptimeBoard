@@ -130,6 +130,8 @@ const ru: Dict = {
   "modal.latencyApprox": "Приблизительно: за длинный период перцентили считаются по агрегатам (роллапам).",
   "modal.uptime": "Аптайм",
   "modal.checks": "проверок",
+  "modal.copyLink": "Скопировать ссылку на пробу",
+  "probe.copyLink": "Скопировать публичную ссылку",
 
   // TLS-сертификат
   "cert.title": "TLS-сертификат",
@@ -326,12 +328,23 @@ const ru: Dict = {
   "events.hint": "Изменения, замеченные на пробах: сменился IP / сертификат / содержимое, приближается истечение. Не инциденты — информационные события.",
   "events.all": "Все",
   "events.empty": "Событий пока нет",
+  "events.openProbe": "Открыть пробу на статус-странице",
+  "events.today": "Сегодня",
+  "events.yesterday": "Вчера",
 
   // certificate expiry board
   "certs.title": "Сроки сертификатов",
   "certs.hint": "Все пробы с отслеживанием TLS-сертификата, ближайшие к истечению — сверху.",
   "certs.summary": "всего {total}, в ближайшие 30 дней {soon}",
+  "certs.uniqueCount": "{n} уникальных сертификатов",
   "certs.empty": "Нет проб с отслеживанием сертификата",
+  "certs.days": "дней",
+  "certs.col.status": "Статус",
+  "certs.col.expires": "Истекает",
+  "certs.col.cert": "Сертификат",
+  "certs.col.host": "Хост",
+  "certs.col.usedBy": "Используется",
+  "certs.probesCount": "{n} проб",
 
   // heatmap
   "heatmap.title": "Тепловая карта",
@@ -614,6 +627,8 @@ const en: Dict = {
   "modal.latencyApprox": "Approximate: over long ranges percentiles are computed from aggregates (rollups).",
   "modal.uptime": "Uptime",
   "modal.checks": "checks",
+  "modal.copyLink": "Copy link to this probe",
+  "probe.copyLink": "Copy public link",
 
   // TLS certificate
   "cert.title": "TLS certificate",
@@ -802,12 +817,23 @@ const en: Dict = {
   "events.hint": "Changes detected on probes: IP / certificate / content changed, expiry approaching. Not incidents — informational events.",
   "events.all": "All",
   "events.empty": "No events yet",
+  "events.openProbe": "Open the probe on its status page",
+  "events.today": "Today",
+  "events.yesterday": "Yesterday",
 
   // certificate expiry board
   "certs.title": "Certificate expiry",
   "certs.hint": "All probes tracking a TLS certificate, soonest to expire first.",
   "certs.summary": "{total} total, {soon} within 30 days",
+  "certs.uniqueCount": "{n} unique certificates",
   "certs.empty": "No probes tracking a certificate",
+  "certs.days": "days",
+  "certs.col.status": "Status",
+  "certs.col.expires": "Expires",
+  "certs.col.cert": "Certificate",
+  "certs.col.host": "Host",
+  "certs.col.usedBy": "Used by",
+  "certs.probesCount": "{n} probes",
 
   // heatmap
   "heatmap.title": "Heatmap",

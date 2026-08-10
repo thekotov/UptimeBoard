@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   ackIncident,
   adminListIncidents,
   type Announcement,
   api,
+  type CheckResult,
   checkProbeNow,
   clearIncidents,
   clearMetrics,
@@ -27,6 +28,7 @@ import {
   unackIncident,
 } from "../../api/client";
 import { CopyIcon, GripIcon, PencilIcon, RefreshIcon, TrashIcon } from "../../components/Icons";
+import { classifyError } from "../../errors";
 import { Modal } from "../../components/Modal";
 import { SlugMsg } from "../../components/SlugMsg";
 import { SkeletonCard } from "../../components/Skeleton";
@@ -66,6 +68,7 @@ function liveStatus(probe: Probe): { status: Status; stale: boolean } {
 
 export function PageEditor() {
   const { id } = useParams<{ id: string }>();
+  const nav = useNavigate();
   const { t, lang } = useI18n();
   const toast = useToast();
   const confirm = useConfirm();
@@ -73,6 +76,7 @@ export function PageEditor() {
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [collapsedServers, setCollapsedServers] = useState<Set<number>>(new Set());
   const [checkingProbe, setCheckingProbe] = useState<number | null>(null);
+  const [checkRes, setCheckRes] = useState<Record<number, CheckResult>>({});
   const [modal, setModal] = useState<ModalState>(null);
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const drag = useRef<{ key: string; index: number } | null>(null);
@@ -188,8 +192,11 @@ export function PageEditor() {
     setCheckingProbe(probeId);
     try {
       const res = await checkProbeNow(probeId);
+      setCheckRes((prev) => ({ ...prev, [probeId]: res }));
       const lat = res.latency_ms != null ? ` (${res.latency_ms.toFixed(0)} ${t("dash.ms")})` : "";
-      toast.show(`${name}: ${t(`status.${res.status}`)}${lat}`, res.status === "up" ? "success" : "error");
+      const errKey = classifyError(res.error);
+      const err = res.status !== "up" && res.error ? ` — ${errKey ? t(errKey) : res.error}` : "";
+      toast.show(`${name}: ${t(`status.${res.status}`)}${lat}${err}`, res.status === "up" ? "success" : "error");
       load();
     } catch {
       toast.error(t("probe.checkFail"));
@@ -355,6 +362,12 @@ export function PageEditor() {
             </span>
           </div>
           <div className="row-actions">
+            <button className="secondary btn-sm" onClick={() => nav(`/admin/pages/${page.id}/events`)}>
+              🗞 {t("nav.events")}
+            </button>
+            <button className="secondary btn-sm" onClick={() => nav(`/admin/pages/${page.id}/certs`)}>
+              🔒 {t("nav.certs")}
+            </button>
             <button className="secondary btn-sm" onClick={() => setModal({ kind: "announcements" })}>
               📢 {t("ann.title")}
             </button>
@@ -586,12 +599,39 @@ export function PageEditor() {
                                     <> · {probe.last_latency_ms != null ? `${probe.last_latency_ms.toFixed(0)} ${t("dash.ms")}` : ""} · {relativeShort(probe.last_checked_at, lang)}</>
                                   )}
                                 </span>
+                                {checkRes[probe.id] && (() => {
+                                  const r = checkRes[probe.id];
+                                  const k = classifyError(r.error);
+                                  return (
+                                    <span className={`check-result ${r.status === "up" ? "ok" : "bad"}`}>
+                                      <StatusDot status={r.status} />
+                                      {t(`status.${r.status}`)}
+                                      {r.status !== "up" && r.error && (
+                                        <span className="cr-err" title={r.error}>— {k ? t(k) : r.error}</span>
+                                      )}
+                                      {r.meta?.redirected && r.meta.final_url && (
+                                        <span className="cr-url" title={r.meta.final_url}>→ {r.meta.final_url}</span>
+                                      )}
+                                    </span>
+                                  );
+                                })()}
                               </div>
                               <div className="row-actions">
                                 <button className="secondary btn-sm" disabled={checkingProbe === probe.id}
                                   onClick={() => checkNow(probe.id, probe.name)}>
                                   <RefreshIcon size={14} />
                                   {checkingProbe === probe.id ? t("probe.checking") : t("probe.checkNow")}
+                                </button>
+                                <button
+                                  className="icon-btn"
+                                  title={t("probe.copyLink")}
+                                  aria-label={t("probe.copyLink")}
+                                  onClick={() => {
+                                    navigator.clipboard?.writeText(`${location.origin}/status/${page.slug}?probe=${probe.id}`);
+                                    toast.success(t("io.copied"));
+                                  }}
+                                >
+                                  🔗
                                 </button>
                                 <button
                                   className="icon-btn"

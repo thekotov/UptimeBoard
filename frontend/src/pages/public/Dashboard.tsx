@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { api, type PageStatus, type ServiceStatus, type Status, type TimeRange } from "../../api/client";
 import { LangSwitch } from "../../components/LangSwitch";
 import { SkeletonDashboard } from "../../components/Skeleton";
@@ -117,14 +117,38 @@ export function Dashboard() {
   const [onlyProblems, setOnlyProblems] = useState(false);
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set());
   const [collapsedSrv, setCollapsedSrv] = useState<Set<number>>(new Set());
-  const [range, setRange] = useState<TimeRange>("24h");
+  // URL is the source of truth for the selected range and open probe, so views
+  // are shareable and the browser back button closes the probe modal.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const paramRange = searchParams.get("range") as TimeRange | null;
+  const [range, setRangeState] = useState<TimeRange>(
+    paramRange && RANGES.includes(paramRange) ? paramRange : "24h"
+  );
+  const setRange = (r: TimeRange) => {
+    setRangeState(r);
+    setSearchParams((prev) => {
+      const n = new URLSearchParams(prev);
+      if (r === "24h") n.delete("range"); else n.set("range", r);
+      return n;
+    }, { replace: true });
+  };
+  const selectedProbeId = searchParams.get("probe") ? Number(searchParams.get("probe")) : null;
+  const openProbe = (id: number) =>
+    setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set("probe", String(id)); return n; });
+  const closeProbe = () =>
+    setSearchParams((prev) => { const n = new URLSearchParams(prev); n.delete("probe"); return n; });
   const [updateSeq, setUpdateSeq] = useState(0);
-  const [selectedProbe, setSelectedProbe] = useState<{
-    id: number;
-    name: string;
-    certExpiresAt?: string | null;
-    certIssuer?: string | null;
-  } | null>(null);
+  // Resolve the URL's ?probe=<id> against the live snapshot (scans the full tree,
+  // so a deep link opens even if the probe is filtered/collapsed in the view).
+  const selectedProbe = useMemo(() => {
+    if (selectedProbeId == null || !page) return null;
+    for (const svc of page.services)
+      for (const srv of svc.servers)
+        for (const pr of srv.probes)
+          if (pr.id === selectedProbeId)
+            return { id: pr.id, name: pr.name, certExpiresAt: pr.cert_expires_at, certIssuer: pr.cert_issuer };
+    return null;
+  }, [selectedProbeId, page]);
   const [statusFilter, setStatusFilter] = useState<Status | null>(null);
   const [flashIds, setFlashIds] = useState<Set<number>>(new Set());
   const [liveMsg, setLiveMsg] = useState("");
@@ -603,14 +627,7 @@ export function Dashboard() {
                       <div
                         className={`probe-row clickable ${flashIds.has(probe.id) ? "flash" : ""}`}
                         key={probe.id}
-                        onClick={() =>
-                          setSelectedProbe({
-                            id: probe.id,
-                            name: probe.name,
-                            certExpiresAt: probe.cert_expires_at,
-                            certIssuer: probe.cert_issuer,
-                          })
-                        }
+                        onClick={() => openProbe(probe.id)}
                         title={t("modal.history")}
                       >
                         <div className="probe-main">
@@ -669,7 +686,7 @@ export function Dashboard() {
           probeName={selectedProbe.name}
           certExpiresAt={selectedProbe.certExpiresAt}
           certIssuer={selectedProbe.certIssuer}
-          onClose={() => setSelectedProbe(null)}
+          onClose={closeProbe}
         />
       )}
     </div>

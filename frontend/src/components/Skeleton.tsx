@@ -30,6 +30,21 @@ export function SkeletonCard() {
   );
 }
 
+/** A card of placeholder list rows — for loading admin feeds/tables. */
+export function SkeletonList({ rows = 6 }: { rows?: number }) {
+  return (
+    <div className="card">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="incident-row">
+          <Skeleton w={`${28 + (i % 4) * 14}%`} h={14} />
+          <span className="spacer" />
+          <Skeleton w={64} h={14} />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function SkeletonDashboard() {
   return (
     <div className="container">

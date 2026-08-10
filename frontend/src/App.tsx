@@ -32,9 +32,9 @@ export function App() {
       <Route path="/admin/login" element={<Login />} />
       <Route path="/admin" element={<RequireAuth><Pages /></RequireAuth>} />
       <Route path="/admin/pages/:id" element={<RequireAuth><PageEditor /></RequireAuth>} />
+      <Route path="/admin/pages/:id/events" element={<RequireAuth><Events /></RequireAuth>} />
+      <Route path="/admin/pages/:id/certs" element={<RequireAuth><Certs /></RequireAuth>} />
       <Route path="/admin/alerts" element={<RequireAuth><AlertChannels /></RequireAuth>} />
-      <Route path="/admin/events" element={<RequireAuth><Events /></RequireAuth>} />
-      <Route path="/admin/certs" element={<RequireAuth><Certs /></RequireAuth>} />
       <Route path="/admin/stats" element={<RequireAuth><Stats /></RequireAuth>} />
 
       <Route path="*" element={<Navigate to="/" replace />} />

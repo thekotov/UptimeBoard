@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { type AdminStats, getAdminStats } from "../../api/client";
 import { RefreshIcon } from "../../components/Icons";
+import { SkeletonList } from "../../components/Skeleton";
 import { relativeTime, useI18n } from "../../i18n";
 import { useToast } from "../../toast";
 import { AdminNav } from "./AdminNav";
@@ -67,7 +69,7 @@ export function Stats() {
       </div>
 
       {!stats ? (
-        <div className="spinner" />
+        <SkeletonList rows={8} />
       ) : (
         <>
           {/* headline KPIs */}
@@ -128,7 +130,10 @@ export function Stats() {
                             <tbody>
                               {mon.overdue.map((p) => (
                                 <tr key={p.probe_id}>
-                                  <td>{p.probe_name} <span className="faint small">· {p.probe_type.toUpperCase()}</span></td>
+                                  <td>
+                                    <Link to={`/status/${p.page_slug}?probe=${p.probe_id}`}>{p.probe_name}</Link>
+                                    <span className="faint small"> · {p.probe_type.toUpperCase()}</span>
+                                  </td>
                                   <td className="muted small">{p.server_name} · {p.page_title}</td>
                                   <td style={{ textAlign: "right" }} className={p.last_checked_at ? "" : "danger-text"}>
                                     {p.last_checked_at ? relativeTime(p.last_checked_at, lang) : t("stats.never")}
