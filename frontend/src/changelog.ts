@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.4.1",
+    date: "2026-08-10",
+    changes: [
+      "Шире рабочая область (макс. ширина контента 1040 → 1280px)",
+    ],
+  },
+  {
     version: "1.4.0",
     date: "2026-08-10",
     changes: [

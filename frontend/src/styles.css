@@ -82,7 +82,7 @@ code {
   font-size: 0.85em; color: #334155;
 }
 
-.container { max-width: 1040px; margin: 0 auto; padding: 36px 18px 72px; }
+.container { max-width: 1280px; margin: 0 auto; padding: 36px 24px 72px; }
 
 .header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 28px; flex-wrap: wrap; row-gap: 10px; }
 .header h1 { margin: 0; font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
