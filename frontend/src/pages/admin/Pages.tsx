@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { adminSearch, api, clearMetrics, importPage, resetProbeDefaults, type Page, type SearchProbe, type SearchServer } from "../../api/client";
 import { PencilIcon, TrashIcon } from "../../components/Icons";
+import { closeDetailsMenu } from "../../domUtils";
 import { Modal } from "../../components/Modal";
 import { Skeleton } from "../../components/Skeleton";
 import { SlugMsg } from "../../components/SlugMsg";
@@ -121,15 +122,24 @@ export function Pages() {
           ref={fileRef}
           type="file"
           accept="application/json,.json"
-          style={{ display: "none" }}
+          className="visually-hidden"
           onChange={onImportFile}
         />
-        <button className="ghost danger" onClick={clearAllMetrics} title={t("metrics.hint")}>
-          🧹 {t("metrics.clear")}
-        </button>
-        <button className="ghost" onClick={applyProbeDefaults} title={t("probeDefaults.hint")}>
-          ⚙ {t("probeDefaults.apply")}
-        </button>
+
+        <details className="views-menu">
+          <summary className="secondary btn-sm">⋯ {t("editor.moreActions")}</summary>
+          <div className="views-pop">
+            <button title={t("probeDefaults.hint")} onClick={(e) => { closeDetailsMenu(e); applyProbeDefaults(); }}>
+              ⚙ {t("probeDefaults.apply")}
+            </button>
+            <div className="views-sep" />
+            <button className="danger-item" title={t("metrics.hint")}
+              onClick={(e) => { closeDetailsMenu(e); clearAllMetrics(); }}>
+              🧹 {t("metrics.clear")}
+            </button>
+          </div>
+        </details>
+
         <div className="search">
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("search")} />
         </div>

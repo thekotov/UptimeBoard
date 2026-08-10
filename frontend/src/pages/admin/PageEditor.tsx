@@ -28,6 +28,7 @@ import {
   unackIncident,
 } from "../../api/client";
 import { CopyIcon, GripIcon, PencilIcon, RefreshIcon, TrashIcon } from "../../components/Icons";
+import { closeDetailsMenu } from "../../domUtils";
 import { classifyError } from "../../errors";
 import { Modal } from "../../components/Modal";
 import { SlugMsg } from "../../components/SlugMsg";
@@ -64,6 +65,21 @@ function liveStatus(probe: Probe): { status: Status; stale: boolean } {
   const ageSec = (Date.now() - new Date(probe.last_checked_at).getTime()) / 1000;
   const stale = ageSec > probe.interval_sec * 3 + 30;
   return { status: stale ? "unknown" : probe.last_status, stale };
+}
+
+const SEV: Record<string, number> = { down: 5, degraded: 4, unknown: 3, paused: 2, recovered: 1, up: 0 };
+
+/** Aggregate live health of a set of probes: worst live status + problem count,
+ *  so a collapsed service/server can show its state without being expanded. */
+function healthOf(probes: Probe[]): { status: Status; problems: number } {
+  let status: Status = "up";
+  let problems = 0;
+  for (const p of probes) {
+    const s = liveStatus(p).status;
+    if (s === "down" || s === "degraded") problems++;
+    if ((SEV[s] ?? 0) > (SEV[status] ?? 0)) status = s;
+  }
+  return { status: probes.length ? status : "unknown", problems };
 }
 
 export function PageEditor() {
@@ -421,6 +437,21 @@ export function PageEditor() {
             })}
           </span>
         )}
+        {(() => {
+          const all = page.services.flatMap((s) => s.servers.flatMap((sv) => sv.probes));
+          if (!all.length) return null;
+          const st = all.map((p) => liveStatus(p).status);
+          const down = st.filter((s) => s === "down").length;
+          const degraded = st.filter((s) => s === "degraded").length;
+          const ok = st.filter((s) => s === "up" || s === "recovered").length;
+          return (
+            <span className="health-chip" title={t("editor.healthTitle")}>
+              <span className="hc up"><span className="dot up" /> {ok}</span>
+              {degraded > 0 && <span className="hc degraded"><span className="dot degraded" /> {degraded}</span>}
+              {down > 0 && <span className="hc down"><span className="dot down" /> {down}</span>}
+            </span>
+          );
+        })()}
         <span className="spacer" />
         {page.services.length > 1 && (
           <>
@@ -459,12 +490,14 @@ export function PageEditor() {
       {page.services.map((service, si) => {
         const isCollapsed = collapsed.has(service.id);
         const probeCount = service.servers.reduce((m, sv) => m + sv.probes.length, 0);
+        const svcHealth = healthOf(service.servers.flatMap((s) => s.probes));
         return (
           <div className="card" key={service.id} {...dnd("svc", si, reorderServices)}>
             <div className="card-head collapse-head" onClick={() => toggle(service.id)}>
               <h3>
                 <span className="grip" title="drag"><GripIcon size={14} /></span>
                 <span className={`chev ${isCollapsed ? "" : "open"}`}>▶</span>{" "}
+                <StatusDot status={svcHealth.status} />{" "}
                 {renaming?.kind === "service" && renaming.id === service.id ? (
                   <input
                     autoFocus
@@ -486,6 +519,11 @@ export function PageEditor() {
                 <span className="count-pill">
                   {t("editor.counts", { servers: service.servers.length, probes: probeCount })}
                 </span>
+                {svcHealth.problems > 0 && (
+                  <span className="count-pill danger-pill" title={t("editor.problems", { n: svcHealth.problems })}>
+                    {svcHealth.problems} ⚠
+                  </span>
+                )}
               </h3>
               <div className="row-actions" onClick={(e) => e.stopPropagation()}>
                 <button className="icon-btn" title={t("clone")} aria-label={t("clone")}
@@ -497,7 +535,12 @@ export function PageEditor() {
                   <PencilIcon />
                 </button>
                 <button className="icon-btn danger" title={t("editor.deleteService")} aria-label={t("editor.deleteService")}
-                  onClick={() => remove(`/admin/services/${service.id}`, t("editor.confirmDeleteService"))}>
+                  onClick={() => remove(
+                    `/admin/services/${service.id}`,
+                    service.servers.length > 0
+                      ? t("editor.confirmDeleteServiceCascade", { name: service.name, servers: service.servers.length, probes: probeCount })
+                      : t("editor.confirmDeleteService", { name: service.name })
+                  )}>
                   <TrashIcon />
                 </button>
               </div>
@@ -509,12 +552,14 @@ export function PageEditor() {
 
                 {service.servers.map((server, sj) => {
                   const isServerCollapsed = collapsedServers.has(server.id);
+                  const srvHealth = healthOf(server.probes);
                   return (
                   <div className="server" key={server.id} {...dnd(`srv-${service.id}`, sj, (f, tt) => reorderServers(service, f, tt))}>
                     <div className="server-head collapse-head" onClick={() => toggleServer(server.id)}>
                       <div className="inline">
                         <span className="grip" title="drag"><GripIcon size={14} /></span>
                         <span className={`chev ${isServerCollapsed ? "" : "open"}`}>▶</span>{" "}
+                        <StatusDot status={srvHealth.status} />{" "}
                         {renaming?.kind === "server" && renaming.id === server.id ? (
                           <input
                             autoFocus
@@ -533,6 +578,11 @@ export function PageEditor() {
                         <span className="muted small">{server.host}</span>
                         {server.note && <span className="muted small server-note" title={server.note}>· {server.note}</span>}
                         <span className="count-pill">{server.probes.length} {t("probe.count")}</span>
+                        {srvHealth.problems > 0 && (
+                          <span className="count-pill danger-pill" title={t("editor.problems", { n: srvHealth.problems })}>
+                            {srvHealth.problems} ⚠
+                          </span>
+                        )}
                       </div>
                       <div className="row-actions" onClick={(e) => e.stopPropagation()}>
                         <button className="secondary btn-sm" onClick={() => setModal({ kind: "probe-add", serverId: server.id })}>
@@ -551,7 +601,12 @@ export function PageEditor() {
                           <PencilIcon />
                         </button>
                         <button className="icon-btn danger" title={t("delete")} aria-label={t("delete")}
-                          onClick={() => remove(`/admin/servers/${server.id}`, t("editor.confirmDeleteServer"))}>
+                          onClick={() => remove(
+                            `/admin/servers/${server.id}`,
+                            server.probes.length > 0
+                              ? t("editor.confirmDeleteServerCascade", { name: server.name, probes: server.probes.length })
+                              : t("editor.confirmDeleteServer", { name: server.name })
+                          )}>
                           <TrashIcon />
                         </button>
                       </div>
@@ -632,35 +687,46 @@ export function PageEditor() {
                                 </button>
                                 <button
                                   className="icon-btn"
-                                  title={t("probe.copyLink")}
-                                  aria-label={t("probe.copyLink")}
-                                  onClick={() => {
-                                    navigator.clipboard?.writeText(`${location.origin}/status/${page.slug}?probe=${probe.id}`);
-                                    toast.success(t("io.copied"));
-                                  }}
-                                >
-                                  🔗
-                                </button>
-                                <button
-                                  className="icon-btn"
                                   title={probe.enabled ? t("probe.pause") : t("probe.resume")}
                                   aria-label={probe.enabled ? t("probe.pause") : t("probe.resume")}
                                   onClick={() => togglePause(probe)}
                                 >
                                   {probe.enabled ? "⏸" : "▶"}
                                 </button>
-                                <button className="icon-btn" title={t("clone")} aria-label={t("clone")}
-                                  onClick={() => doClone("probes", probe.id)}>
-                                  <CopyIcon />
-                                </button>
                                 <button className="icon-btn" title={t("edit")} aria-label={t("edit")}
                                   onClick={() => setModal({ kind: "probe-edit", probe })}>
                                   <PencilIcon />
                                 </button>
-                                <button className="icon-btn danger" title={t("remove")} aria-label={t("remove")}
-                                  onClick={() => remove(`/admin/probes/${probe.id}`, t("editor.confirmDeleteProbe"))}>
-                                  <TrashIcon />
-                                </button>
+
+                                <details className="views-menu">
+                                  <summary className="icon-btn" title={t("editor.moreActions")} aria-label={t("editor.moreActions")}>
+                                    ⋯
+                                  </summary>
+                                  <div className="views-pop">
+                                    <button
+                                      onClick={(e) => {
+                                        closeDetailsMenu(e);
+                                        navigator.clipboard?.writeText(`${location.origin}/status/${page.slug}?probe=${probe.id}`);
+                                        toast.success(t("io.copied"));
+                                      }}
+                                    >
+                                      🔗 {t("probe.copyLink")}
+                                    </button>
+                                    <button onClick={(e) => { closeDetailsMenu(e); doClone("probes", probe.id); }}>
+                                      {t("clone")}
+                                    </button>
+                                    <div className="views-sep" />
+                                    <button
+                                      className="danger-item"
+                                      onClick={(e) => {
+                                        closeDetailsMenu(e);
+                                        remove(`/admin/probes/${probe.id}`, t("editor.confirmDeleteProbe", { name: probe.name }));
+                                      }}
+                                    >
+                                      {t("remove")}
+                                    </button>
+                                  </div>
+                                </details>
                               </div>
                             </div>
                           );
@@ -671,7 +737,7 @@ export function PageEditor() {
                   );
                 })}
 
-                <div style={{ marginTop: 12 }}>
+                <div className="mt-12">
                   <button className="secondary" onClick={() => setModal({ kind: "server-add", serviceId: service.id })}>
                     + {t("editor.addServer")}
                   </button>
@@ -785,7 +851,7 @@ function BulkToleranceForm({
       <div className="full">
         <label>{t("probe.tolerance")}</label>
         <input type="number" min={0} value={value} autoFocus onChange={(e) => setValue(+e.target.value)} />
-        <div className="muted" style={{ fontSize: "0.85em" }}>{t("bulk.toleranceHint", { n: count })}</div>
+        <div className="muted field-hint">{t("bulk.toleranceHint", { n: count })}</div>
       </div>
       <div className="form-actions">
         <button type="button" className="ghost" onClick={onCancel} disabled={busy}>{t("cancel")}</button>
@@ -951,7 +1017,7 @@ function PageForm({ page, onSaved, onCancel }: { page: PageDetail; onSaved: () =
           <option value="collapsed">{t("editor.viewCollapsed")}</option>
           <option value="expanded">{t("editor.viewExpanded")}</option>
         </select>
-        <div className="muted" style={{ fontSize: "0.85em" }}>{t("editor.defaultViewHint")}</div>
+        <div className="muted field-hint">{t("editor.defaultViewHint")}</div>
       </div>
       <div className="full">
         <label>{t("editor.defaultTolerance")}</label>
@@ -961,19 +1027,19 @@ function PageForm({ page, onSaved, onCancel }: { page: PageDetail; onSaved: () =
           value={defaultTolerance}
           onChange={(e) => setDefaultTolerance(+e.target.value)}
         />
-        <div className="muted" style={{ fontSize: "0.85em" }}>{t("editor.defaultToleranceHint")}</div>
+        <div className="muted field-hint">{t("editor.defaultToleranceHint")}</div>
       </div>
       <div className="full">
         <label className="check-cell full">
           <input type="checkbox" checked={isPrivate} onChange={(e) => setIsPrivate(e.target.checked)} /> {t("editor.private")}
         </label>
-        <div className="muted" style={{ fontSize: "0.85em" }}>{t("editor.privateHint")}</div>
+        <div className="muted field-hint">{t("editor.privateHint")}</div>
       </div>
       <div className="full">
         <label className="check-cell full">
           <input type="checkbox" checked={maskIp} onChange={(e) => setMaskIp(e.target.checked)} /> {t("editor.maskIp")}
         </label>
-        <div className="muted" style={{ fontSize: "0.85em" }}>{t("editor.maskIpHint")}</div>
+        <div className="muted field-hint">{t("editor.maskIpHint")}</div>
       </div>
       {error && <div className="error full">{error}</div>}
       <div className="form-actions">
@@ -1115,7 +1181,7 @@ function MaintenanceManager({ pageId, onClose }: { pageId: number; onClose: () =
         </div>
       </form>
 
-      <div style={{ marginTop: 14 }}>
+      <div className="mt-14">
         {items.length === 0 && <div className="empty">{t("maintenance.empty")}</div>}
         {items.map((w) => (
           <div className="incident-row" key={w.id}>
@@ -1199,7 +1265,7 @@ function AnnouncementsManager({ pageId, onClose }: { pageId: number; onClose: ()
         </div>
       </form>
 
-      <div style={{ marginTop: 14 }}>
+      <div className="mt-14">
         {items.length === 0 && <div className="empty">{t("ann.empty")}</div>}
         {items.map((a) => (
           <div className="incident-row" key={a.id}>

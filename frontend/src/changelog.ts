@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.4.0",
+    date: "2026-08-10",
+    changes: [
+      "Здоровье на виду в редакторе страницы: точка статуса и счётчик проблем у сервисов/серверов",
+      "Сводка живого статуса проб в шапке (работают / деградация / недоступны)",
+    ],
+  },
+  {
     version: "1.3.0",
     date: "2026-08-10",
     changes: [

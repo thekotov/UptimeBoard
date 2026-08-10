@@ -21,10 +21,10 @@ function formatBytes(n: number): string {
 
 function Tile({ label, value, sub }: { label: string; value: React.ReactNode; sub?: React.ReactNode }) {
   return (
-    <div className="card" style={{ flex: "1 1 150px", margin: 0 }}>
+    <div className="card stat-tile">
       <div className="muted small">{label}</div>
-      <div style={{ fontSize: 22, fontWeight: 700, marginTop: 4, letterSpacing: "-0.01em" }}>{value}</div>
-      {sub != null && <div className="faint small" style={{ marginTop: 2 }}>{sub}</div>}
+      <div className="stat-tile-value">{value}</div>
+      {sub != null && <div className="faint small stat-tile-sub">{sub}</div>}
     </div>
   );
 }
@@ -73,7 +73,7 @@ export function Stats() {
       ) : (
         <>
           {/* headline KPIs */}
-          <div className="summary" style={{ gap: 12, marginBottom: 16, alignItems: "stretch" }}>
+          <div className="summary tiles mb-16">
             <Tile label={t("stats.totalDbSize")} value={formatBytes(stats.database.total_bytes)} />
             <Tile
               label={t("stats.checks24h")}
@@ -109,12 +109,12 @@ export function Stats() {
                   </span>
                 </div>
                 {healthy ? (
-                  <p className="muted small" style={{ margin: 0 }}>{t("stats.monAllGood")}</p>
+                  <p className="muted small m-0">{t("stats.monAllGood")}</p>
                 ) : (
-                  <div style={{ display: "grid", gap: 16 }}>
+                  <div className="mon-grid">
                     {mon.overdue.length > 0 && (
                       <div>
-                        <div className="muted small" style={{ marginBottom: 6 }}>
+                        <div className="muted small mb-6">
                           {t("stats.overdue")}: <b>{num(mon.overdue_count)}</b>
                           {mon.never_checked > 0 && ` · ${t("stats.neverChecked")}: ${num(mon.never_checked)}`}
                         </div>
@@ -124,7 +124,7 @@ export function Stats() {
                               <tr>
                                 <th>{t("stats.probe")}</th>
                                 <th>{t("stats.location")}</th>
-                                <th style={{ textAlign: "right" }}>{t("stats.lastCheck")}</th>
+                                <th className="text-right">{t("stats.lastCheck")}</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -135,7 +135,7 @@ export function Stats() {
                                     <span className="faint small"> · {p.probe_type.toUpperCase()}</span>
                                   </td>
                                   <td className="muted small">{p.server_name} · {p.page_title}</td>
-                                  <td style={{ textAlign: "right" }} className={p.last_checked_at ? "" : "danger-text"}>
+                                  <td className={`text-right ${p.last_checked_at ? "" : "danger-text"}`}>
                                     {p.last_checked_at ? relativeTime(p.last_checked_at, lang) : t("stats.never")}
                                   </td>
                                 </tr>
@@ -147,7 +147,7 @@ export function Stats() {
                     )}
                     {mon.failing_channels.length > 0 && (
                       <div>
-                        <div className="muted small" style={{ marginBottom: 6 }}>
+                        <div className="muted small mb-6">
                           {t("stats.failingChannels")}: <b>{mon.failing_channels.length}</b>
                         </div>
                         <div className="feed">
@@ -181,31 +181,25 @@ export function Stats() {
                 <thead>
                   <tr>
                     <th>{t("stats.table")}</th>
-                    <th style={{ textAlign: "right" }}>{t("stats.rows")}</th>
-                    <th style={{ textAlign: "right" }}>{t("stats.size")}</th>
-                    <th style={{ width: "30%" }}></th>
+                    <th className="text-right">{t("stats.rows")}</th>
+                    <th className="text-right">{t("stats.size")}</th>
+                    <th className="col-30" />
                   </tr>
                 </thead>
                 <tbody>
                   {stats.database.tables.map((tbl) => (
                     <tr key={tbl.name}>
                       <td><code>{tbl.name}</code></td>
-                      <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{num(tbl.rows)}</td>
-                      <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+                      <td className="text-right tabular-nums">{num(tbl.rows)}</td>
+                      <td className="text-right tabular-nums">
                         {formatBytes(tbl.total_bytes)}
                         {tbl.index_bytes > 0 && (
                           <span className="faint small"> · {t("stats.idx")} {formatBytes(tbl.index_bytes)}</span>
                         )}
                       </td>
                       <td>
-                        <div style={{ background: "var(--panel-3)", borderRadius: 4, height: 6, overflow: "hidden" }}>
-                          <div
-                            style={{
-                              width: `${(tbl.total_bytes / maxTable) * 100}%`,
-                              height: "100%",
-                              background: "var(--accent)",
-                            }}
-                          />
+                        <div className="bar-track">
+                          <div className="bar-fill" style={{ width: `${(tbl.total_bytes / maxTable) * 100}%` }} />
                         </div>
                       </td>
                     </tr>
@@ -218,7 +212,7 @@ export function Stats() {
           {/* metrics detail */}
           <div className="card">
             <div className="card-head"><h3>{t("stats.metrics")}</h3></div>
-            <div className="summary" style={{ gap: 12, margin: 0, alignItems: "stretch" }}>
+            <div className="summary tiles">
               <Tile label={t("stats.checks1h")} value={num(stats.metrics.results_last_1h)} />
               <Tile label={t("stats.checks24h")} value={num(stats.metrics.results_last_24h)} />
               <Tile
@@ -241,7 +235,7 @@ export function Stats() {
           {/* entity counts */}
           <div className="card">
             <div className="card-head"><h3>{t("stats.entities")}</h3></div>
-            <div className="summary" style={{ gap: 12, margin: 0, alignItems: "stretch" }}>
+            <div className="summary tiles">
               <Tile label={t("stats.pages")} value={num(stats.entities.pages)} />
               <Tile label={t("stats.services")} value={num(stats.entities.services)} />
               <Tile label={t("stats.servers")} value={num(stats.entities.servers)} />

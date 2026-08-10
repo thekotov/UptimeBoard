@@ -227,6 +227,20 @@ input.invalid, textarea.invalid { border-color: var(--down); box-shadow: 0 0 0 3
 @media (max-width: 640px) { .svc-bar { display: none; } }
 
 .summary { display: flex; gap: 18px; margin: 0 2px 22px; flex-wrap: wrap; align-items: center; }
+.summary.tiles { gap: 12px; align-items: stretch; margin: 0; }
+
+/* stats tiles (Stats.tsx KPI cards) */
+.stat-tile { flex: 1 1 150px; margin: 0; }
+.stat-tile-value { font-size: 22px; font-weight: 700; margin-top: 4px; letter-spacing: -0.01em; }
+.stat-tile-sub { margin-top: 2px; }
+
+/* stats: overdue/DB tables + usage bar */
+.mon-grid { display: grid; gap: 16px; }
+.text-right { text-align: right; }
+.tabular-nums { font-variant-numeric: tabular-nums; }
+.col-30 { width: 30%; }
+.bar-track { background: var(--panel-3); border-radius: 4px; height: 6px; overflow: hidden; }
+.bar-fill { height: 100%; background: var(--accent); }
 
 /* compact density */
 .container.compact .card { padding: 10px 14px; margin-bottom: 10px; }
@@ -509,6 +523,13 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .empty { color: var(--muted); text-align: center; padding: 26px 16px; font-size: 14px; }
 .empty .e-emoji { font-size: 26px; display: block; margin-bottom: 8px; opacity: .8; }
 .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+.field-hint { font-size: 0.85em; }
+.mt-12 { margin-top: 12px; }
+.mt-14 { margin-top: 14px; }
+.mb-6 { margin-bottom: 6px; }
+.mb-16 { margin-bottom: 16px; }
+.m-0 { margin: 0; }
+.visually-hidden { display: none; }
 
 /* ---- nav ---- */
 .nav-links { display: flex; gap: 2px; align-items: center; }
@@ -1120,3 +1141,11 @@ a.feed-row:hover { border-color: var(--accent); background: var(--panel-3); colo
 @media (max-width: 640px) {
   .find-row { grid-template-columns: 1fr; gap: 2px; }
 }
+
+/* admin page-editor: health at a glance */
+.count-pill.danger-pill { background: var(--down-soft); color: var(--down-text); }
+.health-chip { display: inline-flex; align-items: center; gap: 10px; font-size: 12px; }
+.health-chip .hc { display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+.health-chip .hc.up { color: var(--up-text); }
+.health-chip .hc.degraded { color: var(--degraded-text); }
+.health-chip .hc.down { color: var(--down-text); font-weight: 700; }
