@@ -532,7 +532,10 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .visually-hidden { display: none; }
 
 /* ---- nav ---- */
-.nav-links { display: flex; gap: 2px; align-items: center; }
+/* AdminNav's action cluster (nav links + worker pill + theme/lang + account) —
+   wraps onto its own line(s) on narrow screens instead of overflowing. */
+.admin-actions { flex-wrap: wrap; justify-content: flex-end; }
+.nav-links { display: flex; gap: 2px; align-items: center; flex-wrap: wrap; }
 .nav-links a {
   padding: 6px 12px; border-radius: var(--radius-sm); color: var(--muted); font-weight: 500; font-size: 14px;
 }

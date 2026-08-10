@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.5.1",
+    date: "2026-08-10",
+    changes: [
+      "Верхнее меню админки не переполняется на узких экранах",
+      "Ошибки массового импорта проб переведены (были захардкожены на русском)",
+    ],
+  },
+  {
     version: "1.5.0",
     date: "2026-08-10",
     changes: [

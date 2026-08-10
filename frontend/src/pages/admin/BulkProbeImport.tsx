@@ -34,13 +34,13 @@ function parseLine(raw: string, host: string): Parsed | { err: string } | null {
   const type = p[0].toLowerCase();
 
   if (type === "http") {
-    if (!p[1]) return { err: "http: укажите URL или путь" };
+    if (!p[1]) return { err: "bulk.err.httpNeedsUrl" };
     const url = /^https?:\/\//i.test(p[1]) ? p[1] : `https://${host}${p[1].startsWith("/") ? p[1] : "/" + p[1]}`;
     return { name: p.slice(2).join(" ") || hostname(url), type: "http", config: { url, expected_status: 200 }, summary: `${url} → 200` };
   }
   if (type === "tcp" || /^\d+$/.test(type)) {
     const port = type === "tcp" ? Number(p[1]) : Number(type);
-    if (!port || port < 1 || port > 65535) return { err: "tcp: неверный порт" };
+    if (!port || port < 1 || port > 65535) return { err: "bulk.err.tcpBadPort" };
     const name = (type === "tcp" ? p.slice(2) : p.slice(1)).join(" ") || `TCP ${port}`;
     return { name, type: "tcp", config: { port }, summary: `port ${port}` };
   }
@@ -54,7 +54,7 @@ function parseLine(raw: string, host: string): Parsed | { err: string } | null {
   if (type === "heartbeat") {
     return { name: p.slice(1).join(" ") || "Heartbeat", type: "heartbeat", config: { grace_sec: 60 }, summary: "push" };
   }
-  return { err: "неизвестный формат строки" };
+  return { err: "bulk.err.unknownFormat" };
 }
 
 export function BulkProbeImport({
@@ -135,7 +135,7 @@ export function BulkProbeImport({
                 <>
                   <span className="pill" style={{ background: "var(--down-soft)", color: "var(--down-text)" }}>×</span>
                   <span className="muted small">{r.line}</span>
-                  <span className="small" style={{ marginLeft: "auto", color: "var(--down-text)" }}>{r.err}</span>
+                  <span className="small" style={{ marginLeft: "auto", color: "var(--down-text)" }}>{t(r.err!)}</span>
                 </>
               )}
             </div>

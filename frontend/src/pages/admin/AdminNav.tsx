@@ -38,7 +38,7 @@ export function AdminNav() {
     <>
       <div className="header">
         <h1>{t("nav.admin")}</h1>
-        <div className="inline">
+        <div className="inline admin-actions">
           <div className="nav-links">
             <NavLink to="/admin" end>
               {t("nav.pages")}
