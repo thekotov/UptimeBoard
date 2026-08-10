@@ -360,8 +360,13 @@ export function Dashboard() {
               <span className="dot degraded" /> {t("dash.reconnecting")}
             </span>
           )}
-          <a className="ghost" href={`/status/${slug}/heatmap`} title={t("heatmap.open")} aria-label={t("heatmap.open")}>📊</a>
-          <a className="ghost" href={`/status/${slug}/wall`} title={t("wall.open")} aria-label={t("wall.open")}>🖥</a>
+          <details className="views-menu">
+            <summary className="ghost" aria-label={t("views.title")}>{t("views.title")} ▾</summary>
+            <div className="views-pop">
+              <a href={`/status/${slug}/heatmap`}>📊 {t("heatmap.open")}</a>
+              <a href={`/status/${slug}/wall`}>🖥 {t("wall.open")}</a>
+            </div>
+          </details>
           <ThemeSwitch />
           <LangSwitch />
         </div>

@@ -240,6 +240,11 @@ export interface CertMeta {
   resolved_ips?: string[];
   // HTTP probes with content tracking on: SHA-256 of the response body.
   content_hash?: string | null;
+  // HTTP diagnostics (surfaced in the Test result): actual status, final URL
+  // after redirects, and whether a redirect was followed.
+  http_status?: number;
+  final_url?: string;
+  redirected?: boolean;
 }
 export interface CheckResult {
   status: Status;

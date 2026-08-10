@@ -126,7 +126,7 @@ def test_http_probe_track_ip_attaches_meta(monkeypatch):
         5,
     )
     assert out.status == STATUS_UP
-    assert out.meta == {"resolved_ips": ["1.2.3.4"]}
+    assert out.meta["resolved_ips"] == ["1.2.3.4"]
 
 
 def test_http_probe_sends_post_body(monkeypatch):
@@ -195,7 +195,7 @@ def test_http_probe_track_content_hash(monkeypatch):
         5,
     )
     assert out.status == STATUS_UP
-    assert out.meta == {"content_hash": hashlib.sha256(b"hello world").hexdigest()}
+    assert out.meta["content_hash"] == hashlib.sha256(b"hello world").hexdigest()
 
 
 def test_tls_fingerprint_of_der():
@@ -205,7 +205,7 @@ def test_tls_fingerprint_of_der():
     assert tls_probe._fingerprint(None) is None
 
 
-def test_http_probe_no_track_ip_leaves_meta_empty(monkeypatch):
+def test_http_probe_meta_has_diagnostics_no_tracking(monkeypatch):
     def handler(request):
         return httpx.Response(200, text="ok")
 
@@ -218,4 +218,7 @@ def test_http_probe_no_track_ip_leaves_meta_empty(monkeypatch):
     monkeypatch.setattr(http_probe.httpx, "Client", fake_client)
     out = http_probe.execute("example.com", {"url": "http://example.com"}, 5)
     assert out.status == STATUS_UP
-    assert out.meta is None
+    # diagnostics are always present; tracking keys are not (nothing enabled)
+    assert out.meta["http_status"] == 200
+    assert out.meta["redirected"] is False
+    assert "resolved_ips" not in out.meta and "content_hash" not in out.meta

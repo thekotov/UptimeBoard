@@ -109,11 +109,17 @@ def _http_check(url: str, config: dict, timeout_sec: int) -> ProbeOutcome:
         )
     latency_ms = (time.perf_counter() - start) * 1000
 
-    # Content tracking: hash the raw response body so the runner can detect when
-    # the served page changes. Attached to every outcome below (even failures).
-    meta = None
+    # Diagnostic metadata attached to every outcome below (even failures): the
+    # actual status, the final URL after any redirects, and whether a redirect was
+    # followed — surfaced in the "Test" result so redirect/status footguns are
+    # obvious. Content tracking adds the response-body hash when enabled.
+    meta: dict = {
+        "http_status": resp.status_code,
+        "final_url": str(resp.url),
+        "redirected": len(resp.history) > 0,
+    }
     if config.get("track_content"):
-        meta = {"content_hash": hashlib.sha256(resp.content).hexdigest()}
+        meta["content_hash"] = hashlib.sha256(resp.content).hexdigest()
 
     def down(msg: str) -> ProbeOutcome:
         return ProbeOutcome(status=STATUS_DOWN, latency_ms=latency_ms, error=msg, meta=meta)

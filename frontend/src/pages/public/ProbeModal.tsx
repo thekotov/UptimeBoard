@@ -4,7 +4,32 @@ import { LatencyChart } from "../../components/LatencyChart";
 import { Modal } from "../../components/Modal";
 import { Spinner } from "../../components/Spinner";
 import { StatusDot } from "../../components/StatusBadge";
+import { classifyError } from "../../errors";
 import { relativeTime, useI18n } from "../../i18n";
+
+interface RecentGroup {
+  status: string;
+  error: string | null | undefined;
+  count: number;
+  newest: string;        // checked_at of the most recent check in the run
+  latency_ms: number | null;
+}
+
+/** Collapse consecutive identical checks (same status + error) into one row with
+ *  a count, so a long run of the same failure reads as one line, not fifteen.
+ *  ``recent`` is newest-first. */
+function groupRecent(recent: { status: string; error?: string | null; checked_at: string; latency_ms: number | null }[]): RecentGroup[] {
+  const out: RecentGroup[] = [];
+  for (const r of recent) {
+    const last = out[out.length - 1];
+    if (last && last.status === r.status && last.error === r.error) {
+      last.count += 1;
+    } else {
+      out.push({ status: r.status, error: r.error, count: 1, newest: r.checked_at, latency_ms: r.latency_ms });
+    }
+  }
+  return out;
+}
 
 const RANGES: TimeRange[] = ["15m", "24h", "7d", "30d", "90d"];
 
@@ -191,20 +216,29 @@ export function ProbeModal({
 
           <h4 style={{ margin: "18px 0 6px", fontSize: 14 }}>{t("modal.recent")}</h4>
           <div>
-            {data.recent.map((r, i) => (
-              <div className="log-row" key={i}>
-                <StatusDot status={r.status as Status} />
-                <span className="when">{relativeTime(r.checked_at, lang)}</span>
-                {r.error && r.status !== "up" && (
-                  <span className="muted" style={{ color: "var(--down-text)" }}>
-                    {r.error}
+            {groupRecent(data.recent).map((g, i) => {
+              const key = classifyError(g.error);
+              const hint = key ? t(key) : g.error;
+              return (
+                <div className="log-row" key={i}>
+                  <StatusDot status={g.status as Status} />
+                  <span className="when">
+                    {relativeTime(g.newest, lang)}
+                    {g.count > 1 && (
+                      <span className="rep-chip" title={t("modal.repeated", { n: g.count })}>×{g.count}</span>
+                    )}
                   </span>
-                )}
-                <span className="lat">
-                  {r.latency_ms != null ? `${r.latency_ms.toFixed(0)} ${t("dash.ms")}` : "—"}
-                </span>
-              </div>
-            ))}
+                  {g.error && g.status !== "up" && (
+                    <span className="log-err" title={g.error !== hint ? g.error : undefined}>
+                      {hint}
+                    </span>
+                  )}
+                  <span className="lat">
+                    {g.latency_ms != null ? `${g.latency_ms.toFixed(0)} ${t("dash.ms")}` : "—"}
+                  </span>
+                </div>
+              );
+            })}
           </div>
         </>
       )}

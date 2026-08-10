@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { api, type Probe, type ProbeType, testProbe } from "../../api/client";
+import { api, type CheckResult, type Probe, type ProbeType, testProbe } from "../../api/client";
 import { RefreshIcon } from "../../components/Icons";
+import { classifyError } from "../../errors";
 import { useI18n } from "../../i18n";
 import { useToast } from "../../toast";
 
@@ -81,6 +82,7 @@ export function ProbeForm({
   const [grace, setGrace] = useState(num(cfg.grace_sec, 60));
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [testRes, setTestRes] = useState<CheckResult | null>(null);
   // open the detection-tuning section by default only when editing a probe
   // whose tuning differs from the defaults, so it isn't lost behind a collapsed panel
   const [tuningOpen, setTuningOpen] = useState(
@@ -164,22 +166,13 @@ export function ProbeForm({
 
   const runTest = async () => {
     setTesting(true);
+    setTestRes(null);
     try {
       const res = await testProbe({
         type, server_id: editing ? probe!.server_id : serverId,
         timeout_sec: Number(timeout), config: buildConfig(),
       });
-      const lat = res.latency_ms != null ? ` (${res.latency_ms.toFixed(0)} ${t("dash.ms")})` : "";
-      let cert = "";
-      if (res.meta?.expires_at) {
-        const days = Math.floor((new Date(res.meta.expires_at).getTime() - Date.now()) / 864e5);
-        const when = days < 0 ? t("cert.expired") : t("cert.expiresIn", { days });
-        cert = ` · 🔒 ${when}${res.meta.issuer ? ` · ${res.meta.issuer}` : ""}`;
-      }
-      const ips = res.meta?.resolved_ips?.length ? ` · 🔄 ${res.meta.resolved_ips.join(", ")}` : "";
-      const content = res.meta?.content_hash ? ` · 📝 ${res.meta.content_hash.slice(0, 12)}…` : "";
-      toast.show(`${t(`status.${res.status}`)}${lat}${res.error ? " — " + res.error : ""}${cert}${ips}${content}`,
-        res.status === "up" ? "success" : "error");
+      setTestRes(res);
     } catch {
       toast.error(t("probe.checkFail"));
     } finally {
@@ -336,6 +329,7 @@ export function ProbeForm({
               <label className="check-cell full">
                 <input type="checkbox" checked={followRedirects} onChange={(e) => setFollowRedirects(e.target.checked)} /> {t("probe.redirects")}
               </label>
+              <div className="full"><span className="hint">{t("probe.redirectsHint")}</span></div>
             </div>
           </details>
         </>
@@ -480,6 +474,43 @@ export function ProbeForm({
         )}
         <button disabled={busy || formInvalid}>{editing ? t("save") : t("probe.add")}</button>
       </div>
+
+      {testRes && (() => {
+        const m = testRes.meta;
+        const errKey = classifyError(testRes.error);
+        const hint = errKey ? t(errKey) : testRes.error;
+        const certDays = m?.expires_at
+          ? Math.floor((new Date(m.expires_at).getTime() - Date.now()) / 864e5) : null;
+        const gotStatus = m?.http_status;
+        const showRedirectWarn = type === "http" && m?.redirected && followRedirects;
+        const showStatusHint = type === "http" && !followRedirects && gotStatus != null
+          && gotStatus >= 300 && gotStatus < 400 && Number(expectedStatus) !== gotStatus;
+        return (
+          <div className={`full test-result ${testRes.status === "up" ? "ok" : "bad"}`}>
+            <div className="tr-head">
+              <span className={`badge ${testRes.status}`}>{t(`status.${testRes.status}`)}</span>
+              {testRes.latency_ms != null && (
+                <span className="tr-lat">{testRes.latency_ms.toFixed(0)} {t("dash.ms")}</span>
+              )}
+              {gotStatus != null && <span className="tr-meta">HTTP {gotStatus}</span>}
+            </div>
+            {testRes.error && testRes.status !== "up" && (
+              <div className="tr-err" title={hint !== testRes.error ? testRes.error : undefined}>{hint}</div>
+            )}
+            {m?.final_url && (m.redirected || type === "http") && (
+              <div className="tr-row"><span className="muted small">{t("test.finalUrl")}</span> <code>{m.final_url}</code></div>
+            )}
+            {certDays != null && (
+              <div className="tr-row">🔒 {certDays < 0 ? t("cert.expired") : t("cert.expiresIn", { days: certDays })}
+                {m?.issuer ? ` · ${m.issuer}` : ""}</div>
+            )}
+            {m?.resolved_ips?.length ? <div className="tr-row">🔄 {m.resolved_ips.join(", ")}</div> : null}
+            {m?.content_hash && <div className="tr-row">📝 {m.content_hash.slice(0, 16)}…</div>}
+            {showRedirectWarn && <div className="tr-warn">⚠ {t("test.redirectedWarn")}</div>}
+            {showStatusHint && <div className="tr-warn">⚠ {t("test.expectedHint", { got: gotStatus, exp: expectedStatus })}</div>}
+          </div>
+        );
+      })()}
     </form>
   );
 }
