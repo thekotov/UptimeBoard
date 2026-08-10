@@ -534,6 +534,21 @@ export async function getCerts(params?: { page_id?: number }): Promise<CertItem[
   return data;
 }
 
+// ---- Global admin quick-find ----
+export interface SearchProbe {
+  probe_id: number; probe_name: string; probe_type: string;
+  server_name: string; server_host: string; service_name: string;
+  page_id: number; page_slug: string; page_title: string;
+}
+export interface SearchServer {
+  server_id: number; server_name: string; server_host: string;
+  service_name: string; page_id: number; page_slug: string; page_title: string;
+}
+export async function adminSearch(q: string): Promise<{ probes: SearchProbe[]; servers: SearchServer[] }> {
+  const { data } = await api.get("/admin/search", { params: { q } });
+  return data;
+}
+
 // ---- Heatmap (public page status + per-probe timeline) ----
 export interface PageTimelineEntry {
   probe_id: number;

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, clearMetrics, importPage, resetProbeDefaults, type Page } from "../../api/client";
+import { adminSearch, api, clearMetrics, importPage, resetProbeDefaults, type Page, type SearchProbe, type SearchServer } from "../../api/client";
 import { PencilIcon, TrashIcon } from "../../components/Icons";
 import { Modal } from "../../components/Modal";
 import { Skeleton } from "../../components/Skeleton";
@@ -18,6 +18,7 @@ export function Pages() {
   const [pages, setPages] = useState<Page[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [q, setQ] = useState("");
+  const [hits, setHits] = useState<{ probes: SearchProbe[]; servers: SearchServer[] } | null>(null);
   const [creating, setCreating] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -28,6 +29,20 @@ export function Pages() {
     });
   };
   useEffect(load, []);
+
+  // Global quick-find: the same box also searches probes & servers across all
+  // pages (name / host). Debounced; needs ≥2 chars.
+  useEffect(() => {
+    const needle = q.trim();
+    if (needle.length < 2) {
+      setHits(null);
+      return;
+    }
+    const id = setTimeout(() => {
+      adminSearch(needle).then(setHits).catch(() => setHits(null));
+    }, 250);
+    return () => clearTimeout(id);
+  }, [q]);
 
   const remove = async (id: number) => {
     if (!(await confirm({ message: t("pages.confirmDelete"), danger: true }))) return;
@@ -119,6 +134,26 @@ export function Pages() {
           <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("search")} />
         </div>
       </div>
+
+      {hits && (hits.probes.length > 0 || hits.servers.length > 0) && (
+        <div className="card find-results">
+          <div className="card-head"><h3>{t("find.title")}</h3></div>
+          {hits.probes.map((p) => (
+            <Link key={`p${p.probe_id}`} className="find-row" to={`/admin/pages/${p.page_id}`}>
+              <span className="find-kind">{t("find.probe")}</span>
+              <span className="find-name">{p.probe_name} <span className="faint small">· {p.probe_type.toUpperCase()}</span></span>
+              <span className="find-ctx muted small">{p.server_name} · {p.service_name} · {p.page_title}</span>
+            </Link>
+          ))}
+          {hits.servers.map((s) => (
+            <Link key={`s${s.server_id}`} className="find-row" to={`/admin/pages/${s.page_id}`}>
+              <span className="find-kind">{t("find.server")}</span>
+              <span className="find-name">{s.server_name} <span className="faint small">· {s.server_host}</span></span>
+              <span className="find-ctx muted small">{s.service_name} · {s.page_title}</span>
+            </Link>
+          ))}
+        </div>
+      )}
 
       {!loaded && (
         <div className="card">

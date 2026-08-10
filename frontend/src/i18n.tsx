@@ -26,6 +26,9 @@ const ru: Dict = {
   collapseAll: "Свернуть всё",
   onlyProblems: "Только проблемы",
   nothingFound: "Ничего не найдено",
+  "find.title": "Найдено — пробы и серверы",
+  "find.probe": "Проба",
+  "find.server": "Сервер",
 
   // status labels
   "status.up": "Работает",
@@ -170,6 +173,10 @@ const ru: Dict = {
   "probe.certExpiryRemindersHint": "Проактивные напоминания в каналы алертов по мере приближения срока — по умолчанию за 14, 7 и 1 день до истечения (каждый порог срабатывает один раз). Сбрасывается после продления сертификата. Отдельно от «предупреждать за (дней)», который красит пробу в degraded.",
   "probe.reqBody": "Тело запроса",
   "probe.contentType": "Content-Type тела",
+  "probe.tab.basic": "Основное",
+  "probe.tab.checks": "Проверки",
+  "probe.tab.tracking": "Отслеживание",
+  "probe.tab.detection": "Детектирование",
   "probe.trackContent": "Слать алерт при изменении содержимого",
   "probe.trackContentHint": "Запоминаем хэш (SHA-256) тела ответа. Как только содержимое страницы меняется — в каналы алертов уходит уведомление. Полезно для детекта подмены/дефейса. Внимание: динамические страницы (CSRF-токены, время, реклама) будут срабатывать на каждой проверке — вешайте на статичные эндпоинты. Не создаёт инцидент и не влияет на аптайм.",
   "probe.failureThreshold": "Сбоев подряд до алерта",
@@ -420,6 +427,7 @@ const ru: Dict = {
   // page editor
   "editor.publish": "Опубликовать",
   "editor.unpublish": "Снять с публикации",
+  "editor.moreActions": "Ещё",
   "editor.newService": "Новый сервис",
   "editor.serviceName": "Название сервиса",
   "editor.addService": "Добавить сервис",
@@ -532,6 +540,9 @@ const en: Dict = {
   collapseAll: "Collapse all",
   onlyProblems: "Only problems",
   nothingFound: "Nothing found",
+  "find.title": "Found — probes & servers",
+  "find.probe": "Probe",
+  "find.server": "Server",
 
   "status.up": "Operational",
   "status.recovered": "Back online 🎉",
@@ -667,6 +678,10 @@ const en: Dict = {
   "probe.certExpiryRemindersHint": "Proactive reminders to the alert channels as expiry approaches — by default 14, 7 and 1 day before (each threshold fires once). Resets after the certificate is renewed. Separate from \"warn before (days)\", which paints the probe degraded.",
   "probe.reqBody": "Request body",
   "probe.contentType": "Body Content-Type",
+  "probe.tab.basic": "Basic",
+  "probe.tab.checks": "Checks",
+  "probe.tab.tracking": "Tracking",
+  "probe.tab.detection": "Detection",
   "probe.trackContent": "Alert when the content changes",
   "probe.trackContentHint": "The response body's hash (SHA-256) is remembered. When the page content changes, a notification is sent to the alert channels. Useful for detecting defacement/tampering. Note: dynamic pages (CSRF tokens, timestamps, ads) will fire on every check — point it at static endpoints. It never opens an incident or affects uptime.",
   "probe.failureThreshold": "Failures before alert",
@@ -908,6 +923,7 @@ const en: Dict = {
 
   "editor.publish": "Publish",
   "editor.unpublish": "Unpublish",
+  "editor.moreActions": "More",
   "editor.newService": "New service",
   "editor.serviceName": "Service name",
   "editor.addService": "Add service",

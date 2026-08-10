@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Body, Depends, HTTPException, status
-from sqlalchemy import text
+from sqlalchemy import or_, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -902,6 +902,61 @@ def list_certs(page_id: int | None = None, db: Session = Depends(get_db)):
         }
         for pr, srv, svc, pg in q.order_by(Probe.tls_expires_at.asc()).all()
     ]
+
+
+# ---------------- Global search ----------------
+
+
+@router.get("/search")
+def admin_search(q: str = "", db: Session = Depends(get_db)):
+    """Find probes (by name) and servers (by name or host) across all pages, with
+    their page context — powers the admin quick-find. Needs at least 2 chars."""
+    q = (q or "").strip()
+    if len(q) < 2:
+        return {"probes": [], "servers": []}
+    like = f"%{q}%"
+
+    probes = [
+        {
+            "probe_id": r.id, "probe_name": r.name, "probe_type": r.type,
+            "server_name": r.server_name, "server_host": r.host, "service_name": r.service_name,
+            "page_id": r.page_id, "page_slug": r.slug, "page_title": r.page_title,
+        }
+        for r in (
+            db.query(
+                Probe.id, Probe.name, Probe.type, Server.name.label("server_name"),
+                Server.host, Service.name.label("service_name"),
+                Page.id.label("page_id"), Page.slug, Page.title.label("page_title"),
+            )
+            .join(Server, Probe.server_id == Server.id)
+            .join(Service, Server.service_id == Service.id)
+            .join(Page, Service.page_id == Page.id)
+            .filter(Probe.name.ilike(like))
+            .order_by(Probe.name)
+            .limit(25)
+            .all()
+        )
+    ]
+    servers = [
+        {
+            "server_id": r.id, "server_name": r.name, "server_host": r.host,
+            "service_name": r.service_name, "page_id": r.page_id, "page_slug": r.slug,
+            "page_title": r.page_title,
+        }
+        for r in (
+            db.query(
+                Server.id, Server.name, Server.host, Service.name.label("service_name"),
+                Page.id.label("page_id"), Page.slug, Page.title.label("page_title"),
+            )
+            .join(Service, Server.service_id == Service.id)
+            .join(Page, Service.page_id == Page.id)
+            .filter(or_(Server.name.ilike(like), Server.host.ilike(like)))
+            .order_by(Server.name)
+            .limit(25)
+            .all()
+        )
+    ]
+    return {"probes": probes, "servers": servers}
 
 
 # ---------------- Alert channels ----------------

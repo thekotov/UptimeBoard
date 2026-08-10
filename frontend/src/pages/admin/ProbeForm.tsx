@@ -83,19 +83,7 @@ export function ProbeForm({
   const [busy, setBusy] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testRes, setTestRes] = useState<CheckResult | null>(null);
-  // open the detection-tuning section by default only when editing a probe
-  // whose tuning differs from the defaults, so it isn't lost behind a collapsed panel
-  const [tuningOpen, setTuningOpen] = useState(
-    editing && (
-      (probe?.failure_threshold ?? 2) !== 2 ||
-      (probe?.degraded_threshold ?? 1) !== 1 ||
-      (probe?.down_threshold ?? 2) !== 2 ||
-      (probe?.tolerance_checks ?? (pageDefaultTolerance ?? 1)) !== (pageDefaultTolerance ?? 1) ||
-      (probe?.recovery_threshold ?? 2) !== 2 ||
-      (probe?.retries ?? 2) !== 2 ||
-      probe?.latency_degraded_ms != null
-    )
-  );
+  const [tab, setTab] = useState<"basic" | "checks" | "tracking" | "detection">("basic");
 
   const buildConfig = (): Record<string, unknown> => {
     if (type === "http") {
@@ -188,6 +176,17 @@ export function ProbeForm({
   const portInvalid = (type === "tcp" || type === "tls") && !(port >= 1 && port <= 65535);
   const formInvalid = urlInvalid || portInvalid;
 
+  // Tabs shown depend on the probe type; identity (type/name) and the actions stay
+  // outside the tabs so they're always reachable.
+  const tabs: { id: typeof tab; label: string }[] = [
+    { id: "basic", label: t("probe.tab.basic") },
+    ...(type === "http" ? [{ id: "checks" as const, label: t("probe.tab.checks") }] : []),
+    ...(type === "http" || type === "tls" ? [{ id: "tracking" as const, label: t("probe.tab.tracking") }] : []),
+    { id: "detection", label: t("probe.tab.detection") },
+  ];
+  const activeTab = tabs.some((x) => x.id === tab) ? tab : "basic";
+  const isHttps = /^https:\/\//i.test(url.trim());
+
   return (
     <form onSubmit={submit} className="form-grid">
       <div>
@@ -206,40 +205,167 @@ export function ProbeForm({
         <input value={name} onChange={(e) => setName(e.target.value)} placeholder={t("optional")} />
       </div>
 
-      {type === "http" && (
+      <div className="full form-tabs">
+        {tabs.map((x) => (
+          <button type="button" key={x.id} className={activeTab === x.id ? "active" : ""} onClick={() => setTab(x.id)}>
+            {x.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ---- Basic: what & how often ---- */}
+      {activeTab === "basic" && (
         <>
-          <div className="full">
-            <label>{t("probe.url")}</label>
-            <input className={urlInvalid ? "invalid" : ""} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://host/health" />
-            {urlInvalid && <div className="field-msg err">{t("valid.url")}</div>}
-          </div>
-          <div>
-            <label>{t("probe.method")}</label>
-            <select value={method} onChange={(e) => setMethod(e.target.value)}>
-              <option value="GET">GET</option>
-              <option value="HEAD">HEAD</option>
-              <option value="POST">POST</option>
-            </select>
-          </div>
-          <div>
-            <label>{t("probe.expected")}</label>
-            <input type="number" value={expectedStatus} onChange={(e) => setExpectedStatus(+e.target.value)} />
-          </div>
-          {(method === "POST" || method === "PUT" || method === "PATCH") && (
+          {type === "http" && (
             <>
               <div className="full">
-                <label>{t("probe.reqBody")}</label>
-                <textarea rows={3} value={reqBody} onChange={(e) => setReqBody(e.target.value)}
-                  placeholder={'{"key": "value"}'} />
+                <label>{t("probe.url")}</label>
+                <input className={urlInvalid ? "invalid" : ""} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://host/health" />
+                {urlInvalid && <div className="field-msg err">{t("valid.url")}</div>}
               </div>
-              <div className="full">
-                <label>{t("probe.contentType")}</label>
-                <input value={contentType} onChange={(e) => setContentType(e.target.value)}
-                  placeholder="application/json" />
+              <div>
+                <label>{t("probe.method")}</label>
+                <select value={method} onChange={(e) => setMethod(e.target.value)}>
+                  <option value="GET">GET</option>
+                  <option value="HEAD">HEAD</option>
+                  <option value="POST">POST</option>
+                </select>
+              </div>
+              <div>
+                <label>{t("probe.expected")}</label>
+                <input type="number" value={expectedStatus} onChange={(e) => setExpectedStatus(+e.target.value)} />
+              </div>
+              {(method === "POST" || method === "PUT" || method === "PATCH") && (
+                <>
+                  <div className="full">
+                    <label>{t("probe.reqBody")}</label>
+                    <textarea rows={3} value={reqBody} onChange={(e) => setReqBody(e.target.value)} placeholder={'{"key": "value"}'} />
+                  </div>
+                  <div className="full">
+                    <label>{t("probe.contentType")}</label>
+                    <input value={contentType} onChange={(e) => setContentType(e.target.value)} placeholder="application/json" />
+                  </div>
+                </>
+              )}
+            </>
+          )}
+          {type === "tcp" && (
+            <div>
+              <label>{t("probe.port")}</label>
+              <input type="number" value={port} onChange={(e) => setPort(+e.target.value)} />
+            </div>
+          )}
+          {type === "tls" && (
+            <>
+              <div>
+                <label>{t("probe.port")}</label>
+                <input className={portInvalid ? "invalid" : ""} type="number" value={port} onChange={(e) => setPort(+e.target.value)} />
+                {portInvalid && <div className="field-msg err">{t("valid.port")}</div>}
+              </div>
+              <div>
+                <label>{t("probe.warnDays")}</label>
+                <input type="number" value={warnDays} onChange={(e) => setWarnDays(+e.target.value)} />
               </div>
             </>
           )}
-          {/^https:\/\//i.test(url.trim()) && (
+          {type === "icmp" && (
+            <>
+              <div>
+                <label>{t("probe.count")}</label>
+                <input type="number" value={count} onChange={(e) => setCount(+e.target.value)} />
+              </div>
+              <div>
+                <label>{t("probe.packetSize")}</label>
+                <input type="number" value={packetSize} onChange={(e) => setPacketSize(+e.target.value)} />
+              </div>
+            </>
+          )}
+          {type === "heartbeat" && (
+            <>
+              <div>
+                <label>{t("probe.grace")}</label>
+                <input type="number" value={grace} onChange={(e) => setGrace(+e.target.value)} />
+              </div>
+              <div className="full">
+                {pingUrl ? (
+                  <>
+                    <label>{t("probe.pushUrl")}</label>
+                    <div className="inline">
+                      <input readOnly value={pingUrl} onFocus={(e) => e.currentTarget.select()} />
+                      <button type="button" className="secondary btn-sm" onClick={() => {
+                        navigator.clipboard?.writeText(pingUrl); toast.success(t("io.copied"));
+                      }}>🔗</button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="hint">{t("probe.pushHint")}</div>
+                )}
+              </div>
+            </>
+          )}
+
+          <div>
+            <label>{type === "heartbeat" ? t("probe.period") : t("probe.interval")}</label>
+            <input type="number" value={interval} onChange={(e) => setInterval(+e.target.value)} />
+          </div>
+          {type !== "heartbeat" && (
+            <div>
+              <label>{t("probe.timeout")}</label>
+              <input type="number" value={timeout} onChange={(e) => setTimeoutSec(+e.target.value)} />
+            </div>
+          )}
+          <label className="check-cell full">
+            <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> {t("probe.enabled")}
+          </label>
+        </>
+      )}
+
+      {/* ---- Checks: response assertions (HTTP) ---- */}
+      {activeTab === "checks" && type === "http" && (
+        <>
+          <div className="full">
+            <label>{t("probe.body")}</label>
+            <input value={bodySubstr} onChange={(e) => setBodySubstr(e.target.value)} placeholder={t("optional")} />
+          </div>
+          <div className="full">
+            <label>{t("probe.bodyRegex")}</label>
+            <input value={bodyRegex} onChange={(e) => setBodyRegex(e.target.value)} placeholder={t("optional")} />
+          </div>
+          <div>
+            <label>{t("probe.jsonPath")}</label>
+            <input value={jsonPath} onChange={(e) => setJsonPath(e.target.value)} placeholder={t("optional")} />
+          </div>
+          <div>
+            <label>{t("probe.jsonExpected")}</label>
+            <input value={jsonExpected} onChange={(e) => setJsonExpected(e.target.value)} placeholder={t("optional")} />
+          </div>
+          <div className="full">
+            <label>{t("probe.headers")}</label>
+            <textarea rows={2} value={headers} onChange={(e) => setHeaders(e.target.value)} placeholder="Authorization: Bearer …" />
+          </div>
+          <div>
+            <label>{t("probe.basicUser")}</label>
+            <input value={basicUser} onChange={(e) => setBasicUser(e.target.value)} placeholder={t("optional")} />
+          </div>
+          <div>
+            <label>{t("probe.basicPass")}</label>
+            <input type="password" value={basicPass} onChange={(e) => setBasicPass(e.target.value)} placeholder={t("optional")} />
+          </div>
+          <div className="full">
+            <label>{t("probe.bearer")}</label>
+            <input value={bearer} onChange={(e) => setBearer(e.target.value)} placeholder={t("optional")} />
+          </div>
+          <label className="check-cell full">
+            <input type="checkbox" checked={followRedirects} onChange={(e) => setFollowRedirects(e.target.checked)} /> {t("probe.redirects")}
+          </label>
+          <div className="full"><span className="hint">{t("probe.redirectsHint")}</span></div>
+        </>
+      )}
+
+      {/* ---- Tracking: cert / IP / content change alerts ---- */}
+      {activeTab === "tracking" && type === "http" && (
+        <>
+          {isHttps && (
             <>
               <label className="check-cell full">
                 <input type="checkbox" checked={checkCert} onChange={(e) => setCheckCert(e.target.checked)} /> 🔒 {t("probe.checkCert")}
@@ -256,9 +382,7 @@ export function ProbeForm({
                 </label>
               )}
               {checkCert && trackCertChange && (
-                <div className="full">
-                  <span className="hint">{t("probe.trackCertChangeHint")}</span>
-                </div>
+                <div className="full"><span className="hint">{t("probe.trackCertChangeHint")}</span></div>
               )}
               {checkCert && (
                 <label className="check-cell full">
@@ -266,9 +390,7 @@ export function ProbeForm({
                 </label>
               )}
               {checkCert && certExpiryReminders && (
-                <div className="full">
-                  <span className="hint">{t("probe.certExpiryRemindersHint")}</span>
-                </div>
+                <div className="full"><span className="hint">{t("probe.certExpiryRemindersHint")}</span></div>
               )}
             </>
           )}
@@ -287,138 +409,30 @@ export function ProbeForm({
             <input type="checkbox" checked={trackContent} onChange={(e) => setTrackContent(e.target.checked)} /> 📝 {t("probe.trackContent")}
           </label>
           {trackContent && (
-            <div className="full">
-              <span className="hint">{t("probe.trackContentHint")}</span>
-            </div>
+            <div className="full"><span className="hint">{t("probe.trackContentHint")}</span></div>
           )}
-          <details className="full advanced">
-            <summary>{t("probe.advanced")}</summary>
-            <div className="form-grid" style={{ marginTop: 10 }}>
-              <div className="full">
-                <label>{t("probe.body")}</label>
-                <input value={bodySubstr} onChange={(e) => setBodySubstr(e.target.value)} placeholder={t("optional")} />
-              </div>
-              <div className="full">
-                <label>{t("probe.bodyRegex")}</label>
-                <input value={bodyRegex} onChange={(e) => setBodyRegex(e.target.value)} placeholder={t("optional")} />
-              </div>
-              <div>
-                <label>{t("probe.jsonPath")}</label>
-                <input value={jsonPath} onChange={(e) => setJsonPath(e.target.value)} placeholder={t("optional")} />
-              </div>
-              <div>
-                <label>{t("probe.jsonExpected")}</label>
-                <input value={jsonExpected} onChange={(e) => setJsonExpected(e.target.value)} placeholder={t("optional")} />
-              </div>
-              <div className="full">
-                <label>{t("probe.headers")}</label>
-                <textarea rows={2} value={headers} onChange={(e) => setHeaders(e.target.value)} placeholder="Authorization: Bearer …" />
-              </div>
-              <div>
-                <label>{t("probe.basicUser")}</label>
-                <input value={basicUser} onChange={(e) => setBasicUser(e.target.value)} placeholder={t("optional")} />
-              </div>
-              <div>
-                <label>{t("probe.basicPass")}</label>
-                <input type="password" value={basicPass} onChange={(e) => setBasicPass(e.target.value)} placeholder={t("optional")} />
-              </div>
-              <div className="full">
-                <label>{t("probe.bearer")}</label>
-                <input value={bearer} onChange={(e) => setBearer(e.target.value)} placeholder={t("optional")} />
-              </div>
-              <label className="check-cell full">
-                <input type="checkbox" checked={followRedirects} onChange={(e) => setFollowRedirects(e.target.checked)} /> {t("probe.redirects")}
-              </label>
-              <div className="full"><span className="hint">{t("probe.redirectsHint")}</span></div>
-            </div>
-          </details>
         </>
       )}
-      {type === "tcp" && (
-        <div>
-          <label>{t("probe.port")}</label>
-          <input type="number" value={port} onChange={(e) => setPort(+e.target.value)} />
-        </div>
-      )}
-      {type === "tls" && (
+      {activeTab === "tracking" && type === "tls" && (
         <>
-          <div>
-            <label>{t("probe.port")}</label>
-            <input className={portInvalid ? "invalid" : ""} type="number" value={port} onChange={(e) => setPort(+e.target.value)} />
-            {portInvalid && <div className="field-msg err">{t("valid.port")}</div>}
-          </div>
-          <div>
-            <label>{t("probe.warnDays")}</label>
-            <input type="number" value={warnDays} onChange={(e) => setWarnDays(+e.target.value)} />
-          </div>
           <label className="check-cell full">
             <input type="checkbox" checked={trackCertChange} onChange={(e) => setTrackCertChange(e.target.checked)} /> 📜 {t("probe.trackCertChange")}
           </label>
           {trackCertChange && (
-            <div className="full">
-              <span className="hint">{t("probe.trackCertChangeHint")}</span>
-            </div>
+            <div className="full"><span className="hint">{t("probe.trackCertChangeHint")}</span></div>
           )}
           <label className="check-cell full">
             <input type="checkbox" checked={certExpiryReminders} onChange={(e) => setCertExpiryReminders(e.target.checked)} /> ⏳ {t("probe.certExpiryReminders")}
           </label>
           {certExpiryReminders && (
-            <div className="full">
-              <span className="hint">{t("probe.certExpiryRemindersHint")}</span>
-            </div>
+            <div className="full"><span className="hint">{t("probe.certExpiryRemindersHint")}</span></div>
           )}
         </>
       )}
-      {type === "icmp" && (
-        <>
-          <div>
-            <label>{t("probe.count")}</label>
-            <input type="number" value={count} onChange={(e) => setCount(+e.target.value)} />
-          </div>
-          <div>
-            <label>{t("probe.packetSize")}</label>
-            <input type="number" value={packetSize} onChange={(e) => setPacketSize(+e.target.value)} />
-          </div>
-        </>
-      )}
-      {type === "heartbeat" && (
-        <>
-          <div>
-            <label>{t("probe.grace")}</label>
-            <input type="number" value={grace} onChange={(e) => setGrace(+e.target.value)} />
-          </div>
-          <div className="full">
-            {pingUrl ? (
-              <>
-                <label>{t("probe.pushUrl")}</label>
-                <div className="inline">
-                  <input readOnly value={pingUrl} onFocus={(e) => e.currentTarget.select()} />
-                  <button type="button" className="secondary btn-sm" onClick={() => {
-                    navigator.clipboard?.writeText(pingUrl); toast.success(t("io.copied"));
-                  }}>🔗</button>
-                </div>
-              </>
-            ) : (
-              <div className="hint">{t("probe.pushHint")}</div>
-            )}
-          </div>
-        </>
-      )}
 
-      <div>
-        <label>{type === "heartbeat" ? t("probe.period") : t("probe.interval")}</label>
-        <input type="number" value={interval} onChange={(e) => setInterval(+e.target.value)} />
-      </div>
-      {type !== "heartbeat" && (
-        <div>
-          <label>{t("probe.timeout")}</label>
-          <input type="number" value={timeout} onChange={(e) => setTimeoutSec(+e.target.value)} />
-        </div>
-      )}
-      <details className="full advanced" open={tuningOpen}
-        onToggle={(e) => setTuningOpen(e.currentTarget.open)}>
-        <summary>{t("probe.detection")}</summary>
-        <div className="form-grid" style={{ marginTop: 10 }}>
+      {/* ---- Detection: thresholds, tolerance, retries ---- */}
+      {activeTab === "detection" && (
+        <>
           <div>
             <label>{t("probe.failureThreshold")}</label>
             <input type="number" min={1} value={failureThreshold} onChange={(e) => setFailureThreshold(+e.target.value)} />
@@ -456,11 +470,8 @@ export function ProbeForm({
                 onChange={(e) => setLatencyDegraded(e.target.value === "" ? "" : +e.target.value)} placeholder={t("optional")} />
             </div>
           )}
-        </div>
-      </details>
-      <label className="check-cell full">
-        <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} /> {t("probe.enabled")}
-      </label>
+        </>
+      )}
 
       <div className="form-actions">
         {type !== "heartbeat" && (

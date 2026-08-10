@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.3.0",
+    date: "2026-08-10",
+    changes: [
+      "Форма пробы разбита на вкладки: Основное / Проверки / Отслеживание / Детектирование",
+      "Глобальный поиск проб и серверов в админке (по имени и хосту)",
+    ],
+  },
+  {
     version: "1.2.0",
     date: "2026-08-10",
     changes: [
