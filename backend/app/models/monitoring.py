@@ -196,8 +196,11 @@ class ProbeResult(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     probe_id: Mapped[int] = mapped_column(
-        ForeignKey("probes.id", ondelete="CASCADE"), nullable=False, index=True
+        ForeignKey("probes.id", ondelete="CASCADE"), nullable=False
     )
+    # Kept as its own index (not just the composite's leading column) because the
+    # retention sweep in worker.py deletes by checked_at alone, with no probe_id
+    # filter — a composite index wouldn't serve that query.
     checked_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
@@ -206,6 +209,14 @@ class ProbeResult(Base):
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     probe: Mapped["Probe"] = relationship(back_populates="results")
+
+    __table_args__ = (
+        # History/timeline queries filter probe_id (equality, sometimes IN) and
+        # range/order on checked_at — this composite serves both that and plain
+        # probe_id-only lookups (as the leading column), replacing the old
+        # standalone probe_id index.
+        Index("ix_probe_results_probe_checked_at", "probe_id", "checked_at"),
+    )
 
 
 class ProbeRollup(Base):
