@@ -155,18 +155,25 @@ def _table_blocks(head_plain: str, rows: list[tuple[str, str, str]], url: str | 
     published yet (only class/field names are confirmed by the Bot API
     changelog), so this is a best-effort payload. Callers must be ready for
     Telegram to reject it and fall back to the classic HTML message."""
+    def _cell(text: str, header: bool = False) -> dict:
+        # Telegram's RichText is never a bare string — it's always a discriminated
+        # object (textPlain, textBold, ...), and Rich Messages are fully
+        # block-based (up to 16 levels of nesting per the Bot API changelog), so
+        # a cell's content is most likely itself a nested block list rather than
+        # a flat "text" field (which is what "Expected an Array of
+        # PageBlockTableCell" pointed at — the cell object's shape was rejected).
+        cell: dict = {"blocks": [{"type": "paragraph", "text": text}]}
+        if header:
+            cell["header"] = True
+        return cell
+
     blocks: list[dict] = [{"type": "paragraph", "text": head_plain}]
     if rows:
-        # "cells" must be an Array of Array of PageBlockTableCell (rows of cells,
-        # same shape as Telegram's older Instant View pageBlockTable) — a flat
-        # row/column-addressed list was rejected with "Expected an Array of
-        # PageBlockTableCell", and nested {"cells": [...]} row objects were
-        # rejected earlier with "Can't find field 'cells'".
         table_cells: list[list[dict]] = [
-            [{"text": "Поле", "header": True}, {"text": "Значение", "header": True}],
+            [_cell("Поле", header=True), _cell("Значение", header=True)],
         ]
         for label, value, _ in rows:
-            table_cells.append([{"text": label}, {"text": value}])
+            table_cells.append([_cell(label), _cell(value)])
         blocks.append({
             "type": "table",
             "bordered": True,
