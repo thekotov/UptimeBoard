@@ -92,17 +92,30 @@ fmt_duration = _fmt_duration  # public alias for use outside this module
 _SPOILER_THRESHOLD = 80
 
 
-def _error_html(text: str, esc) -> str:
-    body = f"<code>{esc(text)}</code>"
+def _error_html(text: str, esc, enhanced: bool = False) -> str:
+    """<code> for a single-line error, or (only in the fallback-safe "enhanced"
+    attempt) <pre> for a multi-line one so stack traces/JSON keep their line
+    breaks instead of being flattened. <pre> nested inside <tg-spoiler> is a
+    new Bot API 10.1/10.2 combination we haven't confirmed live — gated behind
+    enhanced so a rejection falls back to the always-safe single-line <code>."""
+    if enhanced and "\n" in text:
+        body = f"<pre>{esc(text)}</pre>"
+    else:
+        body = f"<code>{esc(text)}</code>"
     return f"<tg-spoiler>{body}</tg-spoiler>" if len(text) > _SPOILER_THRESHOLD else body
 
 
-def _build_messages(ctx: dict) -> tuple[str, str, str, list[tuple[str, str, str]]]:
+def _build_messages(ctx: dict, enhanced: bool = False) -> tuple[str, str, str, list[tuple[str, str, str]]]:
     """Build (plain, html, head_plain, rows) for an alert. HTML uses
     Telegram-supported tags (<b>, <code>, <a>, <blockquote expandable>); plain
     mirrors it for email/webhook and template fallback. head_plain/rows are
     exposed separately so the Telegram "table" style can reuse the same fields
-    inside a Rich Message table block instead of the plain-text list."""
+    inside a Rich Message table block instead of the plain-text list.
+
+    enhanced=True additionally marks the status word with <mark> and wraps a
+    "down" headline in <aside> (pull-quote) — new Bot API 10.1/10.2 HTML tags,
+    unconfirmed in classic sendMessage. Callers must be ready to fall back to
+    enhanced=False (identical to the pre-existing behavior) if the send 400s."""
     emoji, title = _header(ctx["event"], ctx["status"])
     status_ru = _STATUS_RU.get(ctx["status"], ctx["status"])
 
@@ -129,7 +142,7 @@ def _build_messages(ctx: dict) -> tuple[str, str, str, list[tuple[str, str, str]
             "ip_changed": "IP", "cert_changed": "Сертификат",
             "content_changed": "Контент", "cert_expiring": "Сертификат",
         }.get(ctx["event"], "Ошибка")
-        rows.append((err_label, ctx["error"], _error_html(ctx["error"], esc)))
+        rows.append((err_label, ctx["error"], _error_html(ctx["error"], esc, enhanced)))
     if ctx.get("duration"):
         label = "Простой" if ctx["event"] == "resolved" else "Длится уже"
         rows.append((label, ctx["duration"], esc(ctx["duration"])))
@@ -144,8 +157,11 @@ def _build_messages(ctx: dict) -> tuple[str, str, str, list[tuple[str, str, str]
     # state, so they carry no status suffix.
     _no_suffix = ("ip_changed", "cert_changed", "content_changed", "cert_expiring")
     suffix = "" if (ctx["event"] in _no_suffix or status_ru.lower() in title.lower()) else f" · {status_ru}"
+    suffix_html = f" · <mark>{esc(status_ru)}</mark>" if (enhanced and suffix) else esc(suffix)
     head_plain = f"{emoji} {title.upper()}{suffix.upper()} — {server_plain}"
-    head_html = f"{emoji} <b>{esc(title)}</b>{esc(suffix)} — {server_html}"
+    head_html = f"{emoji} <b>{esc(title)}</b>{suffix_html} — {server_html}"
+    if enhanced and ctx["status"] == "down":
+        head_html = f"<aside>{head_html}</aside>"
     body_plain = "\n".join(f"{label}: {pv}" for label, pv, _ in rows)
     body_html = "\n".join(f"<b>{esc(label)}:</b> {hv}" for label, _, hv in rows)
 
@@ -159,10 +175,11 @@ def _build_messages(ctx: dict) -> tuple[str, str, str, list[tuple[str, str, str]
             head_plain, rows)
 
 
-def _compact_message(ctx: dict) -> tuple[str, str]:
+def _compact_message(ctx: dict, enhanced: bool = False) -> tuple[str, str]:
     """One-line format for busy/high-volume chats: status, server, the single
     most relevant detail (error, or downtime on resolve), type and time — no
-    body list, no blockquote. Matches the "Компакт для шумных чатов" mockup."""
+    body list, no blockquote. Matches the "Компакт для шумных чатов" mockup.
+    enhanced=True marks a non-error detail with <mark> (see _build_messages)."""
     def esc(v) -> str:
         return html.escape(str(v)) if v is not None else ""
 
@@ -180,7 +197,12 @@ def _compact_message(ctx: dict) -> tuple[str, str]:
     link_plain = f" · 🔗 {ctx['url']}" if ctx.get("url") else ""
     link_html = f' · 🔗 <a href="{esc(ctx["url"])}">статус</a>' if ctx.get("url") else ""
 
-    detail_html = _error_html(detail, esc) if ctx.get("error") else f"<code>{esc(detail)}</code>"
+    if ctx.get("error"):
+        detail_html = _error_html(detail, esc, enhanced)
+    elif enhanced:
+        detail_html = f"<mark>{esc(detail)}</mark>"
+    else:
+        detail_html = f"<code>{esc(detail)}</code>"
     plain = f"{emoji} {srv} → {detail} ({meta}){link_plain}"
     html_ = f"{emoji} <b>{esc(srv)}</b> → {detail_html} ({esc(meta)}){link_html}"
     return plain, html_
@@ -551,7 +573,7 @@ def render_preview(channel_type: str, config: dict) -> dict:
     ctx = _sample_ctx()
     verb_emoji, verb_title = _header(ctx["event"], ctx["status"])
     verb = f"{verb_emoji} {verb_title}"
-    default_plain, default_html, head_plain, rows = _build_messages(ctx)
+    default_plain, _, head_plain, rows = _build_messages(ctx)
     fields = {**ctx, "verb": verb,
               "latency": f"{ctx['latency']:.0f}" if ctx.get("latency") is not None else ""}
     template = config.get("template")
@@ -563,9 +585,10 @@ def render_preview(channel_type: str, config: dict) -> dict:
             if style == "table":
                 return {"text": _table_preview_html(head_plain, rows, ctx.get("url")), "is_html": True}
             if style == "compact":
-                _, compact_html = _compact_message(ctx)
+                _, compact_html = _compact_message(ctx, enhanced=True)
                 return {"text": compact_html, "is_html": True}
-            return {"text": default_html, "is_html": True}
+            _, default_html_enhanced, _, _ = _build_messages(ctx, enhanced=True)
+            return {"text": default_html_enhanced, "is_html": True}
         return {"text": default_plain, "is_html": False}
     # A custom template is always delivered as plain text (no parse_mode).
     return {"text": _render_template(template, fields, default_plain), "is_html": False}
@@ -581,6 +604,7 @@ def send_test_telegram(config: dict) -> tuple[bool, str]:
         return False, "chat_id required"
     sample_ctx = _sample_ctx()
     _, default_html, head_plain, rows = _build_messages(sample_ctx)
+    _, default_html_enhanced, _, _ = _build_messages(sample_ctx, enhanced=True)
     style = config.get("message_style")
     if style == "table":
         try:
@@ -591,15 +615,27 @@ def send_test_telegram(config: dict) -> tuple[bool, str]:
             return False, f"sendRichMessage не сработал ({exc}); в реальных алертах сработает откат на обычный HTML"
     if style == "compact":
         _, compact_html = _compact_message(sample_ctx)
+        _, compact_html_enhanced = _compact_message(sample_ctx, enhanced=True)
         try:
-            _send_telegram(config, "🧪 ТЕСТ " + compact_html, parse_mode="HTML")
-            return True, "Тестовый алерт отправлен в Telegram"
+            _send_telegram(config, "🧪 ТЕСТ " + compact_html_enhanced, parse_mode="HTML")
+            return True, "Тестовый алерт отправлен в Telegram (расширенное форматирование)"
         except Exception as exc:  # noqa: BLE001
-            return False, str(exc)
+            logger.warning("test compact enhanced HTML failed, falling back to plain: %s", exc)
+            try:
+                _send_telegram(config, "🧪 ТЕСТ " + compact_html, parse_mode="HTML")
+                return True, "Тестовый алерт отправлен (обычное форматирование — <mark>/<pre> Telegram не принял)"
+            except Exception as exc2:  # noqa: BLE001
+                return False, str(exc2)
+    text_enhanced = "🧪 <b>ТЕСТ</b>\n\n" + default_html_enhanced
+    try:
+        _send_telegram(config, text_enhanced, parse_mode="HTML")
+        return True, "Тестовый алерт отправлен в Telegram (расширенное форматирование)"
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("test default enhanced HTML failed, falling back to plain: %s", exc)
     text = "🧪 <b>ТЕСТ</b>\n\n" + default_html
     try:
         _send_telegram(config, text, parse_mode="HTML")
-        return True, "Тестовый алерт отправлен в Telegram"
+        return True, "Тестовый алерт отправлен (обычное форматирование — <mark>/<aside>/<pre> Telegram не принял)"
     except Exception as exc:  # noqa: BLE001
         return False, str(exc)
 
@@ -991,8 +1027,10 @@ def dispatch(channels: list[AlertChannel], *, event: str, probe_name: str, serve
         "time": now.strftime("%d.%m.%Y %H:%M:%S UTC"),
     }
     default_plain, default_html, head_plain, rows = _build_messages(ctx)
+    _, default_html_enhanced, _, _ = _build_messages(ctx, enhanced=True)
     table_blocks = _table_blocks(head_plain, rows, page_url, occurred_at=now)
     _, compact_html = _compact_message(ctx)
+    _, compact_html_enhanced = _compact_message(ctx, enhanced=True)
 
     # Template fields (strings) for custom templates.
     fields = {**ctx, "verb": verb, "latency": f"{latency_ms:.0f}" if latency_ms is not None else "",
@@ -1032,8 +1070,23 @@ def dispatch(channels: list[AlertChannel], *, event: str, probe_name: str, serve
                         msg_id = _deliver(lambda cfg=cfg, tg_text=tg_text, tg_mode=tg_mode, reply_to=reply_to:
                                            _send_telegram(cfg, tg_text, tg_mode, reply_to))
                 elif style == "compact":
-                    msg_id = _deliver(lambda cfg=cfg, tg_text=compact_html, reply_to=reply_to:
-                                       _send_telegram(cfg, tg_text, "HTML", reply_to))
+                    try:
+                        msg_id = _deliver(lambda cfg=cfg, tg_text=compact_html_enhanced, reply_to=reply_to:
+                                           _send_telegram(cfg, tg_text, "HTML", reply_to))
+                    except Exception as exc:  # noqa: BLE001 — <mark>/<pre> combo rejected, fall back to plain
+                        logger.warning("telegram enhanced compact HTML failed (channel %s), "
+                                       "falling back to plain: %s", ch.id, exc)
+                        msg_id = _deliver(lambda cfg=cfg, tg_text=compact_html, reply_to=reply_to:
+                                           _send_telegram(cfg, tg_text, "HTML", reply_to))
+                elif not has_tpl:
+                    try:
+                        msg_id = _deliver(lambda cfg=cfg, tg_text=default_html_enhanced, reply_to=reply_to:
+                                           _send_telegram(cfg, tg_text, "HTML", reply_to))
+                    except Exception as exc:  # noqa: BLE001 — <mark>/<aside>/<pre> combo rejected, fall back
+                        logger.warning("telegram enhanced default HTML failed (channel %s), "
+                                       "falling back to plain: %s", ch.id, exc)
+                        msg_id = _deliver(lambda cfg=cfg, tg_text=tg_text, tg_mode=tg_mode, reply_to=reply_to:
+                                           _send_telegram(cfg, tg_text, tg_mode, reply_to))
                 else:
                     msg_id = _deliver(lambda cfg=cfg, tg_text=tg_text, tg_mode=tg_mode, reply_to=reply_to:
                                        _send_telegram(cfg, tg_text, tg_mode, reply_to))

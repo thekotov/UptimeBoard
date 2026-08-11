@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.12.3",
+    date: "2026-08-11",
+    changes: [
+      "Telegram-алерты: выделение статуса маркером, крупная цитата для критичных сбоев, многострочные ошибки сохраняют переносы строк — с автоматическим откатом на обычное форматирование, если Telegram не примет новые теги",
+    ],
+  },
+  {
     version: "1.12.2",
     date: "2026-08-11",
     changes: [
