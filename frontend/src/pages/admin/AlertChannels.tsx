@@ -391,7 +391,11 @@ function ChannelForm({
   // TEMPORARY — Rich Message block-type exploration, remove this state/handler
   // and the "richVariant"-labelled JSX block below once settled.
   const [richVariantBusy, setRichVariantBusy] = useState<string | null>(null);
-  const RICH_VARIANTS = ["paragraph", "formatted", "table", "details", "checklist", "combo"];
+  const RICH_VARIANTS = [
+    "paragraph", "formatted", "table", "details", "checklist", "combo",
+    "table_flat_text", "table_typed_nodes", "table_rows_field",
+    "table_rows_nested_blocks", "table_minimal_1x1",
+  ];
   const runRichVariant = async (variant: string) => {
     setRichVariantBusy(variant);
     try {

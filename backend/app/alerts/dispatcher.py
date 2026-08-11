@@ -421,7 +421,74 @@ def send_test_telegram(config: dict) -> tuple[bool, str]:
 # block type each so we can see which ones Telegram actually renders yet.
 # Remove RICH_TEST_VARIANTS / _rich_test_blocks / send_test_telegram_rich_variant
 # (and the matching admin.py endpoint + frontend buttons) once this is settled.
-RICH_TEST_VARIANTS = ("paragraph", "formatted", "table", "details", "checklist", "combo")
+RICH_TEST_VARIANTS = (
+    "paragraph", "formatted", "table", "details", "checklist", "combo",
+    # Five competing hypotheses for the table block's cell shape — the "table"
+    # variant above ("cells": Array<Array<{blocks:[...]}>>) either 400s or
+    # renders empty, so we're probing alternate shapes one at a time.
+    "table_flat_text", "table_typed_nodes", "table_rows_field",
+    "table_rows_nested_blocks", "table_minimal_1x1",
+)
+
+
+def _table_variant_blocks(kind: str) -> list[dict]:
+    lead = {"type": "paragraph", "text": f"🧪 Rich Message: таблица ({kind})"}
+    if kind == "table_flat_text":
+        # Plain "text" leaf cells (no nested blocks), 2D "cells" array.
+        table = {
+            "type": "table", "bordered": True, "striped": True,
+            "cells": [
+                [{"text": "Поле", "header": True}, {"text": "Значение", "header": True}],
+                [{"text": "A1"}, {"text": "B1"}],
+            ],
+        }
+    elif kind == "table_typed_nodes":
+        # Every nested node gets an explicit "type" discriminator, matching the
+        # top-level block convention — maybe untyped rows/cells are silently
+        # dropped rather than erroring.
+        def cell(text: str, header: bool = False) -> dict:
+            c: dict = {"type": "table_cell", "blocks": [{"type": "paragraph", "text": text}]}
+            if header:
+                c["header"] = True
+            return c
+        table = {
+            "type": "table",
+            "rows": [
+                {"type": "table_row", "cells": [cell("Поле", True), cell("Значение", True)]},
+                {"type": "table_row", "cells": [cell("A1"), cell("B1")]},
+            ],
+        }
+    elif kind == "table_rows_field":
+        # "rows" (matching the TL pageBlockTable.rows field name) instead of
+        # "cells", untyped nested nodes, flat text leaves.
+        table = {
+            "type": "table",
+            "rows": [
+                {"cells": [{"text": "Поле", "header": True}, {"text": "Значение", "header": True}]},
+                {"cells": [{"text": "A1"}, {"text": "B1"}]},
+            ],
+        }
+    elif kind == "table_rows_nested_blocks":
+        # "rows" field name + nested blocks leaves (combination not tried yet).
+        def cell(text: str, header: bool = False) -> dict:
+            c: dict = {"blocks": [{"type": "paragraph", "text": text}]}
+            if header:
+                c["header"] = True
+            return c
+        table = {
+            "type": "table",
+            "rows": [
+                {"cells": [cell("Поле", True), cell("Значение", True)]},
+                {"cells": [cell("A1"), cell("B1")]},
+            ],
+        }
+    elif kind == "table_minimal_1x1":
+        # Smallest possible table (1 row, 1 column, no bordered/striped/header)
+        # to isolate cell-shape errors from row/column-count issues.
+        table = {"type": "table", "cells": [[{"blocks": [{"type": "paragraph", "text": "X"}]}]]}
+    else:
+        raise ValueError(f"unknown table test variant: {kind}")
+    return [lead, table]
 
 
 def _formatted_text_block() -> dict:
@@ -472,6 +539,8 @@ def _rich_test_blocks(variant: str) -> list[dict]:
                 "blocks": [{"type": "paragraph", "text": "Внутри details"}],
             },
         ]
+    if variant.startswith("table_"):
+        return _table_variant_blocks(variant)
     raise ValueError(f"unknown rich test variant: {variant}")
 
 
