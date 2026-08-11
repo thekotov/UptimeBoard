@@ -521,6 +521,20 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .storm-settings-field { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
 .storm-settings-field input[type="number"] { width: 60px; text-align: center; }
 
+/* message-format picker: selectable cards instead of a plain <select>, so the
+   choice + its effect are visible at a glance without opening a dropdown. */
+.format-menu { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.format-option {
+  flex: 1 1 160px; min-width: 150px; text-align: left; padding: 10px 12px;
+  border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--panel);
+  cursor: pointer; display: flex; flex-direction: column; gap: 4px; font: inherit; color: inherit;
+}
+.format-option:hover { border-color: var(--accent); }
+.format-option.active { border-color: var(--accent); background: var(--panel-2); box-shadow: 0 0 0 1px var(--accent) inset; }
+.format-option-title { font-size: 13px; font-weight: 600; color: var(--text); }
+.format-option.active .format-option-title { color: var(--accent); }
+.format-option-desc { font-size: 11.5px; color: var(--muted); line-height: 1.35; }
+
 /* inline probe edit form gets a subtle highlight so it stands out from rows */
 .probe-edit {
   background: var(--panel-2); border: 1px solid var(--border);

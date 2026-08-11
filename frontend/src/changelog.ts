@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.11.0",
+    date: "2026-08-11",
+    changes: [
+      "Формат Telegram-алертов: добавлен компактный однострочный вариант, выбор формата — карточками с описанием вместо выпадающего списка",
+    ],
+  },
+  {
     version: "1.10.0",
     date: "2026-08-11",
     changes: [

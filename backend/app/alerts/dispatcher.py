@@ -146,10 +146,37 @@ def _build_messages(ctx: dict) -> tuple[str, str, str, list[tuple[str, str, str]
             head_plain, rows)
 
 
+def _compact_message(ctx: dict) -> tuple[str, str]:
+    """One-line format for busy/high-volume chats: status, server, the single
+    most relevant detail (error, or downtime on resolve), type and time — no
+    body list, no blockquote. Matches the "Компакт для шумных чатов" mockup."""
+    def esc(v) -> str:
+        return html.escape(str(v)) if v is not None else ""
+
+    emoji, _ = _header(ctx["event"], ctx["status"])
+    srv = ctx.get("server") or ctx["host"]
+
+    if ctx["event"] == "resolved" and ctx.get("duration"):
+        detail = f"восстановлен, простой {ctx['duration']}"
+    elif ctx.get("error"):
+        detail = ctx["error"]
+    else:
+        detail = _STATUS_RU.get(ctx["status"], ctx["status"])
+
+    meta = ", ".join(x for x in ((ctx.get("type") or "").upper(), ctx["time"]) if x)
+    link_plain = f" · 🔗 {ctx['url']}" if ctx.get("url") else ""
+    link_html = f' · 🔗 <a href="{esc(ctx["url"])}">статус</a>' if ctx.get("url") else ""
+
+    plain = f"{emoji} {srv} → {detail} ({meta}){link_plain}"
+    html_ = f"{emoji} <b>{esc(srv)}</b> → <code>{esc(detail)}</code> ({esc(meta)}){link_html}"
+    return plain, html_
+
+
 # Telegram-only: how a channel renders its message. "default" is the classic
-# HTML text above; "table" sends the fields as a Rich Message table via the
-# Bot API 10.1+ sendRichMessage method (see _table_blocks/_send_telegram_rich).
-TELEGRAM_MESSAGE_STYLES = ("default", "table")
+# HTML text above; "compact" is a one-liner for busy chats (_compact_message);
+# "table" sends the fields as a Rich Message table via the Bot API 10.1+
+# sendRichMessage method (see _table_blocks/_send_telegram_rich).
+TELEGRAM_MESSAGE_STYLES = ("default", "compact", "table")
 
 
 def _table_blocks(head_plain: str, rows: list[tuple[str, str, str]], url: str | None) -> list[dict]:
@@ -431,8 +458,12 @@ def render_preview(channel_type: str, config: dict) -> dict:
         # Telegram sends the rich HTML body (or a Rich Message table); webhook/email
         # get the plain mirror.
         if channel_type == "telegram":
-            if config.get("message_style") == "table":
+            style = config.get("message_style")
+            if style == "table":
                 return {"text": _table_preview_html(head_plain, rows, ctx.get("url")), "is_html": True}
+            if style == "compact":
+                _, compact_html = _compact_message(ctx)
+                return {"text": compact_html, "is_html": True}
             return {"text": default_html, "is_html": True}
         return {"text": default_plain, "is_html": False}
     # A custom template is always delivered as plain text (no parse_mode).
@@ -447,13 +478,22 @@ def send_test_telegram(config: dict) -> tuple[bool, str]:
         return False, "bot_token required"
     if not config.get("chat_id"):
         return False, "chat_id required"
-    _, default_html, head_plain, rows = _build_messages(_sample_ctx())
-    if config.get("message_style") == "table":
+    sample_ctx = _sample_ctx()
+    _, default_html, head_plain, rows = _build_messages(sample_ctx)
+    style = config.get("message_style")
+    if style == "table":
         try:
             _send_telegram_rich(config, _table_blocks("🧪 ТЕСТ\n" + head_plain, rows, None))
             return True, "Тестовая Rich Message-таблица отправлена в Telegram"
         except Exception as exc:  # noqa: BLE001
             return False, f"sendRichMessage не сработал ({exc}); в реальных алертах сработает откат на обычный HTML"
+    if style == "compact":
+        _, compact_html = _compact_message(sample_ctx)
+        try:
+            _send_telegram(config, "🧪 ТЕСТ " + compact_html, parse_mode="HTML")
+            return True, "Тестовый алерт отправлен в Telegram"
+        except Exception as exc:  # noqa: BLE001
+            return False, str(exc)
     text = "🧪 <b>ТЕСТ</b>\n\n" + default_html
     try:
         _send_telegram(config, text, parse_mode="HTML")
@@ -830,6 +870,7 @@ def dispatch(channels: list[AlertChannel], *, event: str, probe_name: str, serve
     }
     default_plain, default_html, head_plain, rows = _build_messages(ctx)
     table_blocks = _table_blocks(head_plain, rows, page_url)
+    _, compact_html = _compact_message(ctx)
 
     # Template fields (strings) for custom templates.
     fields = {**ctx, "verb": verb, "latency": f"{latency_ms:.0f}" if latency_ms is not None else "",
@@ -858,7 +899,8 @@ def dispatch(channels: list[AlertChannel], *, event: str, probe_name: str, serve
         ok, err = True, None
         try:
             if ch.type == "telegram":
-                if not has_tpl and cfg.get("message_style") == "table":
+                style = cfg.get("message_style") if not has_tpl else None
+                if style == "table":
                     try:
                         msg_id = _deliver(lambda cfg=cfg, blocks=table_blocks, reply_to=reply_to:
                                            _send_telegram_rich(cfg, blocks, reply_to))
@@ -867,6 +909,9 @@ def dispatch(channels: list[AlertChannel], *, event: str, probe_name: str, serve
                                        "falling back to classic HTML: %s", ch.id, exc)
                         msg_id = _deliver(lambda cfg=cfg, tg_text=tg_text, tg_mode=tg_mode, reply_to=reply_to:
                                            _send_telegram(cfg, tg_text, tg_mode, reply_to))
+                elif style == "compact":
+                    msg_id = _deliver(lambda cfg=cfg, tg_text=compact_html, reply_to=reply_to:
+                                       _send_telegram(cfg, tg_text, "HTML", reply_to))
                 else:
                     msg_id = _deliver(lambda cfg=cfg, tg_text=tg_text, tg_mode=tg_mode, reply_to=reply_to:
                                        _send_telegram(cfg, tg_text, tg_mode, reply_to))

@@ -550,10 +550,23 @@ function ChannelForm({
           </div>
           <div className="full">
             <label>{t("alerts.messageStyle")}</label>
-            <select value={messageStyle} onChange={(e) => setMessageStyle(e.target.value)}>
-              <option value="default">{t("alerts.messageStyle.default")}</option>
-              <option value="table">{t("alerts.messageStyle.table")}</option>
-            </select>
+            <div className="format-menu">
+              {[
+                { id: "default", title: t("alerts.messageStyle.default"), desc: t("alerts.messageStyle.defaultDesc") },
+                { id: "compact", title: t("alerts.messageStyle.compact"), desc: t("alerts.messageStyle.compactDesc") },
+                { id: "table", title: t("alerts.messageStyle.table"), desc: t("alerts.messageStyle.tableDesc") },
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  className={`format-option ${messageStyle === opt.id ? "active" : ""}`}
+                  onClick={() => setMessageStyle(opt.id)}
+                >
+                  <span className="format-option-title">{opt.title}</span>
+                  <span className="format-option-desc">{opt.desc}</span>
+                </button>
+              ))}
+            </div>
             <div className="hint">{t("alerts.messageStyleHint")}</div>
           </div>
           {chats && chats.length > 0 && (
