@@ -100,6 +100,29 @@
 
   footer{max-width:1200px; margin:40px auto 0; color:var(--muted); font-size:12.5px; line-height:1.7;}
   footer code{background:var(--code-bg); padding:1px 5px; border-radius:4px;}
+
+  /* --- native Bot API features: inline buttons, reply chain, pre, spoiler --- */
+  .badge.native{background:rgba(76,175,80,.12); color:#8fd39a; border:1px solid rgba(76,175,80,.3);}
+  .tg-buttons{display:flex; gap:6px; margin-top:8px; flex-wrap:wrap;}
+  .tg-btn{
+    flex:1; min-width:88px; text-align:center; background:rgba(94,171,214,.1); color:var(--accent);
+    border:1px solid rgba(94,171,214,.32); border-radius:8px; padding:7px 6px; font-size:12.5px; font-weight:600;
+  }
+  .pre-block{
+    background:var(--code-bg); border-radius:8px; padding:8px 10px; margin:6px 0;
+    font-family:"SF Mono",Consolas,monospace; font-size:12.5px; line-height:1.65; color:#cfe8f7;
+    overflow-x:auto; white-space:pre;
+  }
+  .spoiler{
+    color:transparent; text-shadow:0 0 6px rgba(233,237,239,.6); background:rgba(255,255,255,.07);
+    border-radius:3px; padding:0 2px;
+  }
+  .reply-ref{
+    border-left:3px solid var(--accent); padding:3px 8px; margin-bottom:6px; font-size:12px;
+    color:var(--muted); background:rgba(94,171,214,.06); border-radius:0 4px 4px 0;
+  }
+  .reply-ref b{color:var(--accent); font-weight:600;}
+  .msg + .msg{margin-top:8px;}
 </style>
 </head>
 <body>
@@ -259,11 +282,211 @@
 
 </div>
 
+<h1 style="margin-top:48px;">Улучшенные варианты формата №1 (обычный)</h1>
+<p class="sub">
+  Формат №1 — дефолт для всех каналов без явно выбранного <code>message_style</code>, поэтому он должен быть
+  максимально безопасным. Все варианты ниже используют только теги, подтверждённо поддерживаемые Telegram
+  (<code>&lt;b&gt;</code>, <code>&lt;code&gt;</code>, <code>&lt;a&gt;</code>, <code>&lt;blockquote expandable&gt;</code>)
+  и обычные unicode-символы — никакого риска 400/пустого рендера, можно включать сразу.
+</p>
+
+<div class="grid">
+
+  <!-- A: baseline for reference -->
+  <div class="card live">
+    <h2><span class="num">A</span>Текущий (для сравнения) <span class="badge live">в проде</span></h2>
+    <p class="desc">Как есть сегодня — точка отсчёта для вариантов ниже.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b> — api-node04 · <code>158.160.60.150</code></span>
+
+<span class="quote">Проба: Health Check · HTTP
+Где: ⚙️ API · ChatApp Production Servers
+Ошибка: <code>timed out</code>
+Длится уже: 0 с
+Время: 11.08.2026 13:02:21 UTC</span>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- B: inline trend sparkline -->
+  <div class="card">
+    <h2><span class="num">B</span>Тренд ответа прямо в заголовке <span class="badge idea">идея</span></h2>
+    <p class="desc">Мини-график из unicode-блоков (<code>▁▂▃▇█</code>) по последним 5 проверкам — сразу видно, деградация случилась резко или сервер уже полз к сбою. Никакого Rich Message, чистый текст, рендерится везде гарантированно.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b> ▁▂▂▇█ — api-node04 · <code>158.160.60.150</code></span>
+
+<span class="quote">Проба: Health Check · HTTP
+Где: ⚙️ API · ChatApp Production Servers
+Ошибка: <code>timed out</code>
+Длится уже: 0 с
+Время: 11.08.2026 13:02:21 UTC</span>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- C: status transition arrow -->
+  <div class="card">
+    <h2><span class="num">C</span>Переход статуса «было → стало» <span class="badge idea">идея</span></h2>
+    <p class="desc">Вместо одного нового статуса — показываем откуда пришли: сразу ясно, это первое ухудшение из OK или уже второй шаг деградации (например Warning → Critical). Дешёвая замена почти без изменения кода — просто нужен предыдущий статус пробы.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟢→🟠 <b>OK → Деградация</b> — api-node04 · <code>158.160.60.150</code></span>
+
+<span class="quote">Проба: Health Check · HTTP
+Где: ⚙️ API · ChatApp Production Servers
+Ошибка: <code>timed out</code>
+Длится уже: 0 с
+Время: 11.08.2026 13:02:21 UTC</span>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- D: error-first ordering -->
+  <div class="card">
+    <h2><span class="num">D</span>Ошибка — первым делом, время — снаружи <span class="badge idea">идея</span></h2>
+    <p class="desc">Самое важное (что именно случилось) — сразу под заголовком, не спрятано в свёрнутой цитате вторым пунктом. А время алерта, наоборот, выносим из цитаты наружу — это то, что чаще всего сканируют глазами при скролле истории чата, не хочется каждый раз тапать «развернуть».</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b> — api-node04 · <code>158.160.60.150</code></span>
+⚠️ <code>timed out</code>
+
+<span class="quote">Проба: Health Check · HTTP
+Где: ⚙️ API · ChatApp Production Servers
+Длится уже: 0 с</span>
+🔗 <a href="#">Открыть статус-страницу</a> · 11.08.2026 13:02:21 UTC<span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- E: relative duration + incident id -->
+  <div class="card">
+    <h2><span class="num">E</span>Относительное время + номер инцидента <span class="badge idea">идея</span></h2>
+    <p class="desc">«Длится уже: 3 мин» читается быстрее, чем разница между двумя абсолютными таймстампами в голове. Номер инцидента (<code>#482</code>) — чтобы искать по чату все сообщения одного и того же простоя (алерт + возможные доп. уведомления + резолв) одним Ctrl+F.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b> — api-node04 · <code>158.160.60.150</code> · <code>#482</code></span>
+
+<span class="quote">Проба: Health Check · HTTP
+Где: ⚙️ API · ChatApp Production Servers
+Ошибка: <code>timed out</code>
+Длится уже: 3 мин
+Началось: 11.08.2026 13:02:21 UTC</span>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:05</span></div>
+    </div>
+  </div>
+
+  <!-- F: ultra-compact single-line quote -->
+  <div class="card">
+    <h2><span class="num">F</span>Свёрнутая цитата в одну строку <span class="badge idea">идея</span></h2>
+    <p class="desc">Все поля через « · » в одной строке цитаты вместо пяти отдельных строк — цитата всё равно раскрывающаяся, но занимает меньше места в свёрнутом виде и не заставляет тап-ом заглядывать в длинный список ради одного значения.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b> — api-node04 · <code>158.160.60.150</code></span>
+
+<span class="quote">Health Check · HTTP · ⚙️ API · <code>timed out</code> · 0 с · 11.08.2026 13:02:21 UTC</span>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+</div>
+
+<h1 style="margin-top:48px;">Ещё варианты — самое удобное и красивое</h1>
+<p class="sub">
+  Тут не Rich Message-блоки, а обычные фичи Bot API уровня <code>sendMessage</code> — инлайн-кнопки, реплай-цепочка,
+  <code>&lt;pre&gt;</code>, <code>tg-spoiler</code>. <span class="badge native">нативная фича Bot API</span> — это не
+  экспериментальная схема как Rich-блоки выше, это часть API многие годы, риска почти нет, но нужно немного логики
+  на бэкенде (обработка callback от кнопки, хранение <code>message_id</code> первого алерта инцидента для реплая).
+</p>
+
+<div class="grid">
+
+  <!-- G: inline action buttons -->
+  <div class="card">
+    <h2><span class="num">G</span>Кнопки действий под сообщением <span class="badge native">нативная фича Bot API</span></h2>
+    <p class="desc">Самое полезное из всего списка: реальные тапаемые кнопки (<code>reply_markup.inline_keyboard</code>) — открыть дашборд без копирования ссылки, подтвердить, что видел алерт (<code>Ack</code>), или замьютить канал на час прямо из чата. Не Rich Message — обычный параметр <code>sendMessage</code>, поддерживается везде без исключений.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b> — api-node04 · <code>158.160.60.150</code></span>
+
+<span class="quote">Проба: Health Check · HTTP
+Где: ⚙️ API · ChatApp Production Servers
+Ошибка: <code>timed out</code>
+Длится уже: 0 с
+Время: 11.08.2026 13:02:21 UTC</span>
+<div class="tg-buttons">
+<span class="tg-btn">📊 Дашборд</span><span class="tg-btn">✅ Ack</span><span class="tg-btn">🔇 Мьют 1ч</span>
+</div>
+<span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- H: pre-aligned monospace block -->
+  <div class="card">
+    <h2><span class="num">H</span>Выровненные поля через <code>&lt;pre&gt;</code> <span class="badge native">нативная фича Bot API</span></h2>
+    <p class="desc">Моноширинный блок с ручным паддингом лейблов — колонки идеально выровнены, читается как лог/дашборд, а не как случайный текст. Никакого риска непредсказуемого рендера Rich-таблицы, просто текст с <code>&lt;pre&gt;</code>.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🔴 <b>Сбой</b> — api-node04 · <code>158.160.60.150</code></span>
+<div class="pre-block">Проба    Health Check · HTTP
+Где      ⚙️ API · Production
+Ошибка   timed out
+Длится   0 с
+Время    13:02:21 UTC</div>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- I: spoiler for sensitive value -->
+  <div class="card">
+    <h2><span class="num">I</span>Скрытые данные под спойлером <span class="badge native">нативная фича Bot API</span></h2>
+    <p class="desc">Внутренний IP/хост скрыт под <code>tg-spoiler</code> — не мелькает открытым текстом при быстром скролле чата (если в канале есть люди без доступа к инфраструктуре), но доступен по тапу тому, кому нужно. Полностью нативный тег форматирования, никакого экспериментального Rich Message.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b> — api-node04 · <span class="spoiler">158.160.60.150</span></span>
+
+<span class="quote">Проба: Health Check · HTTP
+Где: ⚙️ API · ChatApp Production Servers
+Ошибка: <code>timed out</code>
+Длится уже: 0 с
+Время: 11.08.2026 13:02:21 UTC</span>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- K: reply-chain threading for one incident -->
+  <div class="card live">
+    <h2><span class="num">K</span>Реплай-цепочка вместо разрозненных сообщений <span class="badge live">в проде</span></h2>
+    <p class="desc">Все алерты того же инцидента одного сервера (ongoing/escalated/resolved) отправляются как reply (<code>reply_parameters.message_id</code>) на первое сообщение ("opened") — визуально собираются в один тред вместо расползания по чату отдельными несвязанными сообщениями. Корень треда хранится в Redis по <code>(channel_id, server_id)</code> с TTL 24ч; если Redis недоступен или ключ истёк — просто шлётся обычное несвязанное сообщение (не ломает доставку). На <code>resolved</code> тред закрывается. Только для событий вида opened/ongoing/escalated/resolved — разовые события (IP/сертификат/контент изменились) не тредятся.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b> — api-node04 · <code>158.160.60.150</code></span>
+
+<span class="quote">Ошибка: <code>timed out</code> · Длится уже: 0 с · 13:02:21 UTC</span>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+      <div class="msg"><div class="reply-ref">↩ <b>🟠 Деградация</b> — api-node04</div>✅ <b>api-node04 восстановлен</b> · Простой: 1 мин 20 с<span class="time">16:03</span></div>
+    </div>
+  </div>
+
+</div>
+
+<h2 style="max-width:1200px; margin:44px auto 4px;">Комбо: рекомендуемый «лучший из лучших» дефолт</h2>
+<p class="sub" style="max-width:1200px;">Собирает самые удачные идеи выше в один формат — если что-то одно менять в проде, разумно начать с этого.</p>
+<div class="grid">
+  <div class="card" style="grid-column:1/-1; max-width:600px;">
+    <h2><span class="num">✨</span>Тренд + переход статуса + ошибка первой + номер инцидента + кнопки <span class="badge idea">идея</span></h2>
+    <p class="desc">Из вариантов B (тренд), C (переход статуса), D (ошибка первой), E (номер инцидента) и G (кнопки) — покрывает и быстрое сканирование глазами, и разбор постфактум, и мгновенное действие без выхода из Telegram. Всё на безопасных тегах + нативных кнопках, готово к внедрению без тестов на живом боте.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟢→🟠 <b>OK → Деградация</b> ▁▂▂▇█ — api-node04 · <code>158.160.60.150</code> · <code>#482</code></span>
+⚠️ <code>timed out</code>
+
+<span class="quote">Проба: Health Check · HTTP
+Где: ⚙️ API · ChatApp Production Servers
+Длится уже: 0 с</span>
+<div class="tg-buttons">
+<span class="tg-btn">📊 Дашборд</span><span class="tg-btn">✅ Ack</span><span class="tg-btn">🔇 Мьют 1ч</span>
+</div>
+<span class="time">16:02</span></div>
+    </div>
+  </div>
+</div>
+
 <footer>
   <b>Что подтверждённо работает в Telegram сегодня</b> (проверено вручную на живом боте): обычный форматированный текст (<code>&lt;b&gt;</code>, <code>&lt;code&gt;</code>, <code>&lt;a&gt;</code>, <code>&lt;blockquote expandable&gt;</code>) — варианты №1, №5, №6; и Rich Message-таблица с плоскими текстовыми ячейками (<code>sendRichMessage</code>, <code>cells: [[{"text":...}]]</code>) — вариант №2.<br>
   <b>Что появилось в свежей версии Bot API, но не проверено</b> (карточки №3, №4, №7, №8, №9): официальные классы <code>InputRichBlockList</code>/<code>ListItem</code>, <code>InputRichBlockDivider</code>, <code>InputRichBlockSectionHeading</code>, <code>InputRichBlockFooter</code>, <code>InputRichBlockDetails</code>, <code>InputRichBlockPullQuotation</code> и медиа-блоки (<code>Photo</code>/<code>Map</code>/др.) + поле <code>media</code> у <code>InputRichMessage</code>. Раньше похожие блоки (<code>details</code>, самодельный чек-лист) либо схлопывались пустыми, либо давали 400 — теперь это задокументированная часть схемы, но перед вкруткой в <code>dispatcher.py</code> каждый блок нужно прогнать через тестовый канал так же, как в своё время таблицу (см. историю git — несколько вариантов cells 400'лись до рабочего).<br>
   <b>Осознанно не включено:</b> голосовые заметки (<code>InputMediaVoiceNote</code>) — звуковой алерт технически возможен, но добавит только уведомление-усталость без пользы для мониторинга; markdown-таблицы через <code>InputRichMessageMedia</code>/<code>media</code> — избыточно, раз обычный <code>table</code>-блок уже работает.<br>
-  Скажи, какие блоки (3, 4, 7, 8, 9) прогнать против живого бота и завести в <code>dispatcher.py</code>.
+  Скажи, какие блоки (3, 4, 7, 8, 9) прогнать против живого бота и завести в <code>dispatcher.py</code>.<br>
+  <b>Из вариантов B–K и комбо ✨</b> — самые практичные для внедрения: G (кнопки действий) даёт больше реальной пользы, чем любой Rich-блок выше, и не требует никакой экспериментальной схемы; следом K (реплай-цепочка) и комбо ✨ (B+C+D+E+G) как готовый новый дефолт для варианта №1.
 </footer>
 
 </body>

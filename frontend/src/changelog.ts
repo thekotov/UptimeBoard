@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.9.0",
+    date: "2026-08-11",
+    changes: [
+      "Telegram-алерты одного сервера (деградация → эскалация → восстановление) теперь идут ответом на первое сообщение инцидента — собираются в один тред вместо разрозненных сообщений в чате",
+    ],
+  },
+  {
     version: "1.8.0",
     date: "2026-08-11",
     changes: [

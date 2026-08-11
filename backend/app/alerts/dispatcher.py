@@ -248,17 +248,16 @@ def _group_allows(server_id: int | None, event: str) -> bool:
             return True
 
 
-def _deliver(fn) -> None:
+def _deliver(fn):
     """Call a best-effort send function, retrying transient failures with
-    exponential backoff. Re-raises the last error if every attempt fails so the
-    caller can log it."""
+    exponential backoff. Returns fn()'s return value on success. Re-raises the
+    last error if every attempt fails so the caller can log it."""
     attempts = max(1, settings.alert_retry_attempts)
     backoff = settings.alert_retry_backoff_sec
     last: Exception | None = None
     for i in range(attempts):
         try:
-            fn()
-            return
+            return fn()
         except Exception as exc:  # noqa: BLE001
             last = exc
             if i + 1 < attempts:
@@ -267,30 +266,38 @@ def _deliver(fn) -> None:
         raise last
 
 
-def _send_telegram(config: dict, text: str, parse_mode: str | None = None) -> None:
+def _send_telegram(config: dict, text: str, parse_mode: str | None = None,
+                    reply_to: int | None = None) -> int | None:
     token, chat_id = config.get("bot_token"), config.get("chat_id")
     if not token or not chat_id:
         logger.warning("telegram channel misconfigured")
-        return
+        return None
     proxy = config.get("proxy") or None
     body: dict = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
     if parse_mode:
         body["parse_mode"] = parse_mode
+    if reply_to:
+        # allow_sending_without_reply: if the original message was since deleted,
+        # send standalone instead of failing the whole alert.
+        body["reply_parameters"] = {"message_id": reply_to, "allow_sending_without_reply": True}
     with httpx.Client(timeout=_TIMEOUT, proxy=proxy) as client:
         resp = client.post(f"https://api.telegram.org/bot{token}/sendMessage", json=body)
         resp.raise_for_status()
+        return resp.json().get("result", {}).get("message_id")
 
 
-def _send_telegram_rich(config: dict, blocks: list[dict]) -> None:
+def _send_telegram_rich(config: dict, blocks: list[dict], reply_to: int | None = None) -> int | None:
     """Send a Telegram Rich Message (Bot API 10.1+ sendRichMessage). Schema is
     best-effort (see _table_blocks) — raises on any non-2xx so the caller can
     fall back to the classic HTML message."""
     token, chat_id = config.get("bot_token"), config.get("chat_id")
     if not token or not chat_id:
         logger.warning("telegram channel misconfigured")
-        return
+        return None
     proxy = config.get("proxy") or None
-    body = {"chat_id": chat_id, "rich_message": {"blocks": blocks}}
+    body: dict = {"chat_id": chat_id, "rich_message": {"blocks": blocks}}
+    if reply_to:
+        body["reply_parameters"] = {"message_id": reply_to, "allow_sending_without_reply": True}
     with httpx.Client(timeout=_TIMEOUT, proxy=proxy) as client:
         resp = client.post(f"https://api.telegram.org/bot{token}/sendRichMessage", json=body)
         if resp.status_code >= 400:
@@ -302,6 +309,49 @@ def _send_telegram_rich(config: dict, blocks: list[dict]) -> None:
             except Exception:  # noqa: BLE001
                 detail = resp.text
             raise RuntimeError(f"sendRichMessage HTTP {resp.status_code}: {detail}")
+        return resp.json().get("result", {}).get("message_id")
+
+
+# --- Reply-chain threading: alerts for the same server's incident (opened ->
+# ongoing/escalated -> resolved) reply to the first message of that incident
+# instead of arriving as unrelated messages, so the whole lifecycle stays
+# visually grouped in the chat. Keyed by (channel, server) in Redis — same
+# storage style as the storm-grouping gate above, best-effort (a Redis miss
+# just means the next alert starts a fresh thread instead of chaining).
+_THREAD_EVENTS = ("opened", "ongoing", "escalated", "resolved")
+_THREAD_TTL_SEC = 24 * 3600
+
+
+def _thread_key(channel_id: int, server_id: int) -> str:
+    return f"alert:tg:thread:{channel_id}:{server_id}"
+
+
+def _thread_get(channel_id: int, server_id: int) -> int | None:
+    try:
+        r = get_sync_redis()
+        key = _thread_key(channel_id, server_id)
+        val = r.get(key)
+        if val is None:
+            return None
+        r.expire(key, _THREAD_TTL_SEC)  # keep the thread alive while a long incident drags on
+        return int(val)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("telegram reply-thread lookup failed: %s", exc)
+        return None
+
+
+def _thread_set(channel_id: int, server_id: int, message_id: int) -> None:
+    try:
+        get_sync_redis().set(_thread_key(channel_id, server_id), message_id, ex=_THREAD_TTL_SEC)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("telegram reply-thread store failed: %s", exc)
+
+
+def _thread_clear(channel_id: int, server_id: int) -> None:
+    try:
+        get_sync_redis().delete(_thread_key(channel_id, server_id))
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("telegram reply-thread clear failed: %s", exc)
 
 
 def test_telegram(token: str, proxy: str | None) -> tuple[bool, str]:
@@ -460,7 +510,7 @@ def send_test_webhook(config: dict) -> tuple[bool, str]:
     if not config.get("url"):
         return False, "url required"
     ctx = _sample_ctx()
-    plain, _ = _build_messages(ctx)
+    plain, _, _, _ = _build_messages(ctx)
     payload = {
         "event": ctx["event"], "probe": ctx["probe"], "type": ctx["type"],
         "host": ctx["host"], "server": ctx["server"], "service": ctx["service"],
@@ -517,7 +567,7 @@ def send_test_email(config: dict) -> tuple[bool, str]:
         return False, "to required"
     if not (config.get("from") or config.get("username")):
         return False, "from required"
-    plain, _ = _build_messages(_sample_ctx())
+    plain, _, _, _ = _build_messages(_sample_ctx())
     try:
         _send_email(config, subject="🧪 ТЕСТ: мониторинг", text="🧪 ТЕСТ\n\n" + plain)
         return True, "Тестовое письмо отправлено"
@@ -792,18 +842,29 @@ def dispatch(channels: list[AlertChannel], *, event: str, probe_name: str, serve
                    "page": page_title, "status": status, "error": error,
                    "latency_ms": latency_ms, "duration": duration, "url": page_url,
                    "occurred_at": now.isoformat(), "text": text}
+        threadable = server_id is not None and event in _THREAD_EVENTS
+        reply_to = _thread_get(ch.id, server_id) if (threadable and event != "opened") else None
+
         ok, err = True, None
         try:
             if ch.type == "telegram":
                 if not has_tpl and cfg.get("message_style") == "table":
                     try:
-                        _deliver(lambda cfg=cfg, blocks=table_blocks: _send_telegram_rich(cfg, blocks))
+                        msg_id = _deliver(lambda cfg=cfg, blocks=table_blocks, reply_to=reply_to:
+                                           _send_telegram_rich(cfg, blocks, reply_to))
                     except Exception as exc:  # noqa: BLE001 — Rich Message rejected, fall back to plain HTML
                         logger.warning("telegram Rich Message table failed (channel %s), "
                                        "falling back to classic HTML: %s", ch.id, exc)
-                        _deliver(lambda cfg=cfg, tg_text=tg_text, tg_mode=tg_mode: _send_telegram(cfg, tg_text, tg_mode))
+                        msg_id = _deliver(lambda cfg=cfg, tg_text=tg_text, tg_mode=tg_mode, reply_to=reply_to:
+                                           _send_telegram(cfg, tg_text, tg_mode, reply_to))
                 else:
-                    _deliver(lambda cfg=cfg, tg_text=tg_text, tg_mode=tg_mode: _send_telegram(cfg, tg_text, tg_mode))
+                    msg_id = _deliver(lambda cfg=cfg, tg_text=tg_text, tg_mode=tg_mode, reply_to=reply_to:
+                                       _send_telegram(cfg, tg_text, tg_mode, reply_to))
+                if threadable and msg_id:
+                    if event == "resolved":
+                        _thread_clear(ch.id, server_id)
+                    elif reply_to is None:
+                        _thread_set(ch.id, server_id, msg_id)
             elif ch.type == "webhook":
                 _deliver(lambda cfg=cfg, payload=payload: _send_webhook(cfg, payload))
             elif ch.type == "email":
