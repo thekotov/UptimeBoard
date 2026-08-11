@@ -10,6 +10,7 @@ import {
   type TelegramChat,
   telegramChats,
   testChannel,
+  toggleChannelMenu,
   updateAlertSettings,
 } from "../../api/client";
 import { PencilIcon, RefreshIcon, TrashIcon } from "../../components/Icons";
@@ -321,6 +322,8 @@ function ChannelForm({
   const [chatId, setChatId] = useState<string>(cfg.chat_id ?? "");
   const [proxy, setProxy] = useState<string>(cfg.proxy ?? "");
   const [messageStyle, setMessageStyle] = useState<string>(cfg.message_style ?? "default");
+  const [menuEnabled, setMenuEnabled] = useState<boolean>(!!cfg.menu_enabled);
+  const [menuBusy, setMenuBusy] = useState(false);
   // webhook
   const [url, setUrl] = useState<string>(cfg.url ?? "");
   const [format, setFormat] = useState<string>(cfg.format ?? "generic");
@@ -489,6 +492,20 @@ function ChannelForm({
     }
   };
 
+  const toggleMenu = async (next: boolean) => {
+    if (!editing) return;
+    setMenuBusy(true);
+    try {
+      const res = await toggleChannelMenu(channel!.id, next);
+      setMenuEnabled(res.menu_enabled);
+      toast.success(t("toast.saved"));
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || t("toast.error"));
+    } finally {
+      setMenuBusy(false);
+    }
+  };
+
   return (
     <form onSubmit={submit} className="form-grid">
       <div>
@@ -569,6 +586,21 @@ function ChannelForm({
             </div>
             <div className="hint">{t("alerts.messageStyleHint")}</div>
           </div>
+          {editing && (
+            <div className="full">
+              <label>{t("alerts.menuCommands")}</label>
+              <label className="storm-settings-toggle">
+                <input
+                  type="checkbox"
+                  checked={menuEnabled}
+                  disabled={menuBusy || !chatId.trim()}
+                  onChange={(e) => toggleMenu(e.target.checked)}
+                />
+                <span>{t("alerts.menuCommandsEnable")}</span>
+              </label>
+              <div className="hint">{t("alerts.menuCommandsHint")}</div>
+            </div>
+          )}
           {chats && chats.length > 0 && (
             <div className="full">
               <div className="hint">{t("alerts.pickChatHint")}</div>

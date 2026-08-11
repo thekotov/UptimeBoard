@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.12.0",
+    date: "2026-08-11",
+    changes: [
+      "Telegram-бот: команда /menu с кнопками — статус сейчас, аптайм за период, здоровье воркера — прямо в чате, без входа в админку",
+      "Настройки Telegram-канала: переключатель для включения команд в чате",
+    ],
+  },
+  {
     version: "1.11.0",
     date: "2026-08-11",
     changes: [

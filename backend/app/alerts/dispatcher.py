@@ -84,6 +84,9 @@ def _fmt_duration(seconds: float) -> str:
     return " ".join(parts)
 
 
+fmt_duration = _fmt_duration  # public alias for use outside this module
+
+
 def _build_messages(ctx: dict) -> tuple[str, str, str, list[tuple[str, str, str]]]:
     """Build (plain, html, head_plain, rows) for an alert. HTML uses
     Telegram-supported tags (<b>, <code>, <a>, <blockquote expandable>); plain
@@ -294,7 +297,7 @@ def _deliver(fn):
 
 
 def _send_telegram(config: dict, text: str, parse_mode: str | None = None,
-                    reply_to: int | None = None) -> int | None:
+                    reply_to: int | None = None, reply_markup: dict | None = None) -> int | None:
     token, chat_id = config.get("bot_token"), config.get("chat_id")
     if not token or not chat_id:
         logger.warning("telegram channel misconfigured")
@@ -307,10 +310,84 @@ def _send_telegram(config: dict, text: str, parse_mode: str | None = None,
         # allow_sending_without_reply: if the original message was since deleted,
         # send standalone instead of failing the whole alert.
         body["reply_parameters"] = {"message_id": reply_to, "allow_sending_without_reply": True}
+    if reply_markup is not None:
+        body["reply_markup"] = reply_markup
     with httpx.Client(timeout=_TIMEOUT, proxy=proxy) as client:
         resp = client.post(f"https://api.telegram.org/bot{token}/sendMessage", json=body)
         resp.raise_for_status()
         return resp.json().get("result", {}).get("message_id")
+
+
+def send_telegram_message(config: dict, text: str, parse_mode: str | None = None,
+                           reply_markup: dict | None = None) -> int | None:
+    """Public wrapper for sending a bot-command reply (e.g. /menu) — same as
+    _send_telegram but named for use outside this module (telegram_menu.py)."""
+    return _send_telegram(config, text, parse_mode=parse_mode, reply_markup=reply_markup)
+
+
+def edit_telegram_message(config: dict, message_id: int, text: str,
+                           parse_mode: str | None = "HTML", reply_markup: dict | None = None) -> None:
+    """Edit a previously-sent message in place (used to update a /menu screen
+    without spamming a new message per button tap)."""
+    token, chat_id = config.get("bot_token"), config.get("chat_id")
+    if not token or not chat_id:
+        return
+    proxy = config.get("proxy") or None
+    body: dict = {"chat_id": chat_id, "message_id": message_id, "text": text}
+    if parse_mode:
+        body["parse_mode"] = parse_mode
+    if reply_markup is not None:
+        body["reply_markup"] = reply_markup
+    with httpx.Client(timeout=_TIMEOUT, proxy=proxy) as client:
+        resp = client.post(f"https://api.telegram.org/bot{token}/editMessageText", json=body)
+        resp.raise_for_status()
+
+
+def answer_telegram_callback(config: dict, callback_query_id: str, text: str | None = None) -> None:
+    """Acknowledge a button tap (stops the client's loading spinner). Telegram
+    expects this within a few seconds; best-effort, never raises."""
+    token = config.get("bot_token")
+    if not token:
+        return
+    proxy = config.get("proxy") or None
+    body: dict = {"callback_query_id": callback_query_id}
+    if text:
+        body["text"] = text
+    try:
+        with httpx.Client(timeout=_TIMEOUT, proxy=proxy) as client:
+            client.post(f"https://api.telegram.org/bot{token}/answerCallbackQuery", json=body)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("answerCallbackQuery failed: %s", exc)
+
+
+def set_telegram_webhook(config: dict, url: str) -> None:
+    """Register the inbound webhook for /menu commands. Raises on failure so
+    the admin action surfaces the real error. Note: Telegram disables
+    getUpdates (used by "pick chat_id") for a bot once a webhook is set."""
+    token = config.get("bot_token")
+    if not token:
+        raise ValueError("bot_token required")
+    proxy = config.get("proxy") or None
+    body = {"url": url, "allowed_updates": ["message", "callback_query"]}
+    with httpx.Client(timeout=_TIMEOUT, proxy=proxy) as client:
+        resp = client.post(f"https://api.telegram.org/bot{token}/setWebhook", json=body)
+        data = resp.json()
+        if not data.get("ok"):
+            raise RuntimeError(data.get("description") or f"HTTP {resp.status_code}")
+
+
+def delete_telegram_webhook(config: dict) -> None:
+    """Best-effort: restore getUpdates capability for the bot when /menu is
+    disabled. Never raises."""
+    token = config.get("bot_token")
+    if not token:
+        return
+    proxy = config.get("proxy") or None
+    try:
+        with httpx.Client(timeout=_TIMEOUT, proxy=proxy) as client:
+            client.post(f"https://api.telegram.org/bot{token}/deleteWebhook", json={})
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("deleteWebhook failed: %s", exc)
 
 
 def _send_telegram_rich(config: dict, blocks: list[dict], reply_to: int | None = None) -> int | None:

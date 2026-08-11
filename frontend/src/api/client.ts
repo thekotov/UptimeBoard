@@ -355,6 +355,17 @@ export async function updateAlertSettings(body: {
   return data;
 }
 
+export async function toggleChannelMenu(
+  channelId: number,
+  enabled: boolean
+): Promise<{ ok: boolean; menu_enabled: boolean }> {
+  const { data } = await api.post<{ ok: boolean; menu_enabled: boolean }>(
+    `/admin/alert-channels/${channelId}/menu`,
+    { enabled }
+  );
+  return data;
+}
+
 export async function testChannel(body: {
   type: string;
   config: Record<string, unknown>;

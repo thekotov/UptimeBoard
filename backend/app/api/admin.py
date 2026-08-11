@@ -28,6 +28,7 @@ from app.models import (
 from app.schemas.admin import (
     AlertChannelCreate,
     AlertChannelOut,
+    AlertChannelMenuToggle,
     AlertChannelTest,
     AlertChannelUpdate,
     AlertSettingsOut,
@@ -55,6 +56,7 @@ from app.schemas.admin import (
 from app.realtime import get_sync_redis, get_worker_heartbeat_age
 from app.config import settings
 from app.alerts import (
+    delete_telegram_webhook,
     get_alert_storm_window_sec,
     list_telegram_chats,
     record_deliveries,
@@ -62,6 +64,7 @@ from app.alerts import (
     send_test_email,
     send_test_telegram,
     send_test_webhook,
+    set_telegram_webhook,
     test_email,
     test_telegram,
     test_webhook,
@@ -986,7 +989,7 @@ def admin_search(q: str = "", db: Session = Depends(get_db)):
 
 # Secret config keys per channel type — masked in responses, preserved when the
 # client submits an empty value on update (so they aren't accidentally wiped).
-_SECRET_KEYS = {"telegram": ["bot_token"], "webhook": ["secret_value"], "email": ["password"]}
+_SECRET_KEYS = {"telegram": ["bot_token", "webhook_secret"], "webhook": ["secret_value"], "email": ["password"]}
 _MASK = "••••••"
 
 
@@ -1026,6 +1029,37 @@ def update_alert_settings(payload: AlertSettingsUpdate, db: Session = Depends(ge
 @router.get("/alert-channels", response_model=list[AlertChannelOut])
 def list_alert_channels(db: Session = Depends(get_db)):
     return [_masked(c) for c in db.query(AlertChannel).order_by(AlertChannel.id).all()]
+
+
+@router.post("/alert-channels/{channel_id}/menu")
+def toggle_alert_channel_menu(channel_id: int, payload: AlertChannelMenuToggle, db: Session = Depends(get_db)):
+    """Enable/disable the /menu bot commands for a Telegram channel by
+    registering (or removing) its inbound webhook. Note: enabling this makes
+    Telegram stop serving getUpdates for the bot (used by "pick chat_id") —
+    set chat_id before turning /menu on."""
+    channel = _get_or_404(db, AlertChannel, channel_id)
+    if channel.type != "telegram":
+        raise HTTPException(status_code=400, detail="menu commands are telegram-only")
+    cfg = dict(channel.config or {})
+    if payload.enabled:
+        if not settings.public_base_url:
+            raise HTTPException(status_code=400, detail="PUBLIC_BASE_URL not configured on the server")
+        if not cfg.get("bot_token") or not cfg.get("chat_id"):
+            raise HTTPException(status_code=400, detail="bot_token and chat_id required first")
+        secret = cfg.get("webhook_secret") or uuid4().hex
+        url = f"{settings.public_base_url.rstrip('/')}/api/telegram/webhook/{channel.id}/{secret}"
+        try:
+            set_telegram_webhook(cfg, url)
+        except Exception as exc:  # noqa: BLE001
+            raise HTTPException(status_code=502, detail=f"setWebhook failed: {exc}")
+        cfg["menu_enabled"] = True
+        cfg["webhook_secret"] = secret
+    else:
+        delete_telegram_webhook(cfg)
+        cfg["menu_enabled"] = False
+    channel.config = cfg
+    db.commit()
+    return {"ok": True, "menu_enabled": cfg["menu_enabled"]}
 
 
 def _resolve_test_config(payload: AlertChannelTest, db: Session) -> dict:

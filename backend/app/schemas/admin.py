@@ -254,6 +254,10 @@ class AlertChannelTest(BaseModel):
     channel_id: int | None = None  # to reuse stored secrets when testing an existing channel
 
 
+class AlertChannelMenuToggle(BaseModel):
+    enabled: bool
+
+
 # ---- Maintenance windows ----
 
 

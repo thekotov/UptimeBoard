@@ -1,7 +1,7 @@
 from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api import admin, auth, ping, public
+from app.api import admin, auth, ping, public, telegram_webhook
 from app.config import settings
 from app.realtime import get_worker_heartbeat_age
 
@@ -25,6 +25,7 @@ app.include_router(auth.router)
 app.include_router(admin.router)
 app.include_router(public.router)
 app.include_router(ping.router)
+app.include_router(telegram_webhook.router)
 
 
 @app.get("/api/health")
