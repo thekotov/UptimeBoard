@@ -86,6 +86,16 @@ def _fmt_duration(seconds: float) -> str:
 
 fmt_duration = _fmt_duration  # public alias for use outside this module
 
+# Long error text (raw HTTP bodies, stack traces) gets hidden behind a tap
+# instead of dumping noise straight into the alert — <tg-spoiler> has worked in
+# classic sendMessage HTML since long before Rich Messages existed.
+_SPOILER_THRESHOLD = 80
+
+
+def _error_html(text: str, esc) -> str:
+    body = f"<code>{esc(text)}</code>"
+    return f"<tg-spoiler>{body}</tg-spoiler>" if len(text) > _SPOILER_THRESHOLD else body
+
 
 def _build_messages(ctx: dict) -> tuple[str, str, str, list[tuple[str, str, str]]]:
     """Build (plain, html, head_plain, rows) for an alert. HTML uses
@@ -119,7 +129,7 @@ def _build_messages(ctx: dict) -> tuple[str, str, str, list[tuple[str, str, str]
             "ip_changed": "IP", "cert_changed": "Сертификат",
             "content_changed": "Контент", "cert_expiring": "Сертификат",
         }.get(ctx["event"], "Ошибка")
-        rows.append((err_label, ctx["error"], f"<code>{esc(ctx['error'])}</code>"))
+        rows.append((err_label, ctx["error"], _error_html(ctx["error"], esc)))
     if ctx.get("duration"):
         label = "Простой" if ctx["event"] == "resolved" else "Длится уже"
         rows.append((label, ctx["duration"], esc(ctx["duration"])))
@@ -170,8 +180,9 @@ def _compact_message(ctx: dict) -> tuple[str, str]:
     link_plain = f" · 🔗 {ctx['url']}" if ctx.get("url") else ""
     link_html = f' · 🔗 <a href="{esc(ctx["url"])}">статус</a>' if ctx.get("url") else ""
 
+    detail_html = _error_html(detail, esc) if ctx.get("error") else f"<code>{esc(detail)}</code>"
     plain = f"{emoji} {srv} → {detail} ({meta}){link_plain}"
-    html_ = f"{emoji} <b>{esc(srv)}</b> → <code>{esc(detail)}</code> ({esc(meta)}){link_html}"
+    html_ = f"{emoji} <b>{esc(srv)}</b> → {detail_html} ({esc(meta)}){link_html}"
     return plain, html_
 
 

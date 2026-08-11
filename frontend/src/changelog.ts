@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.12.2",
+    date: "2026-08-11",
+    changes: [
+      "Длинный текст ошибки в Telegram-алертах (обычный/компакт формат) теперь скрыт под спойлер, чтобы не раздувать сообщение",
+    ],
+  },
+  {
     version: "1.12.1",
     date: "2026-08-11",
     changes: [
