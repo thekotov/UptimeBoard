@@ -17,6 +17,7 @@ from apscheduler.executors.pool import ThreadPoolExecutor
 from apscheduler.schedulers.background import BackgroundScheduler
 from sqlalchemy.orm import Session
 
+from app.alerts import flush_storm_alerts
 from app.config import settings
 from app.db import SessionLocal
 from app.models import Probe, ProbeResult
@@ -48,6 +49,13 @@ def _check_probe(probe_id: int) -> None:
         logger.exception("probe %s check failed", probe_id)
     finally:
         db.close()
+
+
+def _flush_storm_alerts() -> None:
+    try:
+        flush_storm_alerts()
+    except Exception:  # noqa: BLE001
+        logger.exception("storm-alert flush failed")
 
 
 def _retention_cleanup() -> None:
@@ -162,6 +170,13 @@ def main() -> None:
         trigger="interval",
         hours=6,
         id="retention-cleanup",
+        replace_existing=True,
+    )
+    scheduler.add_job(
+        _flush_storm_alerts,
+        trigger="interval",
+        seconds=2,
+        id="storm-alert-flush",
         replace_existing=True,
     )
     scheduler.add_job(

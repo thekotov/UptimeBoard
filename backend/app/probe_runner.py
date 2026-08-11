@@ -9,7 +9,13 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from app.alerts import all_escalation_channels, base_channels, dispatch, escalation_channels
+from app.alerts import (
+    all_escalation_channels,
+    base_channels,
+    dispatch,
+    escalation_channels,
+    queue_storm_alert,
+)
 from app.config import settings
 from app.models import Incident, MaintenanceWindow, Probe, ProbeEvent, ProbeResult
 from app.models.monitoring import (
@@ -348,8 +354,19 @@ def handle_incident(db: Session, probe: Probe, outcome: ProbeOutcome, host: str,
     if bad:
         if open_incident is None:
             if probe.consecutive_failures >= threshold and not maint:
-                db.add(Incident(probe_id=probe.id, last_status=outcome.status, last_notified_at=now))
-                dispatch(base_channels(db, page_id), event="opened", started_at=now, **common)
+                db.add(Incident(probe_id=probe.id, last_status=outcome.status,
+                                 last_notified_at=now, alert_count=1))
+                window = settings.alert_storm_window_sec
+                service_id = probe.server.service_id if probe.server is not None else None
+                if window > 0 and service_id is not None:
+                    try:
+                        queue_storm_alert(service_id=service_id, page_id=page_id,
+                                           window_sec=window, record={**common, "started_at": now})
+                    except Exception as exc:  # noqa: BLE001 — Redis down: don't lose the alert
+                        logger.warning("storm queue failed, sending immediately: %s", exc)
+                        dispatch(base_channels(db, page_id), event="opened", started_at=now, **common)
+                else:
+                    dispatch(base_channels(db, page_id), event="opened", started_at=now, **common)
         else:
             open_incident.last_status = outcome.status
             if maint:
@@ -366,21 +383,25 @@ def handle_incident(db: Session, probe: Probe, outcome: ProbeOutcome, host: str,
                     dispatch(base_channels(db, page_id), event="ongoing",
                              started_at=open_incident.started_at, **common)
                     open_incident.last_notified_at = now
+                    open_incident.alert_count += 1
             # escalate once to escalation channels whose threshold has elapsed
             if open_incident.escalated_at is None:
                 esc = escalation_channels(db, page_id, int(age_min))
                 if esc:
                     dispatch(esc, event="escalated", started_at=open_incident.started_at, **common)
                     open_incident.escalated_at = now
+                    open_incident.alert_count += 1
     elif open_incident is not None and probe.consecutive_successes >= max(1, probe.recovery_threshold):
         # Recovery confirmed (enough good checks in a row) -> close the incident.
         started = open_incident.started_at
+        alert_count = open_incident.alert_count + 1  # + this resolved alert itself
         open_incident.resolved_at = now
         if not maint:
-            dispatch(base_channels(db, page_id), event="resolved", started_at=started, **common)
+            dispatch(base_channels(db, page_id), event="resolved", started_at=started,
+                     alert_count=alert_count, **common)
             if open_incident.escalated_at is not None:
                 dispatch(all_escalation_channels(db, page_id), event="resolved",
-                         group=False, started_at=started, **common)
+                         group=False, started_at=started, alert_count=alert_count, **common)
 
 
 def execute_and_store(db: Session, probe: Probe) -> ProbeOutcome:

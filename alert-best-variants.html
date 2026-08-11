@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Лучшие варианты алертов — UptimeBoard</title>
+<style>
+  :root{
+    --bg:#0e1621; --panel:#17212b; --bubble:#182533;
+    --text:#e9edef; --muted:#8a97a3; --accent:#5eabd6; --code-bg:#0d1620;
+    --border:#26333f; --green:#4caf50; --orange:#ff9800; --red:#f04747;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:32px 16px 80px; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  h1{font-size:22px; margin:0 0 4px;}
+  .sub{color:var(--muted); margin:0 0 32px; font-size:14px; max-width:820px; line-height:1.55;}
+  .grid{display:grid; grid-template-columns:1fr; gap:28px; max-width:1200px; margin:0 auto;}
+  @media(min-width:1000px){ .grid{grid-template-columns:1fr 1fr;} }
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:12px;
+    padding:16px; display:flex; flex-direction:column; gap:10px;
+  }
+  .card.live{border-color:rgba(76,175,80,.4);}
+  .card h2{font-size:15px; margin:0; color:var(--text); display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .card h2 .num{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:22px; height:22px; border-radius:50%; background:var(--accent);
+    color:#08131c; font-size:12px; font-weight:700; flex:none;
+  }
+  .card p.desc{margin:0; font-size:12.5px; color:var(--muted); line-height:1.55;}
+  .tg-wrap{background:#0b141c; border-radius:10px; padding:14px 10px;}
+  .msg{
+    background:var(--bubble); border-radius:12px 12px 12px 3px; padding:10px 12px 8px;
+    max-width:100%; font-size:14.5px; line-height:1.42; white-space:pre-wrap; word-break:break-word;
+    box-shadow:0 1px 2px rgba(0,0,0,.3);
+  }
+  .msg .time{display:block; text-align:right; color:var(--muted); font-size:11px; margin-top:4px;}
+  .msg b{font-weight:700; color:var(--text);}
+  .msg code{
+    background:var(--code-bg); border-radius:4px; padding:1px 5px; font-family:"SF Mono",Consolas,monospace;
+    font-size:13px; color:#9fd0e8;
+  }
+  .msg a{color:var(--accent); text-decoration:none;}
+  .msg i{color:var(--muted); font-style:italic;}
+  .headline{font-size:16px;}
+  .quote{
+    display:block; border-left:3px solid var(--accent); background:rgba(94,171,214,0.08);
+    padding:4px 10px; margin:6px 0; border-radius:0 4px 4px 0; position:relative; padding-right:26px;
+  }
+  .quote::after{content:"⌄"; position:absolute; right:8px; top:4px; color:var(--accent); font-size:15px; line-height:1;}
+  .badge{
+    display:inline-block; font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px;
+    letter-spacing:.03em; vertical-align:2px;
+  }
+  .badge.live{background:rgba(76,175,80,.15); color:#7fd68a; border:1px solid rgba(76,175,80,.35);}
+  .badge.idea{background:rgba(94,171,214,.15); color:var(--accent); border:1px solid rgba(94,171,214,.35);}
+  .badge.new{background:rgba(179,137,224,.15); color:#c9a6f0; border:1px solid rgba(179,137,224,.35);}
+  .rtable{width:100%; border-collapse:collapse; margin:6px 0 2px; font-size:13.5px;}
+  .rtable th,.rtable td{border:1px solid #3a4a5a; padding:5px 9px; text-align:left;}
+  .rtable th{background:rgba(94,171,214,.1); color:var(--text); font-weight:600;}
+  .rtable tr:nth-child(even) td{background:rgba(255,255,255,.03);}
+  .checklist{list-style:none; margin:6px 0; padding:0; display:flex; flex-direction:column; gap:3px;}
+  .checklist li{display:flex; align-items:center; gap:8px; font-size:14px;}
+  .chk{
+    width:16px; height:16px; border-radius:4px; border:1.5px solid var(--muted); flex:none;
+    display:inline-flex; align-items:center; justify-content:center; font-size:11px;
+  }
+  .chk.done{background:#4caf50; border-color:#4caf50; color:#04220a;}
+
+  /* --- new Rich Message block mockups --- */
+  .section-head{font-weight:700; font-size:14px; margin:4px 0 0; display:flex; align-items:center; gap:6px;}
+  .rdivider{border:none; border-top:1px solid var(--border); margin:8px 0;}
+  .rblock-list{list-style:none; margin:4px 0; padding:0; display:flex; flex-direction:column; gap:3px;}
+  .rblock-list li{padding-left:14px; position:relative;}
+  .rblock-list li::before{content:"•"; position:absolute; left:0; color:var(--accent);}
+  .footer-block{
+    color:var(--muted); font-size:12px; border-top:1px solid var(--border);
+    margin-top:6px; padding-top:6px; display:flex; justify-content:space-between; align-items:center;
+  }
+  .footer-block a{color:var(--accent); text-decoration:none;}
+  .pullquote{
+    font-size:16.5px; font-weight:600; text-align:center; padding:12px 10px 16px;
+    margin:6px 0; position:relative; color:var(--text);
+  }
+  .pullquote::before,.pullquote::after{color:var(--accent); opacity:.55; font-size:26px; position:absolute; line-height:1;}
+  .pullquote::before{content:"\201C"; left:4px; top:0;}
+  .pullquote::after{content:"\201D"; right:4px; bottom:0;}
+  .details-block{border:1px solid var(--border); border-radius:8px; padding:8px 10px; margin:4px 0; background:rgba(255,255,255,.02);}
+  .details-summary{font-size:13.5px; color:var(--accent); display:flex; align-items:center; gap:6px;}
+  .details-body{margin-top:6px; padding-top:6px; border-top:1px dashed var(--border); font-size:13px; color:var(--muted);}
+  .media-thumb{border-radius:8px; overflow:hidden; margin:6px 0; background:#0b141c;}
+  .media-thumb svg{display:block; width:100%; height:auto;}
+  .media-cap{font-size:11.5px; color:var(--muted); margin-top:2px;}
+  .map-thumb{border-radius:8px; overflow:hidden; margin:6px 0; height:110px; background:linear-gradient(135deg,#1c2b38,#12202b); position:relative;}
+  .map-thumb .pin{position:absolute; left:50%; top:48%; transform:translate(-50%,-100%); font-size:26px; filter:drop-shadow(0 2px 3px rgba(0,0,0,.5));}
+  .map-thumb .grid-lines{position:absolute; inset:0; background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px); background-size:22px 22px;}
+  .map-thumb .cap{position:absolute; bottom:6px; left:8px; font-size:11px; color:var(--muted); background:rgba(0,0,0,.4); padding:1px 6px; border-radius:4px;}
+
+  footer{max-width:1200px; margin:40px auto 0; color:var(--muted); font-size:12.5px; line-height:1.7;}
+  footer code{background:var(--code-bg); padding:1px 5px; border-radius:4px;}
+</style>
+</head>
+<body>
+
+<h1>Лучшие варианты уведомлений в Telegram</h1>
+<p class="sub">
+  Подборка с учётом свежего обновления Bot API — добавлены официальные типы Rich Message-блоков
+  (<code>list</code>, <code>divider</code>, <code>sectionHeading</code>, <code>footer</code>, <code>details</code>,
+  <code>pullQuotation</code>, медиа-блоки и др.). <span class="badge live">в проде</span> — уже работает как есть
+  в <code>dispatcher.py</code> сегодня. <span class="badge idea">идея</span> — обычное текстовое форматирование,
+  реализуемо без риска (HTML-теги, которые Telegram точно поддерживает). <span class="badge new">новый блок API</span>
+  — использует Rich Message-блок, который появился в свежей версии Bot API и <b>не проверен</b> на живом боте — перед
+  включением в <code>dispatcher.py</code> нужно потестировать схему так же, как в своё время с таблицей (см. историю
+  git — несколько вариантов схемы cells 400'лись до рабочей).
+</p>
+
+<div class="grid">
+
+  <!-- 1: current default -->
+  <div class="card live">
+    <h2><span class="num">1</span>Обычный формат <span class="badge live">в проде</span></h2>
+    <p class="desc">Статус + сервер + IP сразу в заголовке, остальные поля (проба/где/ошибка/длится/время) свёрнуты в раскрывающуюся цитату — не режет глаз списком, но всё доступно по тапу. Дефолт для всех Telegram-каналов.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b> — api-node04 · <code>158.160.60.150</code></span>
+
+<span class="quote">Проба: Health Check · HTTP
+Где: ⚙️ API · ChatApp Production Servers
+Ошибка: <code>timed out</code>
+Длится уже: 0 с
+Время: 11.08.2026 13:02:21 UTC</span>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- 2: table (rich message) -->
+  <div class="card live">
+    <h2><span class="num">2</span>Таблица (Rich Message) <span class="badge live">в проде</span></h2>
+    <p class="desc">Настоящая Telegram-таблица вместо текстового списка — включается в настройках канала (<code>message_style: "table"</code>). Аккуратнее при большом числе полей, при сбое API — автооткат на вариант №1.</p>
+    <div class="tg-wrap">
+      <div class="msg">🔴 <b>Сбой</b> — api-node04 · <code>158.160.60.150</code>
+<table class="rtable">
+<tr><th>Поле</th><th>Значение</th></tr>
+<tr><td>Проба</td><td>Health Check · HTTP</td></tr>
+<tr><td>Где</td><td>⚙️ API · ChatApp Production</td></tr>
+<tr><td>Ошибка</td><td><code>timed out</code></td></tr>
+<tr><td>Длится уже</td><td>0 с</td></tr>
+<tr><td>Время</td><td>13:02:21 UTC</td></tr>
+</table>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- 3: grouped storm alert with real list/divider/heading blocks -->
+  <div class="card">
+    <h2><span class="num">3</span>Групповой шторм: heading + список + разделитель <span class="badge new">новый блок API</span></h2>
+    <p class="desc">Тот же групповой алерт (3 сервера одной группы упали почти одновременно), но вместо ручных «•» строк в тексте — настоящие <code>sectionHeading</code> + <code>list</code>/<code>listItem</code> блоки, разделённые <code>divider</code>. Раньше подобные вложенные блоки у Telegram не отрисовывались вовсе — теперь они официально в схеме, стоит перепроверить.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация · 3 сервера</b></span>
+<span class="section-head">⚙️ API · ChatApp Production Servers</span>
+<hr class="rdivider">
+<ul class="rblock-list">
+<li>api-node02 <code>51.250.13.253</code> — <code>timed out</code></li>
+<li>api-node03 <code>51.250.72.233</code> — <code>timed out</code></li>
+<li>api-node04 <code>158.160.60.150</code> — <code>timed out</code></li>
+</ul>
+<hr class="rdivider">
+<b>Проба:</b> Health Check · HTTP
+<div class="footer-block"><span>11.08.2026 13:02:21 UTC</span><a href="#">Статус-страница →</a></div>
+</div>
+    </div>
+  </div>
+
+  <!-- 4: resolved with pull quotation + footer block -->
+  <div class="card">
+    <h2><span class="num">4</span>Восстановление: pull quotation + footer-блок <span class="badge new">новый блок API</span></h2>
+    <p class="desc">Вместо простого текста «Простой: 1 мин 20 с» — выделяем длительность крупной цитатой (<code>pullQuotation</code>), а метаданные (время, ссылка) переносим в отдельный нижний <code>footer</code>-блок вместо инлайн-текста.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">✅ <b>api-node04 восстановлен</b> · <code>158.160.60.150</code></span>
+<div class="pullquote">Простой: 1 мин 20 с<br><span style="font-size:12px;font-weight:400;color:var(--muted)">13:02:21 → 13:03:42</span></div>
+Текущий ответ: 576 мс
+Проба: Health Check · HTTP
+Алертов по инциденту: 1
+<div class="footer-block"><span>16:03</span><a href="#">Статус-страница →</a></div>
+</div>
+    </div>
+  </div>
+
+  <!-- 5: compact for busy chats -->
+  <div class="card">
+    <h2><span class="num">5</span>Компакт для шумных чатов <span class="badge idea">идея</span></h2>
+    <p class="desc">Одна строка без раскрытия — статус, сервер, что случилось, время. Хорошо смотрится, когда алерты идут вперемешку с обычным общением людей (как на реальном скрине) и не хочется занимать 8 строк на каждое сообщение.</p>
+    <div class="tg-wrap">
+      <div class="msg">🟠 api-node04 → <code>timed out</code> (HTTP, 13:02:21 UTC)<span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- 6: checklist for group incident lifecycle -->
+  <div class="card">
+    <h2><span class="num">6</span>Чек-лист по серверам (текстовый, гарантированно работает) <span class="badge idea">идея</span></h2>
+    <p class="desc">Для группового сбоя — одно сообщение с галочками, которое обновляется (<code>editMessageText</code>) по мере восстановления каждого сервера, а не шлётся заново. Настоящего «checkbox»-блока в Rich Message API до сих пор нет (список из карточки №3 — просто маркеры, не чекбоксы) — эмулируем символами ✓/□ через обычный текст, это точно рендерится везде.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация · 3 сервера</b></span>
+⚙️ API · ChatApp Production Servers
+
+<ul class="checklist">
+<li><span class="chk done">✓</span> api-node02 · <code>51.250.13.253</code> — восстановлен</li>
+<li><span class="chk"></span> api-node03 · <code>51.250.72.233</code> — timed out</li>
+<li><span class="chk"></span> api-node04 · <code>158.160.60.150</code> — timed out</li>
+</ul>
+<b>Проба:</b> Health Check · HTTP
+🔗 <a href="#">Статус-страница</a><span class="time">16:03</span></div>
+    </div>
+  </div>
+
+  <!-- 7: details block for long error/stacktrace -->
+  <div class="card">
+    <h2><span class="num">7</span>Подробности ошибки в <code>details</code>-блоке <span class="badge new">новый блок API</span></h2>
+    <p class="desc">Длинный текст ответа сервера/трассу стоит прятать не за <code>&lt;blockquote expandable&gt;</code> (вариант №1), а за настоящий <code>details</code>-блок Rich Message — раньше он у Telegram схлопывался пустым, теперь официально описан в схеме, стоит перепроверить перед переключением с проверенного blockquote.</p>
+    <div class="tg-wrap">
+      <div class="msg">🔴 <b>Сбой</b> — api-node04 · <code>158.160.60.150</code>
+<div class="details-block">
+<div class="details-summary">▸ Подробности ошибки</div>
+<div class="details-body">HTTP/1.1 через 3 попытки: <code>connect: connection timed out after 3000ms</code>
+Последний успешный ответ: 12.08.2026 12:58:03 UTC (204 мс)</div>
+</div>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- 8: sparkline/photo media block -->
+  <div class="card">
+    <h2><span class="num">8</span>Мини-график задержки как медиа-блок <span class="badge new">новый блок API</span></h2>
+    <p class="desc">К алерту прикладывается маленький график времени ответа за последний час (<code>InputRichBlockPhoto</code>/<code>media</code> прямо в Rich Message) — сразу видно, деградация была резкой или это медленное сползание. Требует генерировать PNG/SVG на бэкенде и хостить/аплоадить его боту.</p>
+    <div class="tg-wrap">
+      <div class="msg">🟠 <b>Деградация</b> — api-node04 · <code>158.160.60.150</code>
+<div class="media-thumb">
+<svg viewBox="0 0 300 70" preserveAspectRatio="none">
+  <polyline points="0,55 30,53 60,54 90,50 120,52 150,20 180,12 210,18 240,15 270,17 300,16" fill="none" stroke="#ff9800" stroke-width="2.5"/>
+  <circle cx="270" cy="17" r="3.5" fill="#ff9800"/>
+</svg>
+</div>
+<div class="media-cap">Время ответа за 1ч — рост с ~120 мс до ~2.3 с</div>
+Проба: Health Check · HTTP<span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- 9: map block for datacenter/region -->
+  <div class="card">
+    <h2><span class="num">9</span>Датацентр на карте <span class="badge new">новый блок API</span></h2>
+    <p class="desc">Для инфраструктурных сбоев (ping/tcp), когда важно быстро понять «это конкретный сервер или весь регион» — координаты датацентра как <code>InputRichBlockMap</code>. Скорее приятная деталь, чем необходимость: даёт пользу в основном при мультирегиональном мониторинге нескольких ДЦ.</p>
+    <div class="tg-wrap">
+      <div class="msg">🔴 <b>Сбой</b> — api-node04 · <code>158.160.60.150</code>
+<div class="map-thumb"><div class="grid-lines"></div><span class="pin">📍</span><span class="cap">DC1 · Москва</span></div>
+Где: ⚙️ API · ChatApp Production Servers<span class="time">16:02</span></div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  <b>Что подтверждённо работает в Telegram сегодня</b> (проверено вручную на живом боте): обычный форматированный текст (<code>&lt;b&gt;</code>, <code>&lt;code&gt;</code>, <code>&lt;a&gt;</code>, <code>&lt;blockquote expandable&gt;</code>) — варианты №1, №5, №6; и Rich Message-таблица с плоскими текстовыми ячейками (<code>sendRichMessage</code>, <code>cells: [[{"text":...}]]</code>) — вариант №2.<br>
+  <b>Что появилось в свежей версии Bot API, но не проверено</b> (карточки №3, №4, №7, №8, №9): официальные классы <code>InputRichBlockList</code>/<code>ListItem</code>, <code>InputRichBlockDivider</code>, <code>InputRichBlockSectionHeading</code>, <code>InputRichBlockFooter</code>, <code>InputRichBlockDetails</code>, <code>InputRichBlockPullQuotation</code> и медиа-блоки (<code>Photo</code>/<code>Map</code>/др.) + поле <code>media</code> у <code>InputRichMessage</code>. Раньше похожие блоки (<code>details</code>, самодельный чек-лист) либо схлопывались пустыми, либо давали 400 — теперь это задокументированная часть схемы, но перед вкруткой в <code>dispatcher.py</code> каждый блок нужно прогнать через тестовый канал так же, как в своё время таблицу (см. историю git — несколько вариантов cells 400'лись до рабочего).<br>
+  <b>Осознанно не включено:</b> голосовые заметки (<code>InputMediaVoiceNote</code>) — звуковой алерт технически возможен, но добавит только уведомление-усталость без пользы для мониторинга; markdown-таблицы через <code>InputRichMessageMedia</code>/<code>media</code> — избыточно, раз обычный <code>table</code>-блок уже работает.<br>
+  Скажи, какие блоки (3, 4, 7, 8, 9) прогнать против живого бота и завести в <code>dispatcher.py</code>.
+</footer>
+
+</body>
+</html>

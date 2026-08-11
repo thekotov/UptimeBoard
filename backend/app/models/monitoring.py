@@ -265,6 +265,9 @@ class Incident(Base):
     # When an operator acknowledged this incident; while set, repeat/escalation
     # alerts are suppressed (the resolved alert still fires).
     acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # How many alerts (opened/ongoing/escalated) have been sent for this
+    # incident so far — surfaced in the "resolved" alert as a summary.
+    alert_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
 
     probe: Mapped["Probe"] = relationship(back_populates="incidents")
 

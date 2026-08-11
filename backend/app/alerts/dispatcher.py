@@ -8,6 +8,7 @@
 """
 
 import html
+import json
 import logging
 import smtplib
 import threading
@@ -44,7 +45,7 @@ ALERT_EVENTS = tuple(_VERB.keys())
 # Placeholders available in a channel's custom config["template"].
 TEMPLATE_FIELDS = (
     "event", "verb", "probe", "type", "host", "server", "service", "page",
-    "status", "error", "latency", "duration", "url", "time",
+    "status", "error", "latency", "duration", "url", "time", "alert_count",
 )
 
 _STATUS_RU = {"up": "работает", "degraded": "деградация", "down": "недоступен",
@@ -119,6 +120,9 @@ def _build_messages(ctx: dict) -> tuple[str, str, str, list[tuple[str, str, str]
     if ctx.get("duration"):
         label = "Простой" if ctx["event"] == "resolved" else "Длится уже"
         rows.append((label, ctx["duration"], esc(ctx["duration"])))
+    if ctx["event"] == "resolved" and ctx.get("alert_count"):
+        n = str(ctx["alert_count"])
+        rows.append(("Алертов по инциденту", n, esc(n)))
     rows.append(("Время", ctx["time"], esc(ctx["time"])))
 
     # Append the current status only when it isn't already implied by the title
@@ -581,11 +585,170 @@ def record_deliveries(outcomes: list[tuple[int, bool, str | None]]) -> None:
         logger.warning("recording alert delivery status failed: %s", exc)
 
 
+# --- Storm grouping: fold multiple servers going down together into one alert.
+# The first "opened" alert for a service is buffered instead of sent, starting a
+# short window (ZSET member=service_id, score=due-at unix ts, NX so later
+# arrivals don't reset the clock). Siblings that go down within the window join
+# the same buffer (a Redis list of JSON records). flush_storm_alerts(), run
+# periodically by the worker, sends whatever accumulated once the window elapses
+# — one server -> a normal single alert (just delayed), several -> one combined
+# message. This trades a few seconds of alert latency for not spamming the chat
+# with one message per server during a whole-service outage.
+_STORM_QUEUE_KEY = "alert:storm:queue"
+
+
+def _storm_items_key(service_id: int) -> str:
+    return f"alert:storm:items:{service_id}"
+
+
+def queue_storm_alert(*, service_id: int, page_id: int | None, window_sec: int, record: dict) -> None:
+    """Buffer an "opened" alert for storm-window grouping. Raises on Redis
+    failure — the caller should catch and send immediately as a fallback."""
+    r = get_sync_redis()
+    payload = dict(record)
+    payload["page_id"] = page_id
+    for key in ("occurred_at", "started_at"):
+        v = payload.get(key)
+        if isinstance(v, datetime):
+            payload[key] = v.isoformat()
+    r.zadd(_STORM_QUEUE_KEY, {str(service_id): time.time() + window_sec}, nx=True)
+    r.rpush(_storm_items_key(service_id), json.dumps(payload))
+    r.expire(_storm_items_key(service_id), window_sec + 30)
+
+
+def flush_storm_alerts() -> None:
+    """Send combined alerts for any storm-grouping windows that have elapsed.
+    Safe to call from overlapping periodic ticks — zrem() only lets one call
+    claim a given service's group, so a group is never sent twice."""
+    try:
+        r = get_sync_redis()
+        due = r.zrangebyscore(_STORM_QUEUE_KEY, 0, time.time())
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("storm flush: redis unavailable: %s", exc)
+        return
+    for member in due:
+        try:
+            if not r.zrem(_STORM_QUEUE_KEY, member):
+                continue  # another tick already claimed this group
+            items_key = _storm_items_key(int(member))
+            raw = r.lrange(items_key, 0, -1)
+            r.delete(items_key)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("storm flush: reading group %s failed: %s", member, exc)
+            continue
+        if not raw:
+            continue
+        try:
+            records = [json.loads(x) for x in raw]
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("storm flush: bad JSON in group %s: %s", member, exc)
+            continue
+        _send_storm_group(records)
+
+
+def _send_storm_group(records: list[dict]) -> None:
+    """A single buffered record -> a normal delayed 'opened' alert; several ->
+    one combined message. Runs from a periodic tick, not the original request,
+    so it opens its own DB session."""
+    page_id = records[0].get("page_id")
+    with SessionLocal() as db:
+        channels = base_channels(db, page_id)
+        if not channels:
+            return
+        if len(records) == 1:
+            rec = dict(records[0])
+            rec.pop("page_id", None)
+            started_raw = rec.pop("started_at", None)
+            occurred_raw = rec.pop("occurred_at", None)
+            dispatch(
+                channels, event="opened",
+                started_at=datetime.fromisoformat(started_raw) if started_raw else None,
+                occurred_at=datetime.fromisoformat(occurred_raw) if occurred_raw else None,
+                **rec,
+            )
+        else:
+            occurred_raw = records[0].get("occurred_at")
+            occurred_at = datetime.fromisoformat(occurred_raw) if occurred_raw else datetime.now(timezone.utc)
+            dispatch_group(
+                channels, records=records, occurred_at=occurred_at,
+                service_name=records[0].get("service_name", ""),
+                page_title=records[0].get("page_title", ""),
+                page_url=records[0].get("page_url", ""),
+            )
+
+
+def dispatch_group(channels: list[AlertChannel], *, records: list[dict], occurred_at: datetime,
+                    service_name: str, page_title: str, page_url: str) -> None:
+    """Send one combined "opened" alert for multiple servers in the same
+    service that went down within the storm-grouping window. Simpler than
+    dispatch(): no per-channel templates/table style, no per-server gating (the
+    storm window already served that purpose)."""
+    if not channels:
+        return
+
+    def esc(v) -> str:
+        return html.escape(str(v)) if v is not None else ""
+
+    loc = " · ".join(x for x in (service_name, page_title) if x)
+    time_str = occurred_at.strftime("%d.%m.%Y %H:%M:%S UTC")
+    probes = sorted({r.get("probe_name", "") for r in records if r.get("probe_name")})
+    probe_line = ", ".join(probes)
+
+    lines_plain = [
+        f"{r.get('server_name', '')} {r.get('server_host', '')} — {r.get('error') or r.get('status', '')}"
+        for r in records
+    ]
+    lines_html = [
+        f"{esc(r.get('server_name', ''))} · <code>{esc(r.get('server_host', ''))}</code> — "
+        f"<code>{esc(r.get('error') or r.get('status', ''))}</code>"
+        for r in records
+    ]
+
+    head_plain = f"🟠 ДЕГРАДАЦИЯ · {len(records)} СЕРВЕРОВ"
+    head_html = f"🟠 <b>Деградация · {len(records)} серверов</b>"
+    body_plain = "\n".join(
+        ([loc] if loc else []) + [f"• {l}" for l in lines_plain] + [f"Проба: {probe_line}", f"Время: {time_str}"]
+    )
+    body_html = "\n".join(
+        ([esc(loc)] if loc else []) + [f"• {l}" for l in lines_html]
+        + [f"<b>Проба:</b> {esc(probe_line)}", f"<b>Время:</b> {esc(time_str)}"]
+    )
+    link_plain = f"\n\n🔗 {page_url}" if page_url else ""
+    link_html = f'\n\n🔗 <a href="{esc(page_url)}">Открыть статус-страницу</a>' if page_url else ""
+
+    text_plain = f"{head_plain}\n\n{body_plain}{link_plain}"
+    text_html = f"{head_html}\n\n{body_html}{link_html}"
+
+    outcomes: list[tuple[int, bool, str | None]] = []
+    for ch in channels:
+        cfg = ch.config or {}
+        subscribed = cfg.get("events")
+        if subscribed and "opened" not in subscribed:
+            continue
+        ok, err = True, None
+        try:
+            if ch.type == "telegram":
+                _deliver(lambda cfg=cfg: _send_telegram(cfg, text_html, "HTML"))
+            elif ch.type == "webhook":
+                payload = {"event": "opened", "group": True, "count": len(records),
+                           "servers": records, "occurred_at": occurred_at.isoformat(), "text": text_plain}
+                _deliver(lambda cfg=cfg, payload=payload: _send_webhook(cfg, payload))
+            elif ch.type == "email":
+                _deliver(lambda cfg=cfg: _send_email(
+                    cfg, subject=f"🔴 Сбой: {len(records)} серверов", text=text_plain))
+        except Exception as exc:  # noqa: BLE001
+            ok, err = False, str(exc)
+            logger.warning("group alert channel %s (%s) failed: %s", ch.id, ch.type, exc)
+        outcomes.append((ch.id, ok, err))
+    record_deliveries(outcomes)
+
+
 def dispatch(channels: list[AlertChannel], *, event: str, probe_name: str, server_host: str,
              status: str, error: str | None, server_id: int | None = None, group: bool = True,
              probe_type: str = "", server_name: str = "", service_name: str = "",
              page_title: str = "", page_url: str = "", latency_ms: float | None = None,
-             started_at: datetime | None = None, occurred_at: datetime | None = None) -> None:
+             started_at: datetime | None = None, occurred_at: datetime | None = None,
+             alert_count: int | None = None) -> None:
     """Send a richly-formatted alert to the given channels (best-effort, storm-grouped)."""
     if not channels:
         return
@@ -602,14 +765,15 @@ def dispatch(channels: list[AlertChannel], *, event: str, probe_name: str, serve
         "event": event, "probe": probe_name, "type": probe_type, "host": server_host,
         "server": server_name, "service": service_name, "page": page_title,
         "status": status, "error": error or "", "latency": latency_ms,
-        "duration": duration, "url": page_url,
+        "duration": duration, "url": page_url, "alert_count": alert_count,
         "time": now.strftime("%d.%m.%Y %H:%M:%S UTC"),
     }
     default_plain, default_html, head_plain, rows = _build_messages(ctx)
     table_blocks = _table_blocks(head_plain, rows, page_url)
 
     # Template fields (strings) for custom templates.
-    fields = {**ctx, "verb": verb, "latency": f"{latency_ms:.0f}" if latency_ms is not None else ""}
+    fields = {**ctx, "verb": verb, "latency": f"{latency_ms:.0f}" if latency_ms is not None else "",
+              "alert_count": str(alert_count) if alert_count is not None else ""}
 
     outcomes: list[tuple[int, bool, str | None]] = []
     for ch in channels:

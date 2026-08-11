@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     # Coalesce "down"/"resolved" alerts for the same server within this window so a
     # whole-server outage sends one alert instead of one per probe (0 = off).
     alert_group_window_sec: int = 60
+    # Delay the first "opened" alert for a service by this many seconds so other
+    # servers in the same service that go down within the window get folded into
+    # one combined alert instead of N separate messages (0 = off, send immediately).
+    alert_storm_window_sec: int = 9
     # A probe whose last check is older than interval * factor + grace is "stale".
     stale_factor: int = 3
     stale_grace_sec: int = 30

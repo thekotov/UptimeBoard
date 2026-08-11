@@ -2,8 +2,11 @@ from app.alerts.dispatcher import (
     all_escalation_channels,
     base_channels,
     dispatch,
+    dispatch_group,
     escalation_channels,
+    flush_storm_alerts,
     list_telegram_chats,
+    queue_storm_alert,
     record_deliveries,
     render_preview,
     send_test_email,
@@ -16,6 +19,9 @@ from app.alerts.dispatcher import (
 
 __all__ = [
     "dispatch",
+    "dispatch_group",
+    "queue_storm_alert",
+    "flush_storm_alerts",
     "base_channels",
     "escalation_channels",
     "all_escalation_channels",
