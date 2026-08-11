@@ -283,7 +283,15 @@ def _send_telegram_rich(config: dict, blocks: list[dict]) -> None:
     body = {"chat_id": chat_id, "rich_message": {"blocks": blocks}}
     with httpx.Client(timeout=_TIMEOUT, proxy=proxy) as client:
         resp = client.post(f"https://api.telegram.org/bot{token}/sendRichMessage", json=body)
-        resp.raise_for_status()
+        if resp.status_code >= 400:
+            # Telegram puts the real reason in the JSON body ("description"), not
+            # in the HTTP status line — surface it so failures are diagnosable
+            # instead of a bare "400 Bad Request".
+            try:
+                detail = resp.json().get("description") or resp.text
+            except Exception:  # noqa: BLE001
+                detail = resp.text
+            raise RuntimeError(f"sendRichMessage HTTP {resp.status_code}: {detail}")
 
 
 def test_telegram(token: str, proxy: str | None) -> tuple[bool, str]:
