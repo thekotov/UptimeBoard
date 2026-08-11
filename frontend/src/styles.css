@@ -506,6 +506,9 @@ button:disabled { opacity: .55; cursor: not-allowed; }
   white-space: pre-wrap; word-break: break-word; overflow: auto; max-height: 240px;
 }
 .alert-preview a { pointer-events: none; }
+.alert-preview-table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 13px; }
+.alert-preview-table th, .alert-preview-table td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
+.alert-preview-table th { background: var(--panel); color: var(--muted); font-weight: 600; }
 
 /* inline probe edit form gets a subtle highlight so it stands out from rows */
 .probe-edit {

@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Варианты заголовка алерта — UptimeBoard</title>
+<style>
+  :root{
+    --bg:#0e1621; --panel:#17212b; --bubble:#182533;
+    --text:#e9edef; --muted:#8a97a3; --accent:#5eabd6; --code-bg:#0d1620;
+    --border:#26333f;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:32px 16px 80px; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  h1{font-size:22px; margin:0 0 4px;}
+  .sub{color:var(--muted); margin:0 0 32px; font-size:14px; max-width:760px; line-height:1.5;}
+  .grid{display:grid; grid-template-columns:1fr; gap:28px; max-width:1200px; margin:0 auto;}
+  @media(min-width:1000px){ .grid{grid-template-columns:1fr 1fr;} }
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:12px;
+    padding:16px; display:flex; flex-direction:column; gap:10px;
+  }
+  .card h2{font-size:15px; margin:0; color:var(--text); display:flex; align-items:center; gap:8px;}
+  .card h2 .num{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:22px; height:22px; border-radius:50%; background:var(--accent);
+    color:#08131c; font-size:12px; font-weight:700; flex:none;
+  }
+  .card p.desc{margin:0; font-size:12.5px; color:var(--muted); line-height:1.5;}
+  .tg-wrap{background:#0b141c; border-radius:10px; padding:14px 10px;}
+  .msg{
+    background:var(--bubble); border-radius:12px 12px 12px 3px; padding:10px 12px 8px;
+    max-width:100%; font-size:14.5px; line-height:1.42; white-space:pre-wrap; word-break:break-word;
+    box-shadow:0 1px 2px rgba(0,0,0,.3);
+  }
+  .msg .time{display:block; text-align:right; color:var(--muted); font-size:11px; margin-top:4px;}
+  .msg b{font-weight:700; color:var(--text);}
+  .msg code{
+    background:var(--code-bg); border-radius:4px; padding:1px 5px; font-family:"SF Mono",Consolas,monospace;
+    font-size:13px; color:#9fd0e8;
+  }
+  .msg a{color:var(--accent); text-decoration:none;}
+  .msg i{color:var(--muted); font-style:italic;}
+  .headline{font-size:16px;}
+  .quote{
+    display:block; border-left:3px solid var(--accent); background:rgba(94,171,214,0.08);
+    padding:4px 10px; margin:6px 0; border-radius:0 4px 4px 0;
+  }
+  .quote.expandable{position:relative; padding-right:26px;}
+  .quote.expandable::after{
+    content:"⌄"; position:absolute; right:8px; top:4px; color:var(--accent); font-size:15px; line-height:1;
+  }
+  footer{max-width:1200px; margin:40px auto 0; color:var(--muted); font-size:12.5px; line-height:1.6;}
+  footer code{background:var(--code-bg); padding:1px 5px; border-radius:4px;}
+  h3.section{max-width:1200px; margin:44px auto 12px; font-size:17px; color:var(--text);}
+  .msg s{color:var(--muted); text-decoration:line-through;}
+  .spoiler{
+    background:#495a6b; color:#495a6b; border-radius:4px; padding:0 3px; cursor:pointer;
+    transition:none; user-select:none;
+  }
+  .spoiler:hover{background:transparent; color:inherit;}
+  .tag{color:var(--accent); font-weight:500;}
+  .bar{font-family:"SF Mono",Consolas,monospace; letter-spacing:-1px;}
+  .bar.crit{color:#f04747;}
+  .bar.warn{color:#ff9800;}
+  .bar.ok{color:#4caf50;}
+  .kv-grid{
+    display:grid; grid-template-columns:auto 1fr; gap:2px 10px; margin:4px 0; font-size:14px;
+  }
+  .kv-grid .k{color:var(--muted);}
+  .pill-status{
+    display:inline-block; font-size:11px; font-weight:700; padding:2px 8px; border-radius:6px;
+    background:#f04747; color:#fff; letter-spacing:.03em; margin-right:2px;
+  }
+  .pill-status.warn{background:#ff9800; color:#1a1200;}
+  .pill-status.ok{background:#4caf50; color:#04220a;}
+  .api-tag{
+    display:inline-block; font-size:10.5px; font-weight:700; padding:2px 9px; border-radius:20px;
+    letter-spacing:.03em; margin-left:6px; vertical-align:2px;
+  }
+  .api-tag.now{background:rgba(76,175,80,.15); color:#7fd68a; border:1px solid rgba(76,175,80,.35);}
+  .api-tag.new{background:rgba(94,171,214,.15); color:var(--accent); border:1px solid rgba(94,171,214,.35);}
+  .tg-details{
+    border:1px solid var(--border); border-radius:8px; margin:6px 0; overflow:hidden; background:rgba(255,255,255,.02);
+  }
+  .tg-details summary{
+    padding:7px 10px; cursor:pointer; font-size:13.5px; color:var(--accent); font-weight:500; list-style:none;
+    display:flex; align-items:center; gap:6px;
+  }
+  .tg-details summary::before{content:"▸"; display:inline-block; transition:transform .15s;}
+  .tg-details[open] summary::before{transform:rotate(90deg);}
+  .tg-details .inner{padding:2px 12px 10px;}
+  .rtable{width:100%; border-collapse:collapse; margin:8px 0; font-size:13.5px;}
+  .rtable th,.rtable td{border:1px solid var(--border); padding:5px 9px; text-align:left;}
+  .rtable th{background:rgba(94,171,214,.08); color:var(--muted); font-weight:600; font-size:12px;}
+  .rtable tr:nth-child(even) td{background:rgba(255,255,255,.02);}
+  .checklist{list-style:none; margin:6px 0; padding:0; display:flex; flex-direction:column; gap:3px;}
+  .checklist li{display:flex; align-items:center; gap:8px; font-size:14px;}
+  .chk{
+    width:16px; height:16px; border-radius:4px; border:1.5px solid var(--muted); flex:none;
+    display:inline-flex; align-items:center; justify-content:center; font-size:11px;
+  }
+  .chk.done{background:#4caf50; border-color:#4caf50; color:#04220a;}
+  .chk.pending{background:transparent;}
+  .effect-note{
+    display:inline-flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted);
+    background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:8px; padding:5px 10px; margin-top:4px;
+  }
+</style>
+</head>
+<body>
+
+<h1>Варианты заголовка (на базе текущего формата)</h1>
+<p class="sub">Тело сообщения — как сейчас (Проба / Где / Ошибка / Длится / Время / ссылка), меняется только первая строка (или первые 1–2 строки): чтобы сразу, без чтения списка полей, было видно <b>что случилось</b>, <b>имя сервера</b> и <b>его IP</b>.</p>
+
+<div class="grid">
+
+  <!-- 1: baseline (current) -->
+  <div class="card">
+    <h2><span class="num">1</span>Как сейчас (для сравнения)</h2>
+    <p class="desc">Статус есть, но сервер и IP нужно искать в строке «Сервер» — при беглом просмотре списка сообщений не сразу понятно, какой хост упал.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b></span>
+
+<b>Проба:</b> Health Check · HTTP
+<b>Сервер:</b> api-node04 · <code>158.160.60.150</code>
+<b>Где:</b> ⚙️ API · ChatApp Production Servers
+<b>Ошибка:</b> <code>timed out</code>
+<b>Длится уже:</b> 0 с
+<b>Время:</b> 11.08.2026 13:02:21 UTC
+
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- 2: everything on one headline -->
+  <div class="card">
+    <h2><span class="num">2</span>Статус + сервер + IP в одной строке</h2>
+    <p class="desc">Максимально плотно — всё, что нужно для «выхватить взглядом», влезает в первую строку. Остальное как раньше, но строка «Сервер» из тела убрана (уже есть в заголовке).</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b> — api-node04 · <code>158.160.60.150</code></span>
+
+<b>Проба:</b> Health Check · HTTP
+<b>Где:</b> ⚙️ API · ChatApp Production Servers
+<b>Ошибка:</b> <code>timed out</code>
+<b>Длится уже:</b> 0 с
+<b>Время:</b> 11.08.2026 13:02:21 UTC
+
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- 3: status line + bold server/ip line -->
+  <div class="card">
+    <h2><span class="num">3</span>Статус отдельно, сервер+IP крупно под ним</h2>
+    <p class="desc">Статус — как заголовок сообщения (что случилось), а сразу под ним — жирным имя сервера и IP, как «подзаголовок». Дальше тело без изменений (строка «Сервер» убрана — не дублируем).</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b></span>
+<b>api-node04 · <code>158.160.60.150</code></b>
+
+<b>Проба:</b> Health Check · HTTP
+<b>Где:</b> ⚙️ API · ChatApp Production Servers
+<b>Ошибка:</b> <code>timed out</code>
+<b>Длится уже:</b> 0 с
+<b>Время:</b> 11.08.2026 13:02:21 UTC
+
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- 4: server name as the real headline, status as prefix -->
+  <div class="card">
+    <h2><span class="num">4</span>Имя сервера — главный акцент, статус как метка перед ним</h2>
+    <p class="desc">Если в чате важнее «какой сервер», а не «какой тип события» — сервер становится самым заметным словом в сообщении, статус — короткой меткой перед ним.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>api-node04</b> · <code>158.160.60.150</code></span>
+<i>Деградация</i>
+
+<b>Проба:</b> Health Check · HTTP
+<b>Где:</b> ⚙️ API · ChatApp Production Servers
+<b>Ошибка:</b> <code>timed out</code>
+<b>Длится уже:</b> 0 с
+<b>Время:</b> 11.08.2026 13:02:21 UTC
+
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- 5: same as 2 but IP on its own code line for easy copy -->
+  <div class="card">
+    <h2><span class="num">5</span>Статус + сервер в заголовке, IP отдельной строкой</h2>
+    <p class="desc">Имя сервера рядом со статусом (коротко), а IP — отдельной моноширинной строкой сразу под ним, чтобы его было удобно скопировать одним тапом (Telegram выделяет весь <code>&lt;code&gt;</code>-блок по тапу).</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b> · api-node04</span>
+<code>158.160.60.150</code>
+
+<b>Проба:</b> Health Check · HTTP
+<b>Где:</b> ⚙️ API · ChatApp Production Servers
+<b>Ошибка:</b> <code>timed out</code>
+<b>Длится уже:</b> 0 с
+<b>Время:</b> 11.08.2026 13:02:21 UTC
+
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- 6: keep exact current body, just duplicate host into headline -->
+  <div class="card">
+    <h2><span class="num">6</span>Минимальное изменение: сервер и IP допечатаны в заголовок, тело не трогаем</h2>
+    <p class="desc">Самый безопасный вариант — просто дублируем хост в первую строку, ничего в теле не убираем и не переставляем (строка «Сервер» остаётся). Меньше всего меняет привычный вид.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b> · api-node04 (<code>158.160.60.150</code>)</span>
+
+<b>Проба:</b> Health Check · HTTP
+<b>Сервер:</b> api-node04 · <code>158.160.60.150</code>
+<b>Где:</b> ⚙️ API · ChatApp Production Servers
+<b>Ошибка:</b> <code>timed out</code>
+<b>Длится уже:</b> 0 с
+<b>Время:</b> 11.08.2026 13:02:21 UTC
+
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+</div>
+
+<h3 class="section">С цитированием (Telegram <code>&lt;blockquote&gt;</code>)</h3>
+<p class="sub">Telegram поддерживает markdown-цитаты — визуально это блок с полосой слева и приглушённым фоном, выделяется среди обычного текста без лишних тегов/эмодзи. Пробуем спрятать в цитату детали или ошибку, чтобы заголовок «что случилось / сервер / IP» бросался в глаза первым.</p>
+
+<div class="grid">
+
+  <!-- 7: details block quoted -->
+  <div class="card">
+    <h2><span class="num">7</span>Заголовок открытый, все детали — в цитате</h2>
+    <p class="desc">Статус + сервер + IP — обычным текстом сверху, всё остальное (проба/где/ошибка/длится/время) — одним цитируемым блоком. Глазами цепляется только заголовок, детали читаются по желанию.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b> — api-node04 · <code>158.160.60.150</code></span>
+
+<span class="quote">Проба: Health Check · HTTP
+Где: ⚙️ API · ChatApp Production Servers
+Ошибка: <code>timed out</code>
+Длится уже: 0 с
+Время: 11.08.2026 13:02:21 UTC</span>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- 8: only the error quoted -->
+  <div class="card">
+    <h2><span class="num">8</span>В цитату — только ошибка</h2>
+    <p class="desc">Остальные поля как в текущем формате построчно, но именно причину сбоя выделяем цитатой — она визуально «выпирает» из ровного списка полей, к ней возвращается взгляд.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b> — api-node04 · <code>158.160.60.150</code></span>
+
+<b>Проба:</b> Health Check · HTTP
+<b>Где:</b> ⚙️ API · ChatApp Production Servers
+<b>Длится уже:</b> 0 с
+<b>Время:</b> 11.08.2026 13:02:21 UTC
+
+<span class="quote"><code>timed out</code></span>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- 9: expandable blockquote for long detail lists -->
+  <div class="card">
+    <h2><span class="num">9</span>Схлопываемая цитата (<code>expandable</code>)</h2>
+    <p class="desc">Telegram умеет схлопывать длинную цитату со стрелкой «показать полностью». Хорошо для группового алерта по нескольким серверам — сверху видно главное, список серверов прячется под «⌄», не растягивая чат.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация · 3 сервера</b></span>
+⚙️ API · ChatApp Production Servers
+
+<span class="quote expandable">api-node02 · <code>51.250.13.253</code> — timed out
+api-node03 · <code>51.250.72.233</code> — timed out
+api-node04 · <code>158.160.60.150</code> — timed out</span>
+<b>Проба:</b> Health Check · HTTP
+<b>Время:</b> 11.08.2026 13:02:21 UTC
+🔗 <a href="#">Статус-страница</a><span class="time">16:03</span></div>
+    </div>
+  </div>
+
+  <!-- 10: whole message in one quote (Telegram "note" look) -->
+  <div class="card">
+    <h2><span class="num">10</span>Всё сообщение целиком в цитате</h2>
+    <p class="desc">Весь алерт как один «стикер»-заметка с полосой слева — визуально сразу отличается от обычных сообщений в чате (как на скрине, где вперемешку идёт обсуждение и алерты), проще фильтровать взглядом «это алерт» vs «это люди пишут».</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="quote">🟠 <b>Деградация</b> — api-node04 · <code>158.160.60.150</code>
+
+Проба: Health Check · HTTP
+Где: ⚙️ API · ChatApp Production Servers
+Ошибка: <code>timed out</code>
+Длится уже: 0 с
+Время: 11.08.2026 13:02:21 UTC</span>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- 11: headline outside, IP+meta quoted separately from error -->
+  <div class="card">
+    <h2><span class="num">11</span>Две цитаты: координаты сервера отдельно от ошибки</h2>
+    <p class="desc">Одна маленькая цитата с «где» (сервер/IP/группа) сразу под заголовком для контекста, вторая — с самой ошибкой и длительностью. Разбивает сообщение на два визуальных блока вместо одного длинного списка.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b></span>
+
+<span class="quote">api-node04 · <code>158.160.60.150</code>
+⚙️ API · ChatApp Production Servers</span>
+<span class="quote"><code>timed out</code> · длится уже 0 с
+Health Check · HTTP · 13:02:21 UTC</span>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+</div>
+
+<h3 class="section">Новое из Bot API 10.1/10.2 «Rich Messages» (июнь–июль 2026)</h3>
+<p class="sub">По статье <a href="https://habr.com/ru/articles/1046786/" style="color:var(--accent)">на Хабре</a> и <a href="https://core.telegram.org/bots/api-changelog" style="color:var(--accent)">чейнджлогу Bot API</a>: Telegram добавил блочный формат Rich Messages — таблицы, чек-листы, схлопываемые <code>&lt;details&gt;</code>-блоки, сноски, спойлеры, кастомные эмодзи, эффекты сообщений. <span class="api-tag now">уже сейчас</span> — работает через обычный <code>sendMessage</code> + <code>parse_mode=HTML</code>, как всё выше. <span class="api-tag new">новый API</span> — только через новый метод <code>sendRichMessage</code> с блоками (<code>InputRichBlockTable</code>, <code>InputRichBlockParagraph</code> и т.д.) — это отдельная реализация в <code>_send_telegram()</code>, не совместимая с текущим HTML-текстом «в лоб».</p>
+
+<div class="grid">
+
+  <!-- 12: native details instead of blockquote -->
+  <div class="card">
+    <h2><span class="num">12</span>Нативный <code>&lt;details&gt;</code> вместо цитаты <span class="api-tag new">новый API</span></h2>
+    <p class="desc">Тот же принцип, что и вариант №9 (заголовок открыт, детали свёрнуты), но через настоящий раскрывающийся блок Rich Messages — заголовок сворачиваемой секции можно задать текстом («Детали»), а не универсальной стрелкой цитаты.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b> — api-node04 · <code>158.160.60.150</code></span>
+
+<details class="tg-details"><summary>Детали инцидента</summary><div class="inner">Проба: Health Check · HTTP
+Где: ⚙️ API · ChatApp Production Servers
+Ошибка: <code>timed out</code>
+Длится уже: 0 с
+Время: 11.08.2026 13:02:21 UTC</div></details>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- 13: spoiler on the raw error -->
+  <div class="card">
+    <h2><span class="num">13</span>Спойлер на сырую ошибку <span class="api-tag now">уже сейчас</span></h2>
+    <p class="desc"><code>&lt;tg-spoiler&gt;</code> работает в обычных сообщениях уже давно (не часть Rich Messages) — прячет длинный/шумный текст ошибки (стектрейс, длинный timeout-лог) за тап, не раздувая сообщение и не пугая нечитаемым текстом с ходу.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b> — api-node04 · <code>158.160.60.150</code></span>
+
+<b>Проба:</b> Health Check · HTTP
+<b>Ошибка:</b> <span class="spoiler">connection timed out after 5000ms, 3 retries exhausted, upstream: 10.0.4.12:443</span>
+<b>Длится уже:</b> 0 с
+<b>Время:</b> 11.08.2026 13:02:21 UTC
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- 14: checklist for storm/group alert -->
+  <div class="card">
+    <h2><span class="num">14</span>Чек-лист серверов при групповом сбое <span class="api-tag new">новый API</span></h2>
+    <p class="desc">Для шторма по нескольким серверам (см. вариант №3) — задача на каждый сервер, галочка появляется сама по себе, когда сервер восстановлен. Одно сообщение можно редактировать (<code>editMessageText</code> с <code>rich_message</code>) по мере восстановления вместо новых сообщений на каждый.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация · 3 сервера</b></span>
+⚙️ API · ChatApp Production Servers
+
+<ul class="checklist">
+<li><span class="chk done">✓</span> api-node02 · <code>51.250.13.253</code> — восстановлен</li>
+<li><span class="chk pending"></span> api-node03 · <code>51.250.72.233</code> — timed out</li>
+<li><span class="chk pending"></span> api-node04 · <code>158.160.60.150</code> — timed out</li>
+</ul>
+<b>Проба:</b> Health Check · HTTP
+🔗 <a href="#">Статус-страница</a><span class="time">16:03</span></div>
+    </div>
+  </div>
+
+  <!-- 15: table layout -->
+  <div class="card">
+    <h2><span class="num">15</span>Поля таблицей <span class="api-tag new">новый API</span></h2>
+    <p class="desc">Вместо построчного «Поле: значение» — настоящая таблица (<code>InputRichBlockTable</code>). Аккуратнее смотрится, когда полей много (напр. добавили аптайм/ответ/инцидент-ID) — глаз сразу находит нужную строку по левой колонке.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b> — api-node04 · <code>158.160.60.150</code></span>
+
+<table class="rtable">
+<tr><th>Поле</th><th>Значение</th></tr>
+<tr><td>Проба</td><td>Health Check · HTTP</td></tr>
+<tr><td>Где</td><td>⚙️ API · ChatApp Production</td></tr>
+<tr><td>Ошибка</td><td><code>timed out</code></td></tr>
+<tr><td>Длится уже</td><td>0 с</td></tr>
+<tr><td>Время</td><td>13:02:21 UTC</td></tr>
+</table>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+  <!-- 16: message effect on send -->
+  <div class="card">
+    <h2><span class="num">16</span>Эффект на сообщение (<code>message_effect_id</code>) <span class="api-tag now">уже сейчас</span></h2>
+    <p class="desc">Не про текст — про параметр <code>sendMessage</code>. При отправке можно приложить анимацию, которую увидит получатель (как реакция во весь экран в личных чатах): 🔥 на критичный сбой, 🎉/👍 на восстановление. В группах Telegram может её не показывать — уточнить перед внедрением.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🔴 <b>Сбой</b> — api-node04 · <code>158.160.60.150</code></span>
+
+<b>Ошибка:</b> <code>timed out</code>
+<b>Время:</b> 11.08.2026 13:02:21 UTC
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span>
+<div class="effect-note">🔥 message_effect_id: fire — проигрывается при получении</div></div>
+    </div>
+  </div>
+
+  <!-- 17: footnote-style link instead of inline link -->
+  <div class="card">
+    <h2><span class="num">17</span>Сноска на статус-страницу вместо инлайн-ссылки <span class="api-tag new">новый API</span></h2>
+    <p class="desc">Rich Messages поддерживают сноски (footnotes) — вместо «🔗 Открыть статус-страницу» в конце текста ссылка становится верхним индексом <sup>[1]</sup> у заголовка, а сама ссылка — компактной сноской внизу. Меньше визуального шума в первой строке.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="headline">🟠 <b>Деградация</b> — api-node04 · <code>158.160.60.150</code></span> <sup style="color:var(--accent);font-size:11px;">[1]</sup>
+
+<b>Проба:</b> Health Check · HTTP
+<b>Ошибка:</b> <code>timed out</code>
+<b>Длится уже:</b> 0 с
+<b>Время:</b> 11.08.2026 13:02:21 UTC
+
+<span style="font-size:12px;color:var(--muted);">[1] <a href="#">status.chatapp.team/production</a></span><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  Во всех вариантах, кроме №6, строка «Сервер» из тела убирается, чтобы не дублировать то, что уже видно в заголовке — имя и IP переносятся в первую строку(и), остальные поля (Проба/Где/Ошибка/Длится/Время/ссылка) без изменений.<br>
+  Цитаты (7–11) рендерятся тегом <code>&lt;blockquote&gt;</code> (для №9 — <code>&lt;blockquote expandable&gt;</code>), реальная полоса и оттенок фона в Telegram зависят от темы клиента, но структура сообщения будет такой же.<br>
+  №12–15, 17 (Rich Messages) требуют отдельного пути в <code>_send_telegram()</code> — новый метод <code>sendRichMessage</code> и блочная структура вместо HTML-строки; №13 и №16 работают уже сейчас поверх текущего <code>sendMessage</code>/<code>parse_mode=HTML</code>, без переделки транспорта.<br>
+  Скажи номер понравившегося — поправлю <code>_header()</code> / <code>_build_messages()</code> (и, если нужно Rich Messages, <code>_send_telegram()</code>) в <code>backend/app/alerts/dispatcher.py</code> под него.
+</footer>
+
+</body>
+</html>

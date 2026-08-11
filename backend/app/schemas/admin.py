@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
-from app.alerts.dispatcher import ALERT_EVENTS, WEBHOOK_FORMATS
+from app.alerts.dispatcher import ALERT_EVENTS, TELEGRAM_MESSAGE_STYLES, WEBHOOK_FORMATS
 
 
 def _validate_channel_config(config: dict | None) -> dict | None:
@@ -29,6 +29,9 @@ def _validate_channel_config(config: dict | None) -> dict | None:
     fmt = config.get("format")
     if fmt is not None and fmt not in WEBHOOK_FORMATS:
         raise ValueError(f"config.format must be one of {list(WEBHOOK_FORMATS)}")
+    style = config.get("message_style")
+    if style is not None and style not in TELEGRAM_MESSAGE_STYLES:
+        raise ValueError(f"config.message_style must be one of {list(TELEGRAM_MESSAGE_STYLES)}")
     return config
 
 # ---- Probe ----

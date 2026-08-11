@@ -242,6 +242,7 @@ function ChannelForm({
   const [botToken, setBotToken] = useState("");
   const [chatId, setChatId] = useState<string>(cfg.chat_id ?? "");
   const [proxy, setProxy] = useState<string>(cfg.proxy ?? "");
+  const [messageStyle, setMessageStyle] = useState<string>(cfg.message_style ?? "default");
   // webhook
   const [url, setUrl] = useState<string>(cfg.url ?? "");
   const [format, setFormat] = useState<string>(cfg.format ?? "generic");
@@ -269,7 +270,7 @@ function ChannelForm({
   useEffect(() => {
     let cancelled = false;
     const id = setTimeout(() => {
-      previewChannel({ type, config: { template } })
+      previewChannel({ type, config: { template, message_style: messageStyle } })
         .then((p) => !cancelled && setPreview(p))
         .catch(() => !cancelled && setPreview(null));
     }, 400);
@@ -277,7 +278,7 @@ function ChannelForm({
       cancelled = true;
       clearTimeout(id);
     };
-  }, [type, template]);
+  }, [type, template, messageStyle]);
 
   const toggleEvent = (ev: string) =>
     setEvents((s) => (s.includes(ev) ? s.filter((x) => x !== ev) : [...s, ev]));
@@ -290,6 +291,8 @@ function ChannelForm({
       base.chat_id = chatId;
       if (proxy.trim()) base.proxy = proxy.trim();
       else delete base.proxy;
+      if (messageStyle && messageStyle !== "default") base.message_style = messageStyle;
+      else delete base.message_style;
     } else if (type === "webhook") {
       base.url = url;
       if (format && format !== "generic") base.format = format;
@@ -466,6 +469,14 @@ function ChannelForm({
               onChange={(e) => setProxy(e.target.value)}
               placeholder="socks5://user:pass@host:1080"
             />
+          </div>
+          <div className="full">
+            <label>{t("alerts.messageStyle")}</label>
+            <select value={messageStyle} onChange={(e) => setMessageStyle(e.target.value)}>
+              <option value="default">{t("alerts.messageStyle.default")}</option>
+              <option value="table">{t("alerts.messageStyle.table")}</option>
+            </select>
+            <div className="hint">{t("alerts.messageStyleHint")}</div>
           </div>
           {chats && chats.length > 0 && (
             <div className="full">

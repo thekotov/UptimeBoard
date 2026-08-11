@@ -9,6 +9,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.7.0",
+    date: "2026-08-11",
+    changes: [
+      "Настройки Telegram-канала: выбор типа уведомления — обычный текст или таблица (новый Rich Message API, с автоматическим откатом на обычный текст при сбое)",
+    ],
+  },
+  {
+    version: "1.6.0",
+    date: "2026-08-11",
+    changes: [
+      "Алерты в Telegram: статус, сервер и IP теперь сразу в первой строке, а детали (проба, ошибка, время) свёрнуты в цитату",
+    ],
+  },
+  {
     version: "1.5.1",
     date: "2026-08-10",
     changes: [

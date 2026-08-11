@@ -83,21 +83,27 @@ def _fmt_duration(seconds: float) -> str:
     return " ".join(parts)
 
 
-def _build_messages(ctx: dict) -> tuple[str, str]:
-    """Build (plain, html) alert bodies. HTML uses Telegram-supported tags
-    (<b>, <code>, <a>); plain mirrors it for email/webhook and template fallback."""
+def _build_messages(ctx: dict) -> tuple[str, str, str, list[tuple[str, str, str]]]:
+    """Build (plain, html, head_plain, rows) for an alert. HTML uses
+    Telegram-supported tags (<b>, <code>, <a>, <blockquote expandable>); plain
+    mirrors it for email/webhook and template fallback. head_plain/rows are
+    exposed separately so the Telegram "table" style can reuse the same fields
+    inside a Rich Message table block instead of the plain-text list."""
     emoji, title = _header(ctx["event"], ctx["status"])
     status_ru = _STATUS_RU.get(ctx["status"], ctx["status"])
 
     def esc(v) -> str:
         return html.escape(str(v)) if v is not None else ""
 
+    # Server name + IP move into the headline so "что случилось / какой сервер"
+    # is visible without opening the collapsed details block below.
+    srv = ctx.get("server") or ""
+    server_plain = f"{srv} · {ctx['host']}".strip(" ·")
+    server_html = (esc(srv) + " · " if srv else "") + f"<code>{esc(ctx['host'])}</code>"
+
     rows: list[tuple[str, str, str]] = []
     rows.append(("Проба", ctx["probe"] + (f" · {ctx['type'].upper()}" if ctx.get("type") else ""),
                  esc(ctx["probe"]) + (f" · {esc(ctx['type'].upper())}" if ctx.get("type") else "")))
-    srv = ctx.get("server") or ""
-    rows.append(("Сервер", f"{srv} · {ctx['host']}".strip(" ·"),
-                 (esc(srv) + " · " if srv else "") + f"<code>{esc(ctx['host'])}</code>"))
     loc = " · ".join(x for x in (ctx.get("service"), ctx.get("page")) if x)
     if loc:
         rows.append(("Где", loc, esc(loc)))
@@ -121,8 +127,8 @@ def _build_messages(ctx: dict) -> tuple[str, str]:
     # state, so they carry no status suffix.
     _no_suffix = ("ip_changed", "cert_changed", "content_changed", "cert_expiring")
     suffix = "" if (ctx["event"] in _no_suffix or status_ru.lower() in title.lower()) else f" · {status_ru}"
-    head_plain = f"{emoji} {title.upper()}{suffix.upper()}"
-    head_html = f"{emoji} <b>{esc(title)}</b>{esc(suffix)}"
+    head_plain = f"{emoji} {title.upper()}{suffix.upper()} — {server_plain}"
+    head_html = f"{emoji} <b>{esc(title)}</b>{esc(suffix)} — {server_html}"
     body_plain = "\n".join(f"{label}: {pv}" for label, pv, _ in rows)
     body_html = "\n".join(f"<b>{esc(label)}:</b> {hv}" for label, _, hv in rows)
 
@@ -132,7 +138,55 @@ def _build_messages(ctx: dict) -> tuple[str, str]:
         link_html = f'\n\n🔗 <a href="{esc(ctx["url"])}">Открыть статус-страницу</a>'
 
     return (f"{head_plain}\n\n{body_plain}{link_plain}",
-            f"{head_html}\n\n{body_html}{link_html}")
+            f"{head_html}\n\n<blockquote expandable>{body_html}</blockquote>{link_html}",
+            head_plain, rows)
+
+
+# Telegram-only: how a channel renders its message. "default" is the classic
+# HTML text above; "table" sends the fields as a Rich Message table via the
+# Bot API 10.1+ sendRichMessage method (see _table_blocks/_send_telegram_rich).
+TELEGRAM_MESSAGE_STYLES = ("default", "table")
+
+
+def _table_blocks(head_plain: str, rows: list[tuple[str, str, str]], url: str | None) -> list[dict]:
+    """Rich Message blocks for a Telegram sendRichMessage table alert.
+
+    The exact InputRichMessage/InputRichBlockTable JSON schema isn't fully
+    published yet (only class/field names are confirmed by the Bot API
+    changelog), so this is a best-effort payload. Callers must be ready for
+    Telegram to reject it and fall back to the classic HTML message."""
+    blocks: list[dict] = [{"type": "paragraph", "text": head_plain}]
+    if rows:
+        blocks.append({
+            "type": "table",
+            "bordered": True,
+            "striped": True,
+            "rows": [
+                {"header": True, "cells": [{"text": "Поле"}, {"text": "Значение"}]},
+                *[{"cells": [{"text": label}, {"text": value}]} for label, value, _ in rows],
+            ],
+        })
+    if url:
+        blocks.append({"type": "paragraph", "text": f"🔗 {url}"})
+    return blocks
+
+
+def _table_preview_html(head_plain: str, rows: list[tuple[str, str, str]], url: str | None) -> str:
+    """Browser-renderable approximation of the table alert for the admin
+    preview panel — NOT what's actually sent (real delivery goes through
+    sendRichMessage; see _table_blocks/_send_telegram_rich)."""
+    def esc(v) -> str:
+        return html.escape(str(v))
+
+    table_rows = "".join(
+        f"<tr><td>{esc(label)}</td><td>{esc(value)}</td></tr>" for label, value, _ in rows
+    )
+    link = f'<div>🔗 <a href="{esc(url)}">Открыть статус-страницу</a></div>' if url else ""
+    return (
+        f"<div>{esc(head_plain)}</div>"
+        f'<table class="alert-preview-table"><tr><th>Поле</th><th>Значение</th></tr>{table_rows}</table>'
+        f"{link}"
+    )
 
 
 class _SafeDict(dict):
@@ -217,6 +271,21 @@ def _send_telegram(config: dict, text: str, parse_mode: str | None = None) -> No
         resp.raise_for_status()
 
 
+def _send_telegram_rich(config: dict, blocks: list[dict]) -> None:
+    """Send a Telegram Rich Message (Bot API 10.1+ sendRichMessage). Schema is
+    best-effort (see _table_blocks) — raises on any non-2xx so the caller can
+    fall back to the classic HTML message."""
+    token, chat_id = config.get("bot_token"), config.get("chat_id")
+    if not token or not chat_id:
+        logger.warning("telegram channel misconfigured")
+        return
+    proxy = config.get("proxy") or None
+    body = {"chat_id": chat_id, "rich_message": {"blocks": blocks}}
+    with httpx.Client(timeout=_TIMEOUT, proxy=proxy) as client:
+        resp = client.post(f"https://api.telegram.org/bot{token}/sendRichMessage", json=body)
+        resp.raise_for_status()
+
+
 def test_telegram(token: str, proxy: str | None) -> tuple[bool, str]:
     """Validate a Telegram bot token and reachability (optionally via a SOCKS5
     proxy) by calling getMe. Returns (ok, detail)."""
@@ -286,13 +355,16 @@ def render_preview(channel_type: str, config: dict) -> dict:
     ctx = _sample_ctx()
     verb_emoji, verb_title = _header(ctx["event"], ctx["status"])
     verb = f"{verb_emoji} {verb_title}"
-    default_plain, default_html = _build_messages(ctx)
+    default_plain, default_html, head_plain, rows = _build_messages(ctx)
     fields = {**ctx, "verb": verb,
               "latency": f"{ctx['latency']:.0f}" if ctx.get("latency") is not None else ""}
     template = config.get("template")
     if not template:
-        # Telegram sends the rich HTML body; webhook/email get the plain mirror.
+        # Telegram sends the rich HTML body (or a Rich Message table); webhook/email
+        # get the plain mirror.
         if channel_type == "telegram":
+            if config.get("message_style") == "table":
+                return {"text": _table_preview_html(head_plain, rows, ctx.get("url")), "is_html": True}
             return {"text": default_html, "is_html": True}
         return {"text": default_plain, "is_html": False}
     # A custom template is always delivered as plain text (no parse_mode).
@@ -307,7 +379,13 @@ def send_test_telegram(config: dict) -> tuple[bool, str]:
         return False, "bot_token required"
     if not config.get("chat_id"):
         return False, "chat_id required"
-    _, default_html = _build_messages(_sample_ctx())
+    _, default_html, head_plain, rows = _build_messages(_sample_ctx())
+    if config.get("message_style") == "table":
+        try:
+            _send_telegram_rich(config, _table_blocks("🧪 ТЕСТ\n" + head_plain, rows, None))
+            return True, "Тестовая Rich Message-таблица отправлена в Telegram"
+        except Exception as exc:  # noqa: BLE001
+            return False, f"sendRichMessage не сработал ({exc}); в реальных алертах сработает откат на обычный HTML"
     text = "🧪 <b>ТЕСТ</b>\n\n" + default_html
     try:
         _send_telegram(config, text, parse_mode="HTML")
@@ -513,7 +591,8 @@ def dispatch(channels: list[AlertChannel], *, event: str, probe_name: str, serve
         "duration": duration, "url": page_url,
         "time": now.strftime("%d.%m.%Y %H:%M:%S UTC"),
     }
-    default_plain, default_html = _build_messages(ctx)
+    default_plain, default_html, head_plain, rows = _build_messages(ctx)
+    table_blocks = _table_blocks(head_plain, rows, page_url)
 
     # Template fields (strings) for custom templates.
     fields = {**ctx, "verb": verb, "latency": f"{latency_ms:.0f}" if latency_ms is not None else ""}
@@ -538,7 +617,15 @@ def dispatch(channels: list[AlertChannel], *, event: str, probe_name: str, serve
         ok, err = True, None
         try:
             if ch.type == "telegram":
-                _deliver(lambda cfg=cfg, tg_text=tg_text, tg_mode=tg_mode: _send_telegram(cfg, tg_text, tg_mode))
+                if not has_tpl and cfg.get("message_style") == "table":
+                    try:
+                        _deliver(lambda cfg=cfg, blocks=table_blocks: _send_telegram_rich(cfg, blocks))
+                    except Exception as exc:  # noqa: BLE001 — Rich Message rejected, fall back to plain HTML
+                        logger.warning("telegram Rich Message table failed (channel %s), "
+                                       "falling back to classic HTML: %s", ch.id, exc)
+                        _deliver(lambda cfg=cfg, tg_text=tg_text, tg_mode=tg_mode: _send_telegram(cfg, tg_text, tg_mode))
+                else:
+                    _deliver(lambda cfg=cfg, tg_text=tg_text, tg_mode=tg_mode: _send_telegram(cfg, tg_text, tg_mode))
             elif ch.type == "webhook":
                 _deliver(lambda cfg=cfg, payload=payload: _send_webhook(cfg, payload))
             elif ch.type == "email":
