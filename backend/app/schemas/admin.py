@@ -254,11 +254,6 @@ class AlertChannelTest(BaseModel):
     channel_id: int | None = None  # to reuse stored secrets when testing an existing channel
 
 
-# TEMPORARY — Rich Message block-type exploration, see dispatcher.RICH_TEST_VARIANTS.
-class AlertChannelTestRich(AlertChannelTest):
-    variant: str
-
-
 # ---- Maintenance windows ----
 
 

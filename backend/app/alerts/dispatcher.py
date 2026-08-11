@@ -149,20 +149,12 @@ TELEGRAM_MESSAGE_STYLES = ("default", "table")
 
 
 def _table_blocks(head_plain: str, rows: list[tuple[str, str, str]], url: str | None) -> list[dict]:
-    """Rich Message blocks for a Telegram sendRichMessage table alert.
-
-    The exact InputRichMessage/InputRichBlockTable JSON schema isn't fully
-    published yet (only class/field names are confirmed by the Bot API
-    changelog), so this is a best-effort payload. Callers must be ready for
-    Telegram to reject it and fall back to the classic HTML message."""
+    """Rich Message blocks for a Telegram sendRichMessage table alert. Cell
+    shape (flat "text" leaves in a 2D "cells" array) confirmed working against
+    the live Bot API — see git history for the schema variants that 400'd or
+    rendered empty before this one."""
     def _cell(text: str, header: bool = False) -> dict:
-        # Telegram's RichText is never a bare string — it's always a discriminated
-        # object (textPlain, textBold, ...), and Rich Messages are fully
-        # block-based (up to 16 levels of nesting per the Bot API changelog), so
-        # a cell's content is most likely itself a nested block list rather than
-        # a flat "text" field (which is what "Expected an Array of
-        # PageBlockTableCell" pointed at — the cell object's shape was rejected).
-        cell: dict = {"blocks": [{"type": "paragraph", "text": text}]}
+        cell: dict = {"text": text}
         if header:
             cell["header"] = True
         return cell
@@ -414,151 +406,6 @@ def send_test_telegram(config: dict) -> tuple[bool, str]:
         return True, "Тестовый алерт отправлен в Telegram"
     except Exception as exc:  # noqa: BLE001
         return False, str(exc)
-
-
-# --- TEMPORARY: Rich Message block-type exploration -------------------------
-# sendRichMessage's JSON schema isn't fully published; these send one isolated
-# block type each so we can see which ones Telegram actually renders yet.
-# Remove RICH_TEST_VARIANTS / _rich_test_blocks / send_test_telegram_rich_variant
-# (and the matching admin.py endpoint + frontend buttons) once this is settled.
-RICH_TEST_VARIANTS = (
-    "paragraph", "formatted", "table", "details", "checklist", "combo",
-    # Five competing hypotheses for the table block's cell shape — the "table"
-    # variant above ("cells": Array<Array<{blocks:[...]}>>) either 400s or
-    # renders empty, so we're probing alternate shapes one at a time.
-    "table_flat_text", "table_typed_nodes", "table_rows_field",
-    "table_rows_nested_blocks", "table_minimal_1x1",
-)
-
-
-def _table_variant_blocks(kind: str) -> list[dict]:
-    lead = {"type": "paragraph", "text": f"🧪 Rich Message: таблица ({kind})"}
-    if kind == "table_flat_text":
-        # Plain "text" leaf cells (no nested blocks), 2D "cells" array.
-        table = {
-            "type": "table", "bordered": True, "striped": True,
-            "cells": [
-                [{"text": "Поле", "header": True}, {"text": "Значение", "header": True}],
-                [{"text": "A1"}, {"text": "B1"}],
-            ],
-        }
-    elif kind == "table_typed_nodes":
-        # Every nested node gets an explicit "type" discriminator, matching the
-        # top-level block convention — maybe untyped rows/cells are silently
-        # dropped rather than erroring.
-        def cell(text: str, header: bool = False) -> dict:
-            c: dict = {"type": "table_cell", "blocks": [{"type": "paragraph", "text": text}]}
-            if header:
-                c["header"] = True
-            return c
-        table = {
-            "type": "table",
-            "rows": [
-                {"type": "table_row", "cells": [cell("Поле", True), cell("Значение", True)]},
-                {"type": "table_row", "cells": [cell("A1"), cell("B1")]},
-            ],
-        }
-    elif kind == "table_rows_field":
-        # "rows" (matching the TL pageBlockTable.rows field name) instead of
-        # "cells", untyped nested nodes, flat text leaves.
-        table = {
-            "type": "table",
-            "rows": [
-                {"cells": [{"text": "Поле", "header": True}, {"text": "Значение", "header": True}]},
-                {"cells": [{"text": "A1"}, {"text": "B1"}]},
-            ],
-        }
-    elif kind == "table_rows_nested_blocks":
-        # "rows" field name + nested blocks leaves (combination not tried yet).
-        def cell(text: str, header: bool = False) -> dict:
-            c: dict = {"blocks": [{"type": "paragraph", "text": text}]}
-            if header:
-                c["header"] = True
-            return c
-        table = {
-            "type": "table",
-            "rows": [
-                {"cells": [cell("Поле", True), cell("Значение", True)]},
-                {"cells": [cell("A1"), cell("B1")]},
-            ],
-        }
-    elif kind == "table_minimal_1x1":
-        # Smallest possible table (1 row, 1 column, no bordered/striped/header)
-        # to isolate cell-shape errors from row/column-count issues.
-        table = {"type": "table", "cells": [[{"blocks": [{"type": "paragraph", "text": "X"}]}]]}
-    else:
-        raise ValueError(f"unknown table test variant: {kind}")
-    return [lead, table]
-
-
-def _formatted_text_block() -> dict:
-    parts = [
-        ("Rich Message: ", None), ("жирный", "bold"), (", ", None),
-        ("курсив", "italic"), (", ", None), ("подчёркнутый", "underline"), (", ", None),
-        ("спойлер", "spoiler"),
-    ]
-    text, entities = "", []
-    for seg, style in parts:
-        start = len(text)
-        text += seg
-        if style:
-            entities.append({"type": style, "offset": start, "length": len(seg)})
-    return {"type": "paragraph", "text": text, "entities": entities}
-
-
-def _rich_test_blocks(variant: str) -> list[dict]:
-    if variant == "paragraph":
-        return [{"type": "paragraph", "text": "🧪 Rich Message: обычный параграф"}]
-    if variant == "formatted":
-        return [_formatted_text_block()]
-    if variant == "table":
-        sample_rows = [("Поле A", "Значение A", ""), ("Поле B", "Значение B", "")]
-        return _table_blocks("🧪 Rich Message: таблица", sample_rows, None)
-    if variant == "details":
-        return [{
-            "type": "details",
-            "title": "🧪 Развернуть детали",
-            "blocks": [{"type": "paragraph", "text": "Содержимое внутри details-блока"}],
-        }]
-    if variant == "checklist":
-        return [{
-            "type": "checklist",
-            "title": "🧪 Rich Message: чек-лист",
-            "items": [
-                {"text": "Первый пункт", "checked": True},
-                {"text": "Второй пункт", "checked": False},
-            ],
-        }]
-    if variant == "combo":
-        return [
-            {"type": "paragraph", "text": "🧪 Rich Message: комбо-блоки"},
-            *_rich_test_blocks("table"),
-            {
-                "type": "details",
-                "title": "Детали",
-                "blocks": [{"type": "paragraph", "text": "Внутри details"}],
-            },
-        ]
-    if variant.startswith("table_"):
-        return _table_variant_blocks(variant)
-    raise ValueError(f"unknown rich test variant: {variant}")
-
-
-def send_test_telegram_rich_variant(config: dict, variant: str) -> tuple[bool, str]:
-    """Send a single isolated Rich Message block type for manual A/B testing.
-    TEMPORARY — see the block comment above RICH_TEST_VARIANTS."""
-    if not config.get("bot_token"):
-        return False, "bot_token required"
-    if not config.get("chat_id"):
-        return False, "chat_id required"
-    if variant not in RICH_TEST_VARIANTS:
-        return False, f"unknown variant, expected one of {list(RICH_TEST_VARIANTS)}"
-    try:
-        _send_telegram_rich(config, _rich_test_blocks(variant))
-        return True, f"Отправлено ({variant}) — проверь, что реально отрисовалось в чате"
-    except Exception as exc:  # noqa: BLE001
-        return False, str(exc)
-# -----------------------------------------------------------------------------
 
 
 WEBHOOK_FORMATS = ("generic", "slack", "discord", "mattermost")
