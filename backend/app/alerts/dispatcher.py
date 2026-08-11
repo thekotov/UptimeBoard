@@ -416,6 +416,82 @@ def send_test_telegram(config: dict) -> tuple[bool, str]:
         return False, str(exc)
 
 
+# --- TEMPORARY: Rich Message block-type exploration -------------------------
+# sendRichMessage's JSON schema isn't fully published; these send one isolated
+# block type each so we can see which ones Telegram actually renders yet.
+# Remove RICH_TEST_VARIANTS / _rich_test_blocks / send_test_telegram_rich_variant
+# (and the matching admin.py endpoint + frontend buttons) once this is settled.
+RICH_TEST_VARIANTS = ("paragraph", "formatted", "table", "details", "checklist", "combo")
+
+
+def _formatted_text_block() -> dict:
+    parts = [
+        ("Rich Message: ", None), ("жирный", "bold"), (", ", None),
+        ("курсив", "italic"), (", ", None), ("подчёркнутый", "underline"), (", ", None),
+        ("спойлер", "spoiler"),
+    ]
+    text, entities = "", []
+    for seg, style in parts:
+        start = len(text)
+        text += seg
+        if style:
+            entities.append({"type": style, "offset": start, "length": len(seg)})
+    return {"type": "paragraph", "text": text, "entities": entities}
+
+
+def _rich_test_blocks(variant: str) -> list[dict]:
+    if variant == "paragraph":
+        return [{"type": "paragraph", "text": "🧪 Rich Message: обычный параграф"}]
+    if variant == "formatted":
+        return [_formatted_text_block()]
+    if variant == "table":
+        sample_rows = [("Поле A", "Значение A", ""), ("Поле B", "Значение B", "")]
+        return _table_blocks("🧪 Rich Message: таблица", sample_rows, None)
+    if variant == "details":
+        return [{
+            "type": "details",
+            "title": "🧪 Развернуть детали",
+            "blocks": [{"type": "paragraph", "text": "Содержимое внутри details-блока"}],
+        }]
+    if variant == "checklist":
+        return [{
+            "type": "checklist",
+            "title": "🧪 Rich Message: чек-лист",
+            "items": [
+                {"text": "Первый пункт", "checked": True},
+                {"text": "Второй пункт", "checked": False},
+            ],
+        }]
+    if variant == "combo":
+        return [
+            {"type": "paragraph", "text": "🧪 Rich Message: комбо-блоки"},
+            *_rich_test_blocks("table"),
+            {
+                "type": "details",
+                "title": "Детали",
+                "blocks": [{"type": "paragraph", "text": "Внутри details"}],
+            },
+        ]
+    raise ValueError(f"unknown rich test variant: {variant}")
+
+
+def send_test_telegram_rich_variant(config: dict, variant: str) -> tuple[bool, str]:
+    """Send a single isolated Rich Message block type for manual A/B testing.
+    TEMPORARY — see the block comment above RICH_TEST_VARIANTS."""
+    if not config.get("bot_token"):
+        return False, "bot_token required"
+    if not config.get("chat_id"):
+        return False, "chat_id required"
+    if variant not in RICH_TEST_VARIANTS:
+        return False, f"unknown variant, expected one of {list(RICH_TEST_VARIANTS)}"
+    try:
+        _send_telegram_rich(config, _rich_test_blocks(variant))
+        return True, f"Отправлено ({variant}) — проверь, что реально отрисовалось в чате"
+    except Exception as exc:  # noqa: BLE001
+        return False, str(exc)
+# -----------------------------------------------------------------------------
+
+
 WEBHOOK_FORMATS = ("generic", "slack", "discord", "mattermost")
 
 

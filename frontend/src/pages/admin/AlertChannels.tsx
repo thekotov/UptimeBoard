@@ -8,6 +8,7 @@ import {
   type TelegramChat,
   telegramChats,
   testChannel,
+  testChannelRichVariant,
 } from "../../api/client";
 import { PencilIcon, RefreshIcon, TrashIcon } from "../../components/Icons";
 import { Modal } from "../../components/Modal";
@@ -387,6 +388,26 @@ function ChannelForm({
     }
   };
 
+  // TEMPORARY — Rich Message block-type exploration, remove this state/handler
+  // and the "richVariant"-labelled JSX block below once settled.
+  const [richVariantBusy, setRichVariantBusy] = useState<string | null>(null);
+  const RICH_VARIANTS = ["paragraph", "formatted", "table", "details", "checklist", "combo"];
+  const runRichVariant = async (variant: string) => {
+    setRichVariantBusy(variant);
+    try {
+      const res = await testChannelRichVariant({
+        ...(editing ? { channel_id: channel!.id } : {}),
+        config: buildConfig(),
+        variant,
+      });
+      toast.show(res.detail, res.ok ? "success" : "error");
+    } catch {
+      toast.error(t("toast.error"));
+    } finally {
+      setRichVariantBusy(null);
+    }
+  };
+
   const pickChat = async () => {
     setPickingChat(true);
     try {
@@ -477,6 +498,27 @@ function ChannelForm({
               <option value="table">{t("alerts.messageStyle.table")}</option>
             </select>
             <div className="hint">{t("alerts.messageStyleHint")}</div>
+          </div>
+          {/* TEMPORARY — Rich Message block-type exploration, remove this block
+              once sendRichMessage support across Telegram clients is settled */}
+          <div className="full">
+            <label>Экспериментальные тесты Rich Message (временно)</label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+              {RICH_VARIANTS.map((v) => (
+                <button
+                  key={v}
+                  type="button"
+                  className="ghost btn-sm"
+                  disabled={richVariantBusy != null || (!editing && !botToken.trim()) || !chatId.trim()}
+                  onClick={() => runRichVariant(v)}
+                >
+                  {richVariantBusy === v ? "…" : v}
+                </button>
+              ))}
+            </div>
+            <div className="hint">
+              Каждая кнопка шлёт один изолированный тип блока — посмотри, что реально отрисуется в чате.
+            </div>
           </div>
           {chats && chats.length > 0 && (
             <div className="full">

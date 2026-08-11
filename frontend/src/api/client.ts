@@ -361,6 +361,20 @@ export async function sendTestAlert(body: {
   return data;
 }
 
+// TEMPORARY — Rich Message block-type exploration, remove with the backend
+// /admin/alert-channels/test-rich endpoint once sendRichMessage support is settled.
+export async function testChannelRichVariant(body: {
+  config: Record<string, unknown>;
+  channel_id?: number;
+  variant: string;
+}): Promise<{ ok: boolean; detail: string }> {
+  const { data } = await api.post<{ ok: boolean; detail: string }>(
+    "/admin/alert-channels/test-rich",
+    { type: "telegram", ...body }
+  );
+  return data;
+}
+
 export async function previewChannel(body: {
   type: string;
   config: Record<string, unknown>;

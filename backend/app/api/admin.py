@@ -28,6 +28,7 @@ from app.schemas.admin import (
     AlertChannelCreate,
     AlertChannelOut,
     AlertChannelTest,
+    AlertChannelTestRich,
     AlertChannelUpdate,
     AnnouncementCreate,
     AnnouncementOut,
@@ -57,6 +58,7 @@ from app.alerts import (
     render_preview,
     send_test_email,
     send_test_telegram,
+    send_test_telegram_rich_variant,  # TEMPORARY — Rich Message exploration
     send_test_webhook,
     test_email,
     test_telegram,
@@ -1051,6 +1053,19 @@ def test_alert_channel_send(payload: AlertChannelTest, db: Session = Depends(get
     # A manual test alert is a real delivery — surface its outcome in the list too.
     if payload.channel_id is not None:
         record_deliveries([(payload.channel_id, ok, None if ok else detail)])
+    return {"ok": ok, "detail": detail}
+
+
+@router.post("/alert-channels/test-rich")
+def test_alert_channel_rich(payload: AlertChannelTestRich, db: Session = Depends(get_db)):
+    """TEMPORARY — send one isolated Rich Message block type (see
+    dispatcher.RICH_TEST_VARIANTS) so we can see what the Telegram client
+    actually renders yet. Telegram-only; remove once sendRichMessage support
+    is settled."""
+    if payload.type != "telegram":
+        return {"ok": False, "detail": "rich test is telegram-only"}
+    cfg = _resolve_test_config(payload, db)
+    ok, detail = send_test_telegram_rich_variant(cfg, payload.variant)
     return {"ok": ok, "detail": detail}
 
 
