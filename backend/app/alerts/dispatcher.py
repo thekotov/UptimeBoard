@@ -105,25 +105,40 @@ def _error_html(text: str, esc, enhanced: bool = False) -> str:
     return f"<tg-spoiler>{body}</tg-spoiler>" if len(text) > _SPOILER_THRESHOLD else body
 
 
-def _build_messages(ctx: dict, enhanced: bool = False) -> tuple[str, str, str, list[tuple[str, str, str]]]:
-    """Build (plain, html, head_plain, rows) for an alert. HTML uses
-    Telegram-supported tags (<b>, <code>, <a>, <blockquote expandable>); plain
-    mirrors it for email/webhook and template fallback. head_plain/rows are
-    exposed separately so the Telegram "table" style can reuse the same fields
-    inside a Rich Message table block instead of the plain-text list.
+# Emoji prefix per field row in the "default" style's code block — purely
+# cosmetic, matches the Zabbix-style reference the layout was modelled on.
+_ROW_ICONS = {
+    "Проба": "🔍", "Где": "🌐", "Время ответа": "📶", "Ошибка": "💬",
+    "IP": "🌐", "Сертификат": "📜", "Контент": "🔁",
+    "Простой": "✅", "Длится уже": "⏱", "Алертов по инциденту": "🔔", "Время": "📅",
+}
 
-    enhanced=True additionally marks the status word with <mark> and wraps a
-    "down" headline in <aside> (pull-quote) — new Bot API 10.1/10.2 HTML tags,
-    unconfirmed in classic sendMessage. Callers must be ready to fall back to
-    enhanced=False (identical to the pre-existing behavior) if the send 400s."""
+
+def _build_messages(ctx: dict, enhanced: bool = False) -> tuple[str, str, str, list[tuple[str, str, str]]]:
+    """Build (plain, html, head_plain, rows) for an alert.
+
+    Layout: "emoji + server · host" on its own line, the event title in bold
+    below it, an optional "📌 reason" line when there's a short single-line
+    error to call out, and the field list as a monospace "code block"
+    (<pre><code class="language-java">> — Telegram's client applies its own
+    syntax highlighting to plain key: value text, the same trick status-bot
+    integrations like Zabbix use). <pre>/<code> don't allow nested formatting
+    tags, so the code block always uses plain-escaped values, not the html
+    tuple element (kept in ``rows`` for the "table" style, which also only
+    reads the plain value). head_plain/rows are exposed separately so the
+    "table" style can reuse the same fields inside a Rich Message table block.
+
+    enhanced=True additionally marks the status word with <mark> and wraps the
+    event line in <aside> (pull-quote) for "down" alerts — new Bot API 10.1/
+    10.2 HTML tags, unconfirmed in classic sendMessage. Callers must be ready
+    to fall back to enhanced=False (identical to the pre-existing behavior)
+    if the send 400s."""
     emoji, title = _header(ctx["event"], ctx["status"])
     status_ru = _STATUS_RU.get(ctx["status"], ctx["status"])
 
     def esc(v) -> str:
         return html.escape(str(v)) if v is not None else ""
 
-    # Server name + IP move into the headline so "что случилось / какой сервер"
-    # is visible without opening the collapsed details block below.
     srv = ctx.get("server") or ""
     server_plain = f"{srv} · {ctx['host']}".strip(" ·")
     server_html = (esc(srv) + " · " if srv else "") + f"<code>{esc(ctx['host'])}</code>"
@@ -142,7 +157,7 @@ def _build_messages(ctx: dict, enhanced: bool = False) -> tuple[str, str, str, l
             "ip_changed": "IP", "cert_changed": "Сертификат",
             "content_changed": "Контент", "cert_expiring": "Сертификат",
         }.get(ctx["event"], "Ошибка")
-        rows.append((err_label, ctx["error"], _error_html(ctx["error"], esc, enhanced)))
+        rows.append((err_label, ctx["error"], esc(ctx["error"])))
     if ctx.get("duration"):
         label = "Простой" if ctx["event"] == "resolved" else "Длится уже"
         rows.append((label, ctx["duration"], esc(ctx["duration"])))
@@ -158,20 +173,36 @@ def _build_messages(ctx: dict, enhanced: bool = False) -> tuple[str, str, str, l
     _no_suffix = ("ip_changed", "cert_changed", "content_changed", "cert_expiring")
     suffix = "" if (ctx["event"] in _no_suffix or status_ru.lower() in title.lower()) else f" · {status_ru}"
     suffix_html = f" · <mark>{esc(status_ru)}</mark>" if (enhanced and suffix) else esc(suffix)
-    head_plain = f"{emoji} {title.upper()}{suffix.upper()} — {server_plain}"
-    head_html = f"{emoji} <b>{esc(title)}</b>{suffix_html} — {server_html}"
+
+    head_plain = f"{emoji} {server_plain}\n{title.upper()}{suffix.upper()}"
+    event_html = f"<b>{esc(title)}</b>{suffix_html}"
     if enhanced and ctx["status"] == "down":
-        head_html = f"<aside>{head_html}</aside>"
+        event_html = f"<aside>{event_html}</aside>"
+    head_html = f"{emoji} {server_html}\n{event_html}"
+
+    # A short single-line reason gets pinned right under the headline; long or
+    # multi-line ones just stay in the code block below instead of wrapping a
+    # slab of raw text in bold.
+    pin_plain = pin_html = ""
+    err_text = ctx.get("error") or ""
+    if err_text and len(err_text) <= _SPOILER_THRESHOLD and "\n" not in err_text:
+        pin_plain = f"\n\n📌 {err_text}"
+        pin_html = f"\n\n📌 <b>{esc(err_text)}</b>"
+
     body_plain = "\n".join(f"{label}: {pv}" for label, pv, _ in rows)
-    body_html = "\n".join(f"<b>{esc(label)}:</b> {hv}" for label, _, hv in rows)
+    # <pre>/<code> render their content verbatim (no nested tag interpretation),
+    # but it's still parsed as part of the surrounding HTML — the plain value
+    # must be escaped or a "<"/"&" in it (URLs, raw error bodies) would corrupt
+    # the markup.
+    code_lines = "\n".join(f"{_ROW_ICONS.get(label, '•')} {label}: {esc(pv)}" for label, pv, _ in rows)
 
     link_plain = link_html = ""
     if ctx.get("url"):
         link_plain = f"\n\n🔗 {ctx['url']}"
         link_html = f'\n\n🔗 <a href="{esc(ctx["url"])}">Открыть статус-страницу</a>'
 
-    return (f"{head_plain}\n\n{body_plain}{link_plain}",
-            f"{head_html}\n\n<blockquote expandable>{body_html}</blockquote>{link_html}",
+    return (f"{head_plain}{pin_plain}\n\n{body_plain}{link_plain}",
+            f'{head_html}{pin_html}\n\n<pre><code class="language-java">{code_lines}</code></pre>{link_html}',
             head_plain, rows)
 
 

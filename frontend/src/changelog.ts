@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.13.0",
+    date: "2026-08-11",
+    changes: [
+      "Обычный формат Telegram-алертов переработан: сервер/хост и событие теперь на отдельных строках, короткая причина закреплена сверху, а детали оформлены цветным код-блоком (как у Zabbix-ботов) вместо простой цитаты",
+    ],
+  },
+  {
     version: "1.12.3",
     date: "2026-08-11",
     changes: [
