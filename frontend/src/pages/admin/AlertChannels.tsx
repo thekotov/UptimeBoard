@@ -64,43 +64,40 @@ function StormSettingsPanel() {
   const disabled = settings.alert_storm_window_sec === 0;
 
   return (
-    <div className="card" style={{ marginBottom: 16 }}>
-      <div className="stack" style={{ gap: 8 }}>
-        <b>{t("alerts.stormSettings")}</b>
-        <div className="hint">{t("alerts.stormSettingsHint")}</div>
-        <div className="inline" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-          <label className="inline" style={{ gap: 6 }}>
+    <div className="card storm-settings" style={{ marginBottom: 16 }}>
+      <b>{t("alerts.stormSettings")}</b>
+      <div className="hint">{t("alerts.stormSettingsHint")}</div>
+      <div className="storm-settings-row">
+        <label className="storm-settings-toggle">
+          <input
+            type="checkbox"
+            checked={!disabled}
+            disabled={saving}
+            onChange={(e) => save(e.target.checked ? settings.alert_storm_window_sec_default || 9 : 0)}
+          />
+          <span>{t("alerts.stormEnabled")}</span>
+        </label>
+        {!disabled && (
+          <div className="storm-settings-field">
             <input
-              type="checkbox"
-              checked={!disabled}
+              type="number"
+              min={1}
+              value={value}
               disabled={saving}
-              onChange={(e) => save(e.target.checked ? settings.alert_storm_window_sec_default || 9 : 0)}
+              onChange={(e) => setValue(e.target.value)}
+              onBlur={() => {
+                const n = Number(value);
+                if (Number.isFinite(n) && n > 0 && n !== settings.alert_storm_window_sec) save(n);
+              }}
             />
-            {t("alerts.stormEnabled")}
-          </label>
-          {!disabled && (
-            <>
-              <input
-                type="number"
-                min={1}
-                style={{ width: 80 }}
-                value={value}
-                disabled={saving}
-                onChange={(e) => setValue(e.target.value)}
-                onBlur={() => {
-                  const n = Number(value);
-                  if (Number.isFinite(n) && n > 0 && n !== settings.alert_storm_window_sec) save(n);
-                }}
-              />
-              <span className="muted small">{t("alerts.stormWindowSec")}</span>
-            </>
-          )}
-          {settings.alert_storm_window_sec_overridden && (
-            <button className="ghost btn-sm" onClick={() => save(null)} disabled={saving}>
-              {t("alerts.stormResetDefault")} ({settings.alert_storm_window_sec_default}с)
-            </button>
-          )}
-        </div>
+            <span className="muted small">{t("alerts.stormWindowSec")}</span>
+          </div>
+        )}
+        {settings.alert_storm_window_sec_overridden && (
+          <button className="ghost btn-sm" onClick={() => save(null)} disabled={saving}>
+            {t("alerts.stormResetDefault")} ({settings.alert_storm_window_sec_default}с)
+          </button>
+        )}
       </div>
     </div>
   );

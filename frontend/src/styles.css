@@ -510,6 +510,17 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .alert-preview-table th, .alert-preview-table td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
 .alert-preview-table th { background: var(--panel); color: var(--muted); font-weight: 600; }
 
+/* global `label` is block + has a bottom margin (form-field labels) — reset it
+   locally so a checkbox + text label sits inline on one baseline, no wrap. */
+.storm-settings-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin-top: 10px; }
+.storm-settings-toggle {
+  display: flex; align-items: center; gap: 8px; margin: 0; white-space: nowrap;
+  font-size: 13px; font-weight: 500; color: var(--text); cursor: pointer;
+}
+.storm-settings-toggle input { margin: 0; }
+.storm-settings-field { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+.storm-settings-field input[type="number"] { width: 60px; text-align: center; }
+
 /* inline probe edit form gets a subtle highlight so it stands out from rows */
 .probe-edit {
   background: var(--panel-2); border: 1px solid var(--border);
