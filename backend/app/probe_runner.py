@@ -14,6 +14,7 @@ from app.alerts import (
     base_channels,
     dispatch,
     escalation_channels,
+    get_alert_storm_window_sec,
     queue_storm_alert,
 )
 from app.config import settings
@@ -356,7 +357,7 @@ def handle_incident(db: Session, probe: Probe, outcome: ProbeOutcome, host: str,
             if probe.consecutive_failures >= threshold and not maint:
                 db.add(Incident(probe_id=probe.id, last_status=outcome.status,
                                  last_notified_at=now, alert_count=1))
-                window = settings.alert_storm_window_sec
+                window = get_alert_storm_window_sec(db)
                 service_id = probe.server.service_id if probe.server is not None else None
                 if window > 0 and service_id is not None:
                     try:

@@ -13,6 +13,7 @@ from app.db import get_db
 from app.models import (
     AlertChannel,
     Announcement,
+    AppSettings,
     Incident,
     MaintenanceWindow,
     Page,
@@ -29,6 +30,8 @@ from app.schemas.admin import (
     AlertChannelOut,
     AlertChannelTest,
     AlertChannelUpdate,
+    AlertSettingsOut,
+    AlertSettingsUpdate,
     AnnouncementCreate,
     AnnouncementOut,
     MaintenanceCreate,
@@ -52,6 +55,7 @@ from app.schemas.admin import (
 from app.realtime import get_sync_redis, get_worker_heartbeat_age
 from app.config import settings
 from app.alerts import (
+    get_alert_storm_window_sec,
     list_telegram_chats,
     record_deliveries,
     render_preview,
@@ -996,6 +1000,27 @@ def _masked(channel: AlertChannel) -> AlertChannelOut:
         page_id=channel.page_id, escalate_after_min=channel.escalate_after_min, config=cfg,
         last_sent_at=channel.last_sent_at, last_ok=channel.last_ok, last_error=channel.last_error,
     )
+
+
+@router.get("/alert-settings", response_model=AlertSettingsOut)
+def get_alert_settings(db: Session = Depends(get_db)):
+    row = db.get(AppSettings, 1)
+    return AlertSettingsOut(
+        alert_storm_window_sec=get_alert_storm_window_sec(db),
+        alert_storm_window_sec_default=settings.alert_storm_window_sec,
+        alert_storm_window_sec_overridden=row is not None and row.alert_storm_window_sec is not None,
+    )
+
+
+@router.put("/alert-settings", response_model=AlertSettingsOut)
+def update_alert_settings(payload: AlertSettingsUpdate, db: Session = Depends(get_db)):
+    row = db.get(AppSettings, 1)
+    if row is None:
+        row = AppSettings(id=1)
+        db.add(row)
+    row.alert_storm_window_sec = payload.alert_storm_window_sec
+    db.commit()
+    return get_alert_settings(db)
 
 
 @router.get("/alert-channels", response_model=list[AlertChannelOut])

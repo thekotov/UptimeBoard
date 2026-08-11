@@ -337,6 +337,24 @@ export async function resetProbeDefaults(): Promise<number> {
   return data.updated;
 }
 
+export interface AlertSettings {
+  alert_storm_window_sec: number;
+  alert_storm_window_sec_default: number;
+  alert_storm_window_sec_overridden: boolean;
+}
+
+export async function getAlertSettings(): Promise<AlertSettings> {
+  const { data } = await api.get<AlertSettings>("/admin/alert-settings");
+  return data;
+}
+
+export async function updateAlertSettings(body: {
+  alert_storm_window_sec: number | null;
+}): Promise<AlertSettings> {
+  const { data } = await api.put<AlertSettings>("/admin/alert-settings", body);
+  return data;
+}
+
 export async function testChannel(body: {
   type: string;
   config: Record<string, unknown>;

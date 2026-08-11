@@ -9,6 +9,13 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.10.0",
+    date: "2026-08-11",
+    changes: [
+      "Настройки алертов: окно шторм-группировки теперь можно включать/выключать и менять из админки, без правки .env",
+    ],
+  },
+  {
     version: "1.9.0",
     date: "2026-08-11",
     changes: [

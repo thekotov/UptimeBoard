@@ -2,12 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import {
   api,
   type AlertChannel,
+  type AlertSettings,
+  getAlertSettings,
   type Page,
   previewChannel,
   sendTestAlert,
   type TelegramChat,
   telegramChats,
   testChannel,
+  updateAlertSettings,
 } from "../../api/client";
 import { PencilIcon, RefreshIcon, TrashIcon } from "../../components/Icons";
 import { Modal } from "../../components/Modal";
@@ -26,6 +29,82 @@ const TYPE_META: Record<ChannelType, { icon: string; label: string }> = {
   webhook: { icon: "🔗", label: "Webhook" },
   email: { icon: "✉", label: "Email" },
 };
+
+function StormSettingsPanel() {
+  const { t } = useI18n();
+  const toast = useToast();
+  const [settings, setSettings] = useState<AlertSettings | null>(null);
+  const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    getAlertSettings()
+      .then((s) => {
+        setSettings(s);
+        setValue(String(s.alert_storm_window_sec));
+      })
+      .catch(() => {});
+  }, []);
+
+  const save = async (override: number | null) => {
+    setSaving(true);
+    try {
+      const s = await updateAlertSettings({ alert_storm_window_sec: override });
+      setSettings(s);
+      setValue(String(s.alert_storm_window_sec));
+      toast.success(t("toast.saved"));
+    } catch {
+      toast.error(t("toast.error"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (!settings) return null;
+  const disabled = settings.alert_storm_window_sec === 0;
+
+  return (
+    <div className="card" style={{ marginBottom: 16 }}>
+      <div className="stack" style={{ gap: 8 }}>
+        <b>{t("alerts.stormSettings")}</b>
+        <div className="hint">{t("alerts.stormSettingsHint")}</div>
+        <div className="inline" style={{ gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <label className="inline" style={{ gap: 6 }}>
+            <input
+              type="checkbox"
+              checked={!disabled}
+              disabled={saving}
+              onChange={(e) => save(e.target.checked ? settings.alert_storm_window_sec_default || 9 : 0)}
+            />
+            {t("alerts.stormEnabled")}
+          </label>
+          {!disabled && (
+            <>
+              <input
+                type="number"
+                min={1}
+                style={{ width: 80 }}
+                value={value}
+                disabled={saving}
+                onChange={(e) => setValue(e.target.value)}
+                onBlur={() => {
+                  const n = Number(value);
+                  if (Number.isFinite(n) && n > 0 && n !== settings.alert_storm_window_sec) save(n);
+                }}
+              />
+              <span className="muted small">{t("alerts.stormWindowSec")}</span>
+            </>
+          )}
+          {settings.alert_storm_window_sec_overridden && (
+            <button className="ghost btn-sm" onClick={() => save(null)} disabled={saving}>
+              {t("alerts.stormResetDefault")} ({settings.alert_storm_window_sec_default}с)
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function AlertChannels() {
   const { t, lang } = useI18n();
@@ -86,6 +165,8 @@ export function AlertChannels() {
         <button onClick={() => setEditing("new")}>+ {t("alerts.add")}</button>
         <span className="muted small">{t("alerts.intro")}</span>
       </div>
+
+      <StormSettingsPanel />
 
       {!loaded && (
         <div className="card">

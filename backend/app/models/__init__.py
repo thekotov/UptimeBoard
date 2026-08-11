@@ -1,4 +1,4 @@
-from app.models.alert import AlertChannel
+from app.models.alert import AlertChannel, AppSettings
 from app.models.monitoring import (
     Announcement,
     Incident,
@@ -26,4 +26,5 @@ __all__ = [
     "MaintenanceWindow",
     "Announcement",
     "AlertChannel",
+    "AppSettings",
 ]

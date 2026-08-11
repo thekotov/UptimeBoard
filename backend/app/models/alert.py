@@ -33,3 +33,15 @@ class AlertChannel(Base):
     last_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     last_ok: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     last_error: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+
+class AppSettings(Base):
+    """Singleton row (id=1) of admin-editable overrides for tunables that
+    otherwise only live in app/config.py (env vars, requires a restart to
+    change). A NULL column means "no override, use the env default" — see
+    app/alerts/dispatcher.get_alert_storm_window_sec()."""
+    __tablename__ = "app_settings"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    # NULL = use settings.alert_storm_window_sec (env default). 0 = disabled.
+    alert_storm_window_sec: Mapped[int | None] = mapped_column(Integer, nullable=True)

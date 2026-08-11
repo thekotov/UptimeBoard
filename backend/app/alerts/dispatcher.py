@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.db import SessionLocal
-from app.models.alert import AlertChannel
+from app.models.alert import AlertChannel, AppSettings
 from app.realtime import get_sync_redis
 
 logger = logging.getLogger("alerts")
@@ -633,6 +633,16 @@ def record_deliveries(outcomes: list[tuple[int, bool, str | None]]) -> None:
             session.commit()
     except Exception as exc:  # noqa: BLE001
         logger.warning("recording alert delivery status failed: %s", exc)
+
+
+def get_alert_storm_window_sec(db: Session) -> int:
+    """Effective storm-grouping window: the admin-set override in AppSettings
+    (id=1), falling back to settings.alert_storm_window_sec (env default) when
+    no override row exists or its column is NULL."""
+    row = db.get(AppSettings, 1)
+    if row is not None and row.alert_storm_window_sec is not None:
+        return row.alert_storm_window_sec
+    return settings.alert_storm_window_sec
 
 
 # --- Storm grouping: fold multiple servers going down together into one alert.

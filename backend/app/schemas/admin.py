@@ -295,4 +295,18 @@ class AnnouncementOut(BaseModel):
     starts_at: datetime
     ends_at: datetime
 
+
+# ---- Alert settings (admin-editable overrides for env tunables) ----
+
+
+class AlertSettingsOut(BaseModel):
+    alert_storm_window_sec: int  # effective value (override, or env default)
+    alert_storm_window_sec_default: int  # env default, for the UI's "reset" hint
+    alert_storm_window_sec_overridden: bool
+
+
+class AlertSettingsUpdate(BaseModel):
+    # None = clear the override (revert to the env default).
+    alert_storm_window_sec: int | None = Field(default=None, ge=0)
+
     model_config = {"from_attributes": True}
