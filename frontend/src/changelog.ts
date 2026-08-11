@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.12.1",
+    date: "2026-08-11",
+    changes: [
+      "Таблица в Telegram-алертах переведена на официальную схему полей (is_header/is_bordered/align/valign) — время в ней теперь показывается в таймзоне получателя",
+      "Групповой шторм-алерт по многим серверам не может превысить лимит длины сообщения Telegram",
+    ],
+  },
+  {
     version: "1.12.0",
     date: "2026-08-11",
     changes: [

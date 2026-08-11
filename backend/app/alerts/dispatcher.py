@@ -182,28 +182,41 @@ def _compact_message(ctx: dict) -> tuple[str, str]:
 TELEGRAM_MESSAGE_STYLES = ("default", "compact", "table")
 
 
-def _table_blocks(head_plain: str, rows: list[tuple[str, str, str]], url: str | None) -> list[dict]:
-    """Rich Message blocks for a Telegram sendRichMessage table alert. Cell
-    shape (flat "text" leaves in a 2D "cells" array) confirmed working against
-    the live Bot API — see git history for the schema variants that 400'd or
-    rendered empty before this one."""
-    def _cell(text: str, header: bool = False) -> dict:
-        cell: dict = {"text": text}
+def _table_blocks(head_plain: str, rows: list[tuple[str, str, str]], url: str | None,
+                   occurred_at: datetime | None = None) -> list[dict]:
+    """Rich Message blocks for a Telegram sendRichMessage table alert.
+
+    Field names match RichBlockTable/RichBlockTableCell per the Bot API 10.1/
+    10.2 @grammyjs/types reference: is_bordered (not "bordered"), is_header
+    (not "header"), and align/valign are mandatory on every cell — earlier
+    attempts omitted them, which is the likely reason the table was accepted
+    (no 400) but rendered empty. The "Время" cell uses a date_time RichText
+    node (renders in the viewer's own timezone/format) instead of our
+    pre-formatted UTC string, when occurred_at is available."""
+    def _cell(text: str, header: bool = False, valign: str = "top") -> dict:
+        cell: dict = {"text": text, "align": "left", "valign": valign}
         if header:
-            cell["header"] = True
+            cell["is_header"] = True
         return cell
 
     blocks: list[dict] = [{"type": "paragraph", "text": head_plain}]
     if rows:
         table_cells: list[list[dict]] = [
-            [_cell("Поле", header=True), _cell("Значение", header=True)],
+            [_cell("Поле", header=True, valign="middle"), _cell("Значение", header=True, valign="middle")],
         ]
         for label, value, _ in rows:
-            table_cells.append([_cell(label), _cell(value)])
+            if label == "Время" and occurred_at is not None:
+                value_cell = {
+                    "text": {"type": "date_time", "unix_time": int(occurred_at.timestamp()),
+                              "date_time_format": "wDT"},
+                    "align": "left", "valign": "top",
+                }
+            else:
+                value_cell = _cell(value)
+            table_cells.append([_cell(label), value_cell])
         blocks.append({
             "type": "table",
-            "bordered": True,
-            "striped": True,
+            "is_bordered": True,
             "cells": table_cells,
         })
     if url:
@@ -560,7 +573,8 @@ def send_test_telegram(config: dict) -> tuple[bool, str]:
     style = config.get("message_style")
     if style == "table":
         try:
-            _send_telegram_rich(config, _table_blocks("🧪 ТЕСТ\n" + head_plain, rows, None))
+            _send_telegram_rich(config, _table_blocks("🧪 ТЕСТ\n" + head_plain, rows, None,
+                                                       occurred_at=datetime.now(timezone.utc)))
             return True, "Тестовая Rich Message-таблица отправлена в Telegram"
         except Exception as exc:  # noqa: BLE001
             return False, f"sendRichMessage не сработал ({exc}); в реальных алертах сработает откат на обычный HTML"
@@ -854,6 +868,13 @@ def _send_storm_group(records: list[dict]) -> None:
             )
 
 
+# dispatch_group sends via classic sendMessage (not sendRichMessage), whose
+# text limit is 4096 UTF-16 code units — a different, much smaller limit than
+# Rich Messages' 32768. Cap the listed servers so a storm across many servers
+# can never blow past it, regardless of how long server/error names are.
+_GROUP_LIST_CAP = 25
+
+
 def dispatch_group(channels: list[AlertChannel], *, records: list[dict], occurred_at: datetime,
                     service_name: str, page_title: str, page_url: str) -> None:
     """Send one combined "opened" alert for multiple servers in the same
@@ -871,15 +892,21 @@ def dispatch_group(channels: list[AlertChannel], *, records: list[dict], occurre
     probes = sorted({r.get("probe_name", "") for r in records if r.get("probe_name")})
     probe_line = ", ".join(probes)
 
+    shown = records[:_GROUP_LIST_CAP]
+    overflow = len(records) - len(shown)
+
     lines_plain = [
         f"{r.get('server_name', '')} {r.get('server_host', '')} — {r.get('error') or r.get('status', '')}"
-        for r in records
+        for r in shown
     ]
     lines_html = [
         f"{esc(r.get('server_name', ''))} · <code>{esc(r.get('server_host', ''))}</code> — "
         f"<code>{esc(r.get('error') or r.get('status', ''))}</code>"
-        for r in records
+        for r in shown
     ]
+    if overflow > 0:
+        lines_plain.append(f"…и ещё {overflow} серверов")
+        lines_html.append(f"…и ещё {overflow} серверов")
 
     head_plain = f"🟠 ДЕГРАДАЦИЯ · {len(records)} СЕРВЕРОВ"
     head_html = f"🟠 <b>Деградация · {len(records)} серверов</b>"
@@ -895,6 +922,13 @@ def dispatch_group(channels: list[AlertChannel], *, records: list[dict], occurre
 
     text_plain = f"{head_plain}\n\n{body_plain}{link_plain}"
     text_html = f"{head_html}\n\n{body_html}{link_html}"
+    if len(text_html) > 4096:
+        # The _GROUP_LIST_CAP slice above should make this unreachable for
+        # realistic name lengths; not truncating here since cutting HTML
+        # mid-tag would break parse_mode=HTML outright. Telegram will reject
+        # the send and the per-channel error below will surface it.
+        logger.warning("group alert text exceeds Telegram's 4096-char limit (%d chars, %d servers)",
+                        len(text_html), len(records))
 
     outcomes: list[tuple[int, bool, str | None]] = []
     for ch in channels:
@@ -946,7 +980,7 @@ def dispatch(channels: list[AlertChannel], *, event: str, probe_name: str, serve
         "time": now.strftime("%d.%m.%Y %H:%M:%S UTC"),
     }
     default_plain, default_html, head_plain, rows = _build_messages(ctx)
-    table_blocks = _table_blocks(head_plain, rows, page_url)
+    table_blocks = _table_blocks(head_plain, rows, page_url, occurred_at=now)
     _, compact_html = _compact_message(ctx)
 
     # Template fields (strings) for custom templates.

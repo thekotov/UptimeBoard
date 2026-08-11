@@ -1,0 +1,938 @@
+<title>Rich Messages — справочник по Bot API 10.1/10.2</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  :root {
+    --paper: #f4f5f8;
+    --surface: #ffffff;
+    --surface-2: #eceef3;
+    --ink: #1a1c25;
+    --muted: #5b6072;
+    --faint: #8a8fa0;
+    --border: #dfe1e8;
+    --code-bg: #11131a;
+    --code-ink: #e7e9f0;
+    --code-muted: #8b90a3;
+    --mark: #c96f1e;
+    --mark-soft: #f3e3cf;
+    --link: #4650c9;
+    --link-soft: #e6e7fb;
+    --warn: #b3401f;
+    --warn-soft: #fbe6df;
+    --ok: #1f7a4d;
+    --ok-soft: #dff2e8;
+    --shadow: 0 1px 2px rgba(20, 22, 30, 0.04), 0 8px 24px rgba(20, 22, 30, 0.05);
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --mono: "SF Mono", "Cascadia Code", "JetBrains Mono", "Fira Code", Consolas, "Liberation Mono", monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #12141c;
+      --surface: #181b25;
+      --surface-2: #1f232f;
+      --ink: #e7e9f0;
+      --muted: #a8adc0;
+      --faint: #767c8f;
+      --border: #2a2e3c;
+      --code-bg: #0b0d13;
+      --code-ink: #e7e9f0;
+      --code-muted: #8b90a3;
+      --mark: #e8a24f;
+      --mark-soft: #3a2c17;
+      --link: #8b93f2;
+      --link-soft: #262a4a;
+      --warn: #e07a56;
+      --warn-soft: #3a231c;
+      --ok: #5cc590;
+      --ok-soft: #1c3226;
+      --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #12141c;
+    --surface: #181b25;
+    --surface-2: #1f232f;
+    --ink: #e7e9f0;
+    --muted: #a8adc0;
+    --faint: #767c8f;
+    --border: #2a2e3c;
+    --code-bg: #0b0d13;
+    --code-ink: #e7e9f0;
+    --code-muted: #8b90a3;
+    --mark: #e8a24f;
+    --mark-soft: #3a2c17;
+    --link: #8b93f2;
+    --link-soft: #262a4a;
+    --warn: #e07a56;
+    --warn-soft: #3a231c;
+    --ok: #5cc590;
+    --ok-soft: #1c3226;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    text-rendering: optimizeLegibility;
+  }
+  a { color: var(--link); text-decoration-thickness: 1px; }
+  a:focus-visible, button:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--link);
+    outline-offset: 2px;
+    border-radius: 3px;
+  }
+  code, pre, kbd { font-family: var(--mono); }
+  ::selection { background: var(--mark-soft); }
+
+  h1, h2, h3 { font-family: var(--serif); font-weight: 600; text-wrap: balance; }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+
+  /* ---------- masthead ---------- */
+  .masthead {
+    border-bottom: 1px solid var(--border);
+    padding: 56px 32px 40px;
+  }
+  .masthead-inner { max-width: 1200px; margin: 0 auto; }
+  .masthead .eyebrow { margin-bottom: 14px; }
+  .masthead h1 {
+    font-size: clamp(34px, 5vw, 52px);
+    line-height: 1.08;
+    margin: 0 0 6px;
+    letter-spacing: -0.01em;
+  }
+  .masthead h1 em {
+    font-style: normal;
+    color: var(--mark);
+    text-decoration: underline;
+    text-decoration-color: var(--mark-soft);
+    text-decoration-thickness: 6px;
+    text-underline-offset: -2px;
+  }
+  .masthead .dek {
+    max-width: 62ch;
+    font-size: 18px;
+    color: var(--muted);
+    margin: 14px 0 0;
+  }
+  .masthead .versions {
+    margin-top: 22px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .chip {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    color: var(--muted);
+    background: var(--surface);
+  }
+  .chip b { color: var(--ink); font-weight: 600; }
+
+  /* ---------- facts strip ---------- */
+  .facts {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 32px;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    transform: translateY(-1px);
+  }
+  .fact {
+    background: var(--surface);
+    padding: 16px 18px;
+  }
+  .fact .n {
+    font-family: var(--mono);
+    font-size: 26px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+  .fact .l {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* ---------- page grid ---------- */
+  .page {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 44px 32px 100px;
+    display: grid;
+    grid-template-columns: 216px minmax(0, 1fr);
+    gap: 56px;
+    align-items: start;
+  }
+  nav.toc {
+    position: sticky;
+    top: 24px;
+    font-size: 13.5px;
+  }
+  nav.toc .label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--faint);
+    margin-bottom: 10px;
+  }
+  nav.toc ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+  nav.toc a { color: var(--muted); text-decoration: none; display: block; }
+  nav.toc a:hover { color: var(--ink); }
+  nav.toc li::marker { content: none; }
+
+  main { min-width: 0; }
+  section { padding-top: 56px; scroll-margin-top: 20px; }
+  section:first-of-type { padding-top: 0; }
+  section + section { border-top: 1px solid var(--border); }
+
+  section > .eyebrow { display: block; margin-bottom: 10px; }
+  section h2 {
+    font-size: 27px;
+    margin: 0 0 16px;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+  }
+  section h3 {
+    font-size: 18px;
+    margin: 32px 0 10px;
+    font-weight: 600;
+  }
+  .prose { max-width: 68ch; color: var(--ink); }
+  .prose p { margin: 0 0 14px; }
+  .prose p.lede { font-size: 17.5px; color: var(--muted); }
+
+  .prose mark, mark {
+    background: var(--mark-soft);
+    color: var(--ink);
+    padding: 0.02em 0.15em;
+    border-radius: 2px;
+  }
+
+  /* ---------- callouts ---------- */
+  .note {
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--link);
+    background: var(--link-soft);
+    border-radius: 0 6px 6px 0;
+    padding: 12px 16px;
+    margin: 18px 0;
+    font-size: 14.5px;
+  }
+  .note.warn { border-left-color: var(--warn); background: var(--warn-soft); }
+  .note.ok { border-left-color: var(--ok); background: var(--ok-soft); }
+  .note p { margin: 0 0 6px; }
+  .note p:last-child { margin-bottom: 0; }
+  .note .k { font-weight: 600; }
+
+  /* ---------- code panels ---------- */
+  .code-panel {
+    background: var(--code-bg);
+    color: var(--code-ink);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 18px 0;
+    box-shadow: var(--shadow);
+  }
+  .code-panel .bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--code-muted);
+  }
+  .code-panel .bar .tag {
+    color: var(--mark);
+    font-weight: 600;
+  }
+  .code-panel pre {
+    margin: 0;
+    padding: 16px 18px;
+    overflow-x: auto;
+    font-size: 13px;
+    line-height: 1.65;
+  }
+  .code-panel code { color: inherit; }
+  .code-panel .c-key { color: #7fb0e8; }
+  .code-panel .c-str { color: #9fd68c; }
+  .code-panel .c-com { color: #6b7180; font-style: italic; }
+  .code-panel .c-tag { color: #e8a24f; }
+
+  /* ---------- specimen grid (three modes) ---------- */
+  .specimens {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 18px;
+    margin: 22px 0 8px;
+  }
+  .specimen {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+  }
+  .specimen .head {
+    padding: 14px 16px 0;
+  }
+  .specimen .head .name {
+    font-family: var(--serif);
+    font-size: 17px;
+    font-weight: 600;
+  }
+  .specimen .head .field {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--faint);
+    margin-top: 2px;
+  }
+  .specimen .desc {
+    padding: 8px 16px 14px;
+    font-size: 13.5px;
+    color: var(--muted);
+  }
+  .specimen .code-panel { margin: 0; border-radius: 0 0 10px 10px; flex: 1; }
+  .specimen .code-panel .bar { display: none; }
+  .specimen .code-panel pre { font-size: 12px; }
+
+  /* ---------- reference tables ---------- */
+  .table-wrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--border); border-radius: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; background: var(--surface); }
+  table caption { display: none; }
+  thead th {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--faint);
+    font-weight: 500;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+    white-space: nowrap;
+  }
+  tbody td {
+    padding: 9px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr.group-row td {
+    background: var(--surface-2);
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 6px 14px;
+    font-weight: 600;
+  }
+  td code, .fields code {
+    background: var(--surface-2);
+    padding: 1px 5px;
+    border-radius: 4px;
+    font-size: 12.5px;
+    white-space: nowrap;
+  }
+  .rt-type { font-family: var(--mono); font-weight: 600; font-size: 13px; }
+  .renders { color: var(--muted); font-size: 13px; }
+
+  /* ---------- figures / diagrams ---------- */
+  figure { margin: 24px 0; }
+  figure .diagram-frame {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+    padding: 18px 8px;
+    overflow-x: auto;
+  }
+  figure svg { width: 100%; height: auto; display: block; max-width: 720px; margin: 0 auto; }
+  figcaption {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 10px;
+    max-width: 62ch;
+  }
+  .diagram-accent { color: var(--mark); }
+  .diagram-warn { color: var(--warn); }
+  .diagram-muted { color: var(--faint); }
+
+  /* ---------- limits strip ---------- */
+  .limits-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    margin: 18px 0;
+  }
+  .limit { background: var(--surface); padding: 14px 16px; }
+  .limit .n { font-family: var(--mono); font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .limit .l { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+  /* ---------- support table pills ---------- */
+  .pill { font-family: var(--mono); font-size: 11.5px; padding: 3px 9px; border-radius: 999px; display: inline-block; white-space: nowrap; }
+  .pill.ok { background: var(--ok-soft); color: var(--ok); }
+  .pill.warn { background: var(--warn-soft); color: var(--warn); }
+
+  /* ---------- gotchas ---------- */
+  .gotchas { list-style: none; margin: 18px 0; padding: 0; display: flex; flex-direction: column; gap: 14px; }
+  .gotchas li {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--surface);
+    padding: 14px 16px;
+  }
+  .gotchas .g-title { font-weight: 600; margin-bottom: 4px; display: flex; gap: 8px; align-items: baseline; }
+  .gotchas .g-title .flag { font-family: var(--mono); font-size: 10.5px; padding: 2px 7px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .flag.trap { background: var(--warn-soft); color: var(--warn); }
+  .flag.model { background: var(--link-soft); color: var(--link); }
+  .gotchas p { margin: 0; font-size: 14px; color: var(--muted); }
+
+  /* ---------- footer ---------- */
+  footer {
+    border-top: 1px solid var(--border);
+    padding: 32px 32px 60px;
+  }
+  footer .inner { max-width: 1200px; margin: 0 auto; font-size: 13px; color: var(--faint); }
+  footer a { color: var(--faint); }
+  footer ul { list-style: none; padding: 0; margin: 10px 0 0; display: flex; flex-wrap: wrap; gap: 16px; }
+
+  @media (max-width: 880px) {
+    .page { grid-template-columns: 1fr; }
+    nav.toc {
+      position: static;
+      display: flex;
+      overflow-x: auto;
+      gap: 16px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 8px;
+    }
+    nav.toc .label { display: none; }
+    nav.toc ol { flex-direction: row; }
+    nav.toc a { white-space: nowrap; }
+    .facts { grid-template-columns: repeat(2, 1fr); }
+  }
+</style>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <span class="eyebrow">Telegram Bot API · справочник</span>
+    <h1><em>Rich</em> Messages</h1>
+    <p class="dek">Структурированные сообщения ботов: заголовки, таблицы, карты, коллажи, сноски и раскрывающиеся блоки — плюс потоковая генерация ответа, как в чат-ботах с ИИ. Собрано по официальным типам <code>@grammyjs/types</code> — то есть по тому, что Telegram реально отдаёт клиентам, а не по пересказу документации.</p>
+    <div class="versions">
+      <span class="chip"><b>Bot API 10.1</b> · 11 июня 2026 — появление</span>
+      <span class="chip"><b>Bot API 10.2</b> · 14 июля 2026 — расширение</span>
+    </div>
+  </div>
+</header>
+
+<div class="facts">
+  <div class="fact"><div class="n">25</div><div class="l">инлайн-типов RichText</div></div>
+  <div class="fact"><div class="n">21</div><div class="l">блочных типов RichBlock</div></div>
+  <div class="fact"><div class="n">3</div><div class="l">способа описать сообщение</div></div>
+  <div class="fact"><div class="n">30 сек</div><div class="l">жизнь превью sendRichMessageDraft</div></div>
+  <div class="fact"><div class="n">2</div><div class="l">фреймворка с полной поддержкой</div></div>
+</div>
+
+<div class="page">
+  <nav class="toc" aria-label="Содержание">
+    <div class="label">Содержание</div>
+    <ol>
+      <li><a href="#why">Зачем это появилось</a></li>
+      <li><a href="#model">Ментальная модель</a></li>
+      <li><a href="#modes">Три режима на практике</a></li>
+      <li><a href="#inline-types">Инлайн-форматирование</a></li>
+      <li><a href="#block-types">Блочная структура</a></li>
+      <li><a href="#media">Медиа в rich-сообщении</a></li>
+      <li><a href="#methods">Методы API</a></li>
+      <li><a href="#limits">Лимиты</a></li>
+      <li><a href="#support">Поддержка в библиотеках</a></li>
+      <li><a href="#gotchas">Подводные камни</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <section id="why">
+      <span class="eyebrow">Контекст</span>
+      <h2>Зачем это появилось</h2>
+      <div class="prose">
+        <p class="lede">До Bot API 10.1 у бота было ровно два способа оформить текст: строка с <code>parse_mode</code> (HTML или MarkdownV2) или массив <code>entities</code>. Оба описывают <em>линейный</em> текст — жирный, ссылку, код. Ни один не умеет таблицу, карту или раскрывающийся блок.</p>
+        <p>Rich Messages добавляют второй, структурный слой поверх старого. Вместо строки с разметкой сообщение можно описать как дерево блоков — <code>RichBlock</code>: параграфы, заголовки, таблицы, цитаты, медиа, вложенные списки. Это тот же принцип, на котором строятся редакторы типа Notion — блоки, которые можно вкладывать друг в друга до 16 уровней.</p>
+        <p>Второе новое: <code>sendRichMessageDraft</code> и блок <code>thinking</code>. Они существуют для одного конкретного сценария — бота, который стримит ответ языковой модели токен за токеном и показывает пользователю индикатор «думаю». До 10.1 это приходилось имитировать частыми <code>editMessageText</code>; теперь под это есть отдельный, дешёвый по семантике механизм.</p>
+      </div>
+    </section>
+
+    <section id="model">
+      <span class="eyebrow">Форма данных</span>
+      <h2>Два пути к одному сообщению</h2>
+      <div class="prose">
+        <p class="lede"><code>InputRichMessage</code> принимает <em>ровно одно</em> из трёх полей: <code>markdown</code>, <code>html</code> или <code>blocks</code>. Первые два — текст с разметкой, где медиа подключается отдельным списком по идентификатору. Третье — готовое дерево объектов, где медиа лежит прямо внутри блока.</p>
+      </div>
+
+      <figure>
+        <div class="diagram-frame">
+          <svg viewBox="0 0 780 280" role="img" aria-label="InputRichMessage разветвляется на два пути — текст с разметкой и media[] по одну сторону, blocks[] с медиа внутри по другую — и оба сходятся в один и тот же вызов sendRichMessage.">
+            <defs>
+              <marker id="arrow-model" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 Z" fill="currentColor" />
+              </marker>
+            </defs>
+            <g fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="20" y="98" width="150" height="64" rx="8" />
+              <rect x="270" y="20" width="300" height="64" rx="8" />
+              <rect x="270" y="196" width="300" height="64" rx="8" />
+              <rect x="620" y="98" width="140" height="64" rx="8" />
+            </g>
+            <g font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="12.5" fill="currentColor">
+              <text x="95" y="126" text-anchor="middle">InputRich-</text>
+              <text x="95" y="142" text-anchor="middle">Message</text>
+
+              <text x="420" y="46" text-anchor="middle">markdown / html —</text>
+              <text x="420" y="62" text-anchor="middle">текст + media[] по id</text>
+
+              <text x="420" y="222" text-anchor="middle">blocks[] — вложенные</text>
+              <text x="420" y="238" text-anchor="middle">объекты, медиа внутри</text>
+
+              <text x="690" y="126" text-anchor="middle">sendRich-</text>
+              <text x="690" y="142" text-anchor="middle">Message</text>
+            </g>
+            <g stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arrow-model)">
+              <path d="M170,120 C220,120 220,52 268,52" />
+              <path d="M170,140 C220,140 220,228 268,228" />
+              <path d="M572,52 C610,52 610,120 618,120" />
+              <path d="M572,228 C610,228 610,140 618,140" />
+            </g>
+          </svg>
+        </div>
+        <figcaption>Оба поля описывают одно и то же результирующее сообщение — выбор между ними влияет только на то, как вы его конструируете: строкой с разметкой или деревом объектов.</figcaption>
+      </figure>
+
+      <div class="note">
+        <p><span class="k">Правило одного поля.</span> <code>blocks</code>, <code>html</code> и <code>markdown</code> взаимоисключающие — Telegram ожидает ровно одно из них в <code>InputRichMessage</code>. Смешать текстовую разметку с явным блоком в одном вызове нельзя.</p>
+      </div>
+    </section>
+
+    <section id="modes">
+      <span class="eyebrow">Синтаксис</span>
+      <h2>Три режима на практике</h2>
+      <div class="prose">
+        <p class="lede">Ниже — реально работающие вызовы <code>sendRichMessage</code> из <a href="#sources">эталонного бота</a>, который проходит все три режима подряд.</p>
+      </div>
+
+      <div class="specimens">
+        <div class="specimen">
+          <div class="head">
+            <div class="name">Markdown</div>
+            <div class="field">rich_message.markdown</div>
+          </div>
+          <p class="desc">GitHub-подобный синтаксис плюс новые конструкции: <mark>==выделение==</mark>, спойлер, чек-листы, сноски, формулы, медиа по <code>tg://photo?id=</code>.</p>
+          <div class="code-panel">
+            <pre><code><span class="c-com"># заголовок и стиль</span>
+**жирный** *курсив* ~~зачёркнутый~~
+==выделенный== ||спойлер|| `код`
+
+<span class="c-com"># сноска и формула</span>
+Текст со сноской[^n].
+[^n]: Определение сноски.
+$x^2 + y^2 = z^2$
+
+<span class="c-com"># таблица</span>
+| Раздел | Готово |
+|:-------|:------:|
+| Текст  | ✅ |
+
+<span class="c-com"># медиа — по HTTPS или по id из media[]</span>
+![](tg://photo?id=uploaded1 "Подпись")</code></pre>
+          </div>
+        </div>
+
+        <div class="specimen">
+          <div class="head">
+            <div class="name">HTML</div>
+            <div class="field">rich_message.html</div>
+          </div>
+          <p class="desc">Классические теги плюс новые: <code>&lt;tg-spoiler&gt;</code>, <code>&lt;tg-emoji&gt;</code>, <code>&lt;tg-time&gt;</code>, <code>&lt;tg-math&gt;</code>, <code>&lt;aside&gt;</code> (pull-quote), <code>&lt;details&gt;</code>.</p>
+          <div class="code-panel">
+            <pre><code>&lt;h2&gt;Заголовок&lt;/h2&gt;
+&lt;p&gt;&lt;b&gt;жирный&lt;/b&gt;, &lt;mark&gt;выделенный&lt;/mark&gt;,
+&lt;sub&gt;подстрочный&lt;/sub&gt;&lt;/p&gt;
+
+&lt;<span class="c-tag">tg-spoiler</span>&gt;секрет&lt;/tg-spoiler&gt;
+&lt;<span class="c-tag">tg-time</span> unix="1798800000" format="wDT"&gt;
+  когда-нибудь
+&lt;/tg-time&gt;
+
+&lt;aside&gt;Крупная цитата
+  &lt;cite&gt;Автор&lt;/cite&gt;
+&lt;/aside&gt;
+
+&lt;details&gt;&lt;summary&gt;Подробности&lt;/summary&gt;
+  Скрытый текст
+&lt;/details&gt;</code></pre>
+          </div>
+        </div>
+
+        <div class="specimen">
+          <div class="head">
+            <div class="name">Blocks</div>
+            <div class="field">rich_message.blocks[]</div>
+          </div>
+          <p class="desc">JSON-дерево вместо строки — то, что стоит выбрать, когда контент программно собирается из данных, а не пишется руками.</p>
+          <div class="code-panel">
+            <pre><code>{
+  <span class="c-key">type</span>: <span class="c-str">"table"</span>,
+  <span class="c-key">is_bordered</span>: <span class="c-key">true</span>,
+  <span class="c-key">cells</span>: [[
+    { <span class="c-key">text</span>: <span class="c-str">"Раздел"</span>, <span class="c-key">is_header</span>: <span class="c-key">true</span>,
+      <span class="c-key">align</span>: <span class="c-str">"left"</span>, <span class="c-key">valign</span>: <span class="c-str">"middle"</span> },
+    { <span class="c-key">text</span>: <span class="c-str">"Готово"</span>, <span class="c-key">is_header</span>: <span class="c-key">true</span>,
+      <span class="c-key">align</span>: <span class="c-str">"center"</span>, <span class="c-key">valign</span>: <span class="c-str">"middle"</span> }
+  ], [
+    { <span class="c-key">text</span>: <span class="c-str">"blocks"</span>, <span class="c-key">align</span>: <span class="c-str">"left"</span>, <span class="c-key">valign</span>: <span class="c-str">"top"</span> },
+    { <span class="c-key">text</span>: <span class="c-str">"✅"</span>, <span class="c-key">align</span>: <span class="c-str">"center"</span>, <span class="c-key">valign</span>: <span class="c-str">"top"</span> }
+  ]]
+}</code></pre>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="inline-types">
+      <span class="eyebrow">Справочник · инлайн</span>
+      <h2>RichText — 25 типов форматирования</h2>
+      <div class="prose">
+        <p class="lede"><code>RichText</code> рекурсивен: это либо строка, либо массив <code>RichText[]</code>, либо один из типов ниже — у каждого есть поле <code>text: RichText</code>, кроме листовых типов, где текста нет вовсе (<code>anchor</code>) или он вычисляется из данных.</p>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <caption>Типы RichText, сгруппированные по назначению</caption>
+          <thead>
+            <tr><th>Тип</th><th>Доп. поля</th><th>Рендерится как</th></tr>
+          </thead>
+          <tbody>
+            <tr class="group-row"><td colspan="3">Начертание — только <code>text</code></td></tr>
+            <tr><td class="rt-type">bold</td><td class="fields">—</td><td class="renders">полужирный</td></tr>
+            <tr><td class="rt-type">italic</td><td class="fields">—</td><td class="renders">курсив</td></tr>
+            <tr><td class="rt-type">underline</td><td class="fields">—</td><td class="renders">подчёркнутый</td></tr>
+            <tr><td class="rt-type">strikethrough</td><td class="fields">—</td><td class="renders">зачёркнутый</td></tr>
+            <tr><td class="rt-type">spoiler</td><td class="fields">—</td><td class="renders">скрыт до тапа</td></tr>
+            <tr><td class="rt-type">marked</td><td class="fields">—</td><td class="renders">маркер-выделение</td></tr>
+            <tr><td class="rt-type">code</td><td class="fields">—</td><td class="renders">моноширинный инлайн-код</td></tr>
+            <tr><td class="rt-type">subscript</td><td class="fields">—</td><td class="renders">нижний индекс</td></tr>
+            <tr><td class="rt-type">superscript</td><td class="fields">—</td><td class="renders">верхний индекс</td></tr>
+
+            <tr class="group-row"><td colspan="3">Автоматически распознаваемые сущности</td></tr>
+            <tr><td class="rt-type">mention</td><td class="fields"><code>username</code></td><td class="renders">@username</td></tr>
+            <tr><td class="rt-type">hashtag</td><td class="fields"><code>hashtag</code></td><td class="renders">#хэштег</td></tr>
+            <tr><td class="rt-type">cashtag</td><td class="fields"><code>cashtag</code></td><td class="renders">$USD</td></tr>
+            <tr><td class="rt-type">bot_command</td><td class="fields"><code>bot_command</code></td><td class="renders">/command</td></tr>
+            <tr><td class="rt-type">url</td><td class="fields"><code>url</code></td><td class="renders">ссылка с предупреждением перед открытием</td></tr>
+            <tr><td class="rt-type">email_address</td><td class="fields"><code>email_address</code></td><td class="renders">mailto:-ссылка</td></tr>
+            <tr><td class="rt-type">phone_number</td><td class="fields"><code>phone_number</code></td><td class="renders">tel:-ссылка</td></tr>
+            <tr><td class="rt-type">bank_card_number</td><td class="fields"><code>bank_card_number</code></td><td class="renders">карточный номер (UI для копирования)</td></tr>
+
+            <tr class="group-row"><td colspan="3">Данные и объекты</td></tr>
+            <tr><td class="rt-type">custom_emoji</td><td class="fields"><code>custom_emoji_id</code>, <code>alternative_text</code></td><td class="renders">кастомный эмодзи</td></tr>
+            <tr><td class="rt-type">date_time</td><td class="fields"><code>unix_time</code>, <code>date_time_format</code></td><td class="renders">дата/время в локали клиента</td></tr>
+            <tr><td class="rt-type">text_mention</td><td class="fields"><code>user</code></td><td class="renders">упоминание без @username</td></tr>
+            <tr><td class="rt-type">mathematical_expression</td><td class="fields"><code>expression</code> (LaTeX)</td><td class="renders">инлайн-формула</td></tr>
+
+            <tr class="group-row"><td colspan="3">Внутренние переходы</td></tr>
+            <tr><td class="rt-type">anchor</td><td class="fields"><code>name</code> — текста нет</td><td class="renders">невидимая метка-якорь</td></tr>
+            <tr><td class="rt-type">anchor_link</td><td class="fields"><code>anchor_name</code></td><td class="renders">переход к якорю в этом же сообщении</td></tr>
+            <tr><td class="rt-type">reference</td><td class="fields"><code>name</code></td><td class="renders">маркер сноски (надстрочный)</td></tr>
+            <tr><td class="rt-type">reference_link</td><td class="fields"><code>reference_name</code></td><td class="renders">кликабельная запись сноски</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note">
+        <p><span class="k">Сноски — пара, а не одна сущность.</span> <code>reference</code> ставится в тексте как маркер («¹»), <code>reference_link</code> — обычно в блоке <code>footer</code>, с тем же <code>name</code>/<code>reference_name</code>: это и есть текст определения. Клик по любому из двух переносит к другому.</p>
+      </div>
+    </section>
+
+    <section id="block-types">
+      <span class="eyebrow">Справочник · блоки</span>
+      <h2>RichBlock — 21 блочный тип</h2>
+      <div class="prose">
+        <p class="lede">Блоки — это структура документа: у каждого свой способ хранить содержимое — как <code>RichText</code>, как вложенный <code>RichBlock[]</code>, как медиа-объект или вовсе без содержимого.</p>
+      </div>
+
+      <div class="table-wrap">
+        <table>
+          <caption>Типы RichBlock, сгруппированные по роли в документе</caption>
+          <thead>
+            <tr><th>Тип</th><th>Содержит</th><th>Ключевые поля</th></tr>
+          </thead>
+          <tbody>
+            <tr class="group-row"><td colspan="3">Текст</td></tr>
+            <tr><td class="rt-type">paragraph</td><td>RichText</td><td class="fields"><code>text</code></td></tr>
+            <tr><td class="rt-type">heading</td><td>RichText</td><td class="fields"><code>text</code>, <code>size</code> 1–6</td></tr>
+            <tr><td class="rt-type">pre</td><td>RichText</td><td class="fields"><code>text</code>, <code>language?</code></td></tr>
+            <tr><td class="rt-type">footer</td><td>RichText</td><td class="fields"><code>text</code></td></tr>
+            <tr><td class="rt-type">divider</td><td>—</td><td class="fields">без полей</td></tr>
+            <tr><td class="rt-type">mathematical_expression</td><td>—</td><td class="fields"><code>expression</code> (LaTeX)</td></tr>
+            <tr><td class="rt-type">anchor</td><td>—</td><td class="fields"><code>name</code></td></tr>
+
+            <tr class="group-row"><td colspan="3">Контейнеры</td></tr>
+            <tr><td class="rt-type">list</td><td>элементы <code>ListItem[]</code></td><td class="fields">чекбоксы, нумерация <code>a/A/i/I/1</code></td></tr>
+            <tr><td class="rt-type">blockquote</td><td>вложенные RichBlock[]</td><td class="fields"><code>blocks</code>, <code>credit?</code></td></tr>
+            <tr><td class="rt-type">pullquote</td><td>RichText</td><td class="fields"><code>text</code>, <code>credit?</code></td></tr>
+            <tr><td class="rt-type">details</td><td>вложенные RichBlock[]</td><td class="fields"><code>summary</code>, <code>blocks</code>, <code>is_open?</code></td></tr>
+
+            <tr class="group-row"><td colspan="3">Медиа</td></tr>
+            <tr><td class="rt-type">photo / video / audio / voice_note / animation</td><td>один медиа-объект</td><td class="fields"><code>caption?</code> (текст + credit)</td></tr>
+            <tr><td class="rt-type">collage</td><td>вложенные RichBlock[]</td><td class="fields">сетка из нескольких медиа</td></tr>
+            <tr><td class="rt-type">slideshow</td><td>вложенные RichBlock[]</td><td class="fields">медиа как свайп-слайды</td></tr>
+            <tr><td class="rt-type">map</td><td>—</td><td class="fields"><code>location</code>, <code>zoom</code>, <code>width</code>, <code>height</code></td></tr>
+            <tr><td class="rt-type">table</td><td><code>RichBlockTableCell[][]</code></td><td class="fields">до 20 колонок, colspan/rowspan, align/valign</td></tr>
+
+            <tr class="group-row"><td colspan="3">Для ИИ-сценариев</td></tr>
+            <tr><td class="rt-type">thinking</td><td>RichText</td><td class="fields">только в <code>sendRichMessageDraft</code> — не приходит в реальных сообщениях</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="media">
+      <span class="eyebrow">Вложения</span>
+      <h2>Как медиа попадает в сообщение</h2>
+      <div class="prose">
+        <p class="lede">В текстовом режиме картинка не может лежать прямо в строке — синтаксис <code>![]()</code> или <code>&lt;img&gt;</code> либо ссылается на прямой HTTPS-URL, либо на запись в <code>media[]</code> через псевдо-протокол <code>tg://photo?id=</code>/<code>video?id=</code>/<code>audio?id=</code>. Именно эта запись в <code>media[]</code> и умеет принимать файл на загрузку.</p>
+      </div>
+
+      <div class="code-panel">
+        <div class="bar"><span>InputRichMessageMedia</span><span class="tag">markdown / html</span></div>
+        <pre><code><span class="c-com">// в тексте:</span>  ![](tg://photo?id=uploaded1 "Подпись")
+
+<span class="c-key">media</span>: [{
+  <span class="c-key">id</span>: <span class="c-str">"uploaded1"</span>,        <span class="c-com">// 1–64 симв., A-Z a-z 0-9 _ -</span>
+  <span class="c-key">media</span>: { <span class="c-key">type</span>: <span class="c-str">"photo"</span>, <span class="c-key">media</span>: <span class="c-key">new</span> InputFile(<span class="c-str">"photo.png"</span>) }
+}]</code></pre>
+      </div>
+
+      <div class="note">
+        <p><span class="k">Разница между режимами.</span> В <code>blocks</code> медиа-объект (<code>InputMediaPhoto</code> и т.п.) лежит прямо внутри блока <code>photo</code>/<code>video</code>/… — без промежуточного <code>id</code> и без <code>tg://</code>-ссылки. Обходной путь через <code>media[]</code> нужен только текстовым режимам, потому что строка не может нести бинарные данные.</p>
+      </div>
+    </section>
+
+    <section id="methods">
+      <span class="eyebrow">API</span>
+      <h2>sendRichMessage, черновики и правки</h2>
+
+      <h3>sendRichMessage</h3>
+      <div class="prose">
+        <p>Обычный отправляющий метод — работает в любом чате, где боту разрешено писать, принимает <code>reply_markup</code>, <code>reply_parameters</code>, <code>message_effect_id</code>, как и <code>sendMessage</code>. Разница только в одном параметре:</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Параметр</th><th>Тип</th><th>Заметка</th></tr></thead>
+          <tbody>
+            <tr><td><code>chat_id</code></td><td>number | string</td><td>как у обычной отправки</td></tr>
+            <tr><td><code>rich_message</code></td><td>InputRichMessage</td><td>обязательный, замена <code>text</code></td></tr>
+            <tr><td><code>business_connection_id</code></td><td>string?</td><td>отправка от имени Business-аккаунта</td></tr>
+            <tr><td><code>message_thread_id</code></td><td>number?</td><td>тема форума</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>sendRichMessageDraft — потоковая генерация</h3>
+      <div class="prose">
+        <p>Только для приватных чатов. Каждый вызов с одним и тем же <code>draft_id</code> заменяет предыдущее превью у клиента — так строится эффект «печатает ответ». Превью существует не дольше ~30 секунд и <mark>никогда не становится настоящим сообщением само по себе</mark>.</p>
+      </div>
+
+      <figure>
+        <div class="diagram-frame">
+          <svg viewBox="0 0 760 320" role="img" aria-label="sendRichMessageDraft повторно обновляет превью с одним draft_id; если в течение примерно 30 секунд не вызвать sendRichMessage, превью исчезает без сохранения; если вызвать — сообщение сохраняется в чате.">
+            <defs>
+              <marker id="arrow-draft" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 Z" fill="currentColor" />
+              </marker>
+            </defs>
+
+            <g font-family="ui-monospace, SFMono-Regular, Consolas, monospace" font-size="12.5">
+              <g fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="16" y="128" width="180" height="64" rx="8" />
+              </g>
+              <text x="106" y="154" text-anchor="middle" fill="currentColor">sendRichMessageDraft</text>
+              <text x="106" y="172" text-anchor="middle" fill="currentColor" class="diagram-muted">draft_id = 7</text>
+
+              <path d="M196,138 C 260,90 260,90 196,148" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow-draft)" />
+              <text x="250" y="82" text-anchor="middle" fill="currentColor" class="diagram-muted">повтор, тот же draft_id</text>
+
+              <g fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="300" y="128" width="180" height="64" rx="8" />
+              </g>
+              <text x="390" y="154" text-anchor="middle" fill="currentColor">Превью у клиента</text>
+              <text x="390" y="172" text-anchor="middle" fill="currentColor" class="diagram-muted">живёт ~30 сек</text>
+
+              <path d="M196,160 L 298,160" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow-draft)" />
+
+              <path d="M480,142 C 540,100 560,60 584,44" fill="none" stroke="currentColor" stroke-width="1.8" marker-end="url(#arrow-draft)" class="diagram-accent" />
+              <text x="560" y="100" text-anchor="middle" class="diagram-accent">sendRichMessage</text>
+              <text x="560" y="116" text-anchor="middle" class="diagram-accent">до истечения 30 сек</text>
+
+              <g fill="none" stroke="currentColor" stroke-width="1.5" class="diagram-accent">
+                <rect x="584" y="16" width="160" height="56" rx="8" />
+              </g>
+              <text x="664" y="40" text-anchor="middle" class="diagram-accent">Сохранено</text>
+              <text x="664" y="56" text-anchor="middle" class="diagram-accent">в чате</text>
+
+              <path d="M480,178 C 540,220 560,252 584,268" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 4" marker-end="url(#arrow-draft)" class="diagram-warn" />
+              <text x="560" y="240" text-anchor="middle" class="diagram-warn">sendRichMessage</text>
+              <text x="560" y="256" text-anchor="middle" class="diagram-warn">не вызван</text>
+
+              <g fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 4" class="diagram-warn">
+                <rect x="584" y="248" width="160" height="56" rx="8" />
+              </g>
+              <text x="664" y="272" text-anchor="middle" class="diagram-warn">Превью исчезло</text>
+              <text x="664" y="288" text-anchor="middle" class="diagram-warn">ничего не сохранено</text>
+            </g>
+          </svg>
+        </div>
+        <figcaption>Черновик — это витрина, а не буфер: «финализировать» его нельзя, можно только успеть отдельно вызвать <code>sendRichMessage</code> с полным текстом, пока превью не истекло.</figcaption>
+      </figure>
+
+      <h3>editMessageText с rich_message</h3>
+      <div class="prose">
+        <p><code>editMessageText</code> принимает <code>text</code> <em>или</em> <code>rich_message</code> — можно превратить обычное сообщение в rich одним вызовом:</p>
+      </div>
+      <div class="code-panel">
+        <div class="bar"><span>grammY</span><span class="tag">Api.editMessageText</span></div>
+        <pre><code><span class="c-key">await</span> api.editMessageText(chatId, messageId, {
+  <span class="c-key">blocks</span>: [
+    { <span class="c-key">type</span>: <span class="c-str">"heading"</span>, <span class="c-key">text</span>: <span class="c-str">"Стало rich-сообщением"</span>, <span class="c-key">size</span>: 3 },
+  ],
+});</code></pre>
+      </div>
+    </section>
+
+    <section id="limits">
+      <span class="eyebrow">Границы</span>
+      <h2>Лимиты одного rich-сообщения</h2>
+      <div class="limits-grid">
+        <div class="limit"><div class="n">32 768</div><div class="l">символов UTF-8, включая alt-текст эмодзи и исходный код формул</div></div>
+        <div class="limit"><div class="n">500</div><div class="l">блоков — с учётом вложенных, элементов списка, строк таблицы</div></div>
+        <div class="limit"><div class="n">16</div><div class="l">уровней вложенности форматирования и блоков</div></div>
+        <div class="limit"><div class="n">50</div><div class="l">медиа-вложений суммарно: фото + видео + аудио</div></div>
+        <div class="limit"><div class="n">20</div><div class="l">колонок в таблице</div></div>
+      </div>
+    </section>
+
+    <section id="support">
+      <span class="eyebrow">Экосистема</span>
+      <h2>Кто уже это поддерживает</h2>
+      <div class="prose">
+        <p class="lede">На момент написания типизированную поддержку Rich Messages и Ephemeral Messages имеют только два фреймворка — оба обновились в течение нескольких дней после релиза Telegram.</p>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Библиотека</th><th>Статус</th><th>Если поддержки ещё нет</th></tr></thead>
+          <tbody>
+            <tr>
+              <td><b>grammY</b> (Node/TS)</td>
+              <td><span class="pill ok">10.1 + 10.2</span></td>
+              <td class="renders">—</td>
+            </tr>
+            <tr>
+              <td><b>aiogram 3.x</b> (Python)</td>
+              <td><span class="pill ok">10.1 + 10.2</span></td>
+              <td class="renders">—</td>
+            </tr>
+            <tr>
+              <td><b>python-telegram-bot</b></td>
+              <td><span class="pill warn">только до 10.0</span></td>
+              <td class="renders"><code>bot.do_api_request(endpoint=…, api_kwargs=…)</code></td>
+            </tr>
+            <tr>
+              <td><b>Telegraf</b> (Node)</td>
+              <td><span class="pill warn">до 7.1</span></td>
+              <td class="renders"><code>ctx.telegram.callApi("sendRichMessage", …)</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="note">
+        <p>Escape-hatch есть у всех четырёх: Bot API — обычный REST/JSON поверх HTTPS, так что вызов нового метода вручную через <code>fetch</code>/<code>httpx</code> работает независимо от того, знает ли о нём библиотека.</p>
+      </div>
+    </section>
+
+    <section id="gotchas">
+      <span class="eyebrow">Из первых рук</span>
+      <h2>Подводные камни</h2>
+      <ul class="gotchas">
+        <li>
+          <div class="g-title"><span class="flag trap">Ловушка</span> Черновик не сохраняется сам</div>
+          <p>Забыли отдельный вызов <code>sendRichMessage</code> после серии <code>sendRichMessageDraft</code> — пользователь увидел «печатает…», а в истории чата ничего не осталось.</p>
+        </li>
+        <li>
+          <div class="g-title"><span class="flag model">Модель</span> thinking — только для черновика</div>
+          <p>Блок <code>thinking</code> валиден в <code>sendRichMessageDraft</code>, но не существует на стороне получателя — финальный <code>sendRichMessage</code> не должен его содержать.</p>
+        </li>
+        <li>
+          <div class="g-title"><span class="flag trap">Ловушка</span> <code>is_open</code> и чекбоксы принимают только <code>true</code></div>
+          <p><code>is_open?: true</code>, <code>has_checkbox?: true</code>, <code>is_checked?: true</code> — буквально литерал <code>true</code>, а не <code>boolean</code>. Чтобы выключить, поле просто не передают; <code>false</code> — ошибка типов.</p>
+        </li>
+        <li>
+          <div class="g-title"><span class="flag model">Модель</span> Ячейка таблицы обязана знать своё выравнивание</div>
+          <p><code>align</code> и <code>valign</code> у <code>RichBlockTableCell</code> не опциональны — их нужно указывать в каждой ячейке, даже когда подходит значение по умолчанию.</p>
+        </li>
+        <li>
+          <div class="g-title"><span class="flag model">Модель</span> Сноска — это два разных объекта</div>
+          <p><code>reference</code> (маркер в тексте) и <code>reference_link</code> (запись в подвале) — независимые типы, связанные только совпадением <code>name</code>/<code>reference_name</code>. Один без другого не рендерится как пара.</p>
+        </li>
+        <li>
+          <div class="g-title"><span class="flag trap">Ловушка</span> Загрузка файла — не везде</div>
+          <p>Прямая загрузка нового файла не поддерживается в черновиках (<code>sendRichMessageDraft</code>) и при редактировании инлайн-сообщений (<code>editMessageText</code> для <code>inline_message_id</code>). В обоих случаях годятся только <code>file_id</code> или HTTPS-ссылка.</p>
+        </li>
+      </ul>
+    </section>
+
+  </main>
+</div>
+
+<footer id="sources">
+  <div class="inner">
+    Справочник собран для проекта <code>tg-rich-messages</code> по первичным типам <code>@grammyjs/types</code> (grammY 1.45) и официальному changelog Bot API. Не официальный документ Telegram.
+    <ul>
+      <li><a href="https://core.telegram.org/bots/api" target="_blank" rel="noopener">core.telegram.org/bots/api</a></li>
+      <li><a href="https://core.telegram.org/bots/api-changelog" target="_blank" rel="noopener">Bot API changelog</a></li>
+      <li><a href="https://grammy.dev" target="_blank" rel="noopener">grammy.dev</a></li>
+    </ul>
+  </div>
+</footer>
