@@ -157,17 +157,16 @@ def _table_blocks(head_plain: str, rows: list[tuple[str, str, str]], url: str | 
     Telegram to reject it and fall back to the classic HTML message."""
     blocks: list[dict] = [{"type": "paragraph", "text": head_plain}]
     if rows:
-        # InputRichBlockTable wants a flat "cells" grid (row/column-addressed,
-        # presumably to support colspan/rowspan) rather than nested row objects —
-        # confirmed by Telegram rejecting a "rows" field with "Can't find field
-        # 'cells'".
-        table_cells: list[dict] = [
-            {"row": 0, "column": 0, "text": "Поле"},
-            {"row": 0, "column": 1, "text": "Значение"},
+        # "cells" must be an Array of Array of PageBlockTableCell (rows of cells,
+        # same shape as Telegram's older Instant View pageBlockTable) — a flat
+        # row/column-addressed list was rejected with "Expected an Array of
+        # PageBlockTableCell", and nested {"cells": [...]} row objects were
+        # rejected earlier with "Can't find field 'cells'".
+        table_cells: list[list[dict]] = [
+            [{"text": "Поле", "header": True}, {"text": "Значение", "header": True}],
         ]
-        for i, (label, value, _) in enumerate(rows, start=1):
-            table_cells.append({"row": i, "column": 0, "text": label})
-            table_cells.append({"row": i, "column": 1, "text": value})
+        for label, value, _ in rows:
+            table_cells.append([{"text": label}, {"text": value}])
         blocks.append({
             "type": "table",
             "bordered": True,
