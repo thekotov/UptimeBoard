@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Редизайн формата «Обычный» — UptimeBoard</title>
+<style>
+  :root{
+    --bg:#0e1621; --panel:#17212b; --bubble:#182533;
+    --text:#e9edef; --muted:#8a97a3; --accent:#5eabd6; --code-bg:#0d1620;
+    --border:#26333f;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:32px 16px 80px; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  h1{font-size:22px; margin:0 0 4px;}
+  .sub{color:var(--muted); margin:0 0 32px; font-size:14px; max-width:820px; line-height:1.55;}
+  .grid{display:grid; grid-template-columns:1fr; gap:28px; max-width:1200px; margin:0 auto;}
+  @media(min-width:1000px){ .grid{grid-template-columns:1fr 1fr;} }
+  .card{
+    background:var(--panel); border:1px solid var(--border); border-radius:12px;
+    padding:16px; display:flex; flex-direction:column; gap:10px;
+  }
+  .card h2{font-size:15px; margin:0; color:var(--text); display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .card h2 .num{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:22px; height:22px; border-radius:50%; background:var(--accent);
+    color:#08131c; font-size:12px; font-weight:700; flex:none;
+  }
+  .card p.desc{margin:0; font-size:12.5px; color:var(--muted); line-height:1.55;}
+  .tg-wrap{background:#0b141c; border-radius:10px; padding:14px 10px;}
+  .msg{
+    background:var(--bubble); border-radius:12px 12px 12px 3px; padding:10px 12px 10px;
+    max-width:100%; font-size:14.5px; line-height:1.42; white-space:pre-wrap; word-break:break-word;
+    box-shadow:0 1px 2px rgba(0,0,0,.3);
+  }
+  .msg .time{display:block; text-align:right; color:var(--muted); font-size:11px; margin-top:6px;}
+  .msg b{font-weight:700; color:var(--text);}
+  .msg code{
+    background:var(--code-bg); border-radius:4px; padding:1px 5px; font-family:"SF Mono",Consolas,monospace;
+    font-size:13px; color:#9fd0e8;
+  }
+  .msg a{color:var(--accent); text-decoration:none;}
+  .msg i{color:var(--muted); font-style:italic;}
+
+  /* --- header variants: server·host line first, bold event line below --- */
+  .hdr{display:block; margin-bottom:2px;}
+  .hdr .srvline{font-size:14.5px; color:var(--text); display:block;}
+  .hdr .srvline code{background:var(--code-bg); padding:1px 5px; border-radius:4px; font-size:13px; color:#9fd0e8;}
+  .hdr .event{font-size:16px; font-weight:700; color:var(--text); display:block; margin-top:3px;}
+  .hdr.boxed{border-left:3px solid var(--accent); padding-left:10px;}
+  .hdr .icon-line{display:flex; align-items:center; gap:6px;}
+
+  .pin{display:flex; gap:8px; align-items:flex-start; margin:8px 0; font-size:14.5px; color:var(--text);}
+  .pin .txt{font-weight:600;}
+  .pin.italic .txt{font-weight:500; font-style:italic; color:#dfe6ec;}
+  .pin.plain{margin:6px 0; font-size:14.5px; color:var(--text); font-weight:600;}
+
+  /* --- fake Telegram code-block-with-language-header --- */
+  .codeblock{
+    border-radius:8px; overflow:hidden; margin:8px 0; box-shadow:0 1px 2px rgba(0,0,0,.4);
+    border:1px solid #1c2733;
+  }
+  .codeblock .bar{
+    background:#3a5068; color:#cfe3f2; font-family:"SF Mono",Consolas,monospace; font-size:12.5px;
+    font-weight:600; padding:6px 12px; display:flex; justify-content:space-between; align-items:center;
+  }
+  .codeblock .bar .copy{opacity:.75; font-size:13px;}
+  .codeblock pre{
+    margin:0; background:#0a0e14; padding:10px 12px; font-family:"SF Mono",Consolas,monospace;
+    font-size:13px; line-height:1.65; overflow-x:auto;
+  }
+  .codeblock .row{display:block; white-space:pre;}
+  .codeblock .kw{color:#c58af9;}     /* java-style keyword color */
+  .codeblock .val{color:#e8836b;}    /* java-style string/number color */
+  .codeblock .val.status-problem{color:#f2635b; font-weight:700;}
+  .codeblock .val.status-ok{color:#6bcf8a; font-weight:700;}
+  .codeblock .punct{color:#5b6577;}
+
+  footer{max-width:1200px; margin:40px auto 0; color:var(--muted); font-size:12.5px; line-height:1.7;}
+  footer code{background:var(--code-bg); padding:1px 5px; border-radius:4px;}
+</style>
+</head>
+<body>
+
+<h1>Редизайн «Обычного» формата — сервер сверху, событие ниже</h1>
+<p class="sub">
+  Порядок шапки поменян: сначала эмодзи + сервер · хост одной строкой, ниже жирным — название события
+  («Контент изменился»). Дальше — причина алерта отдельной строкой, потом код-блок с подробностями
+  (<code>&lt;pre&gt;&lt;code class="language-java"&gt;</code>, классический HTML, без риска). Код-блок везде
+  одинаковый, варианты — только про шапку и причину.
+</p>
+
+<div class="grid">
+
+  <!-- 1: server·host line first, bold event below, pin for reason -->
+  <div class="card">
+    <h2><span class="num">1</span>Сервер · хост сверху, событие жирным ниже</h2>
+    <p class="desc">Первая строка — эмодзи + сервер · хост, вторая — жирным название события. Причина — с булавкой, как в референсе.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="hdr">
+<span class="srvline">📝 Сайт KZ · <code>chatapp24.kz</code></span>
+<span class="event">Контент изменился</span>
+</span>
+
+<div class="pin">📌 <span class="txt">Содержимое страницы изменилось</span></div>
+
+<div class="codeblock">
+  <div class="bar"><span>java</span><span class="copy">⧉</span></div>
+  <pre><span class="row"><span class="kw">🌐 Где:        </span><span class="val">Основные сайты · Production</span></span>
+<span class="row"><span class="kw">📶 Ответ:      </span><span class="val">749 мс</span></span>
+<span class="row"><span class="kw">🔁 Хэш было:   </span><span class="val">144bb8783bac…</span></span>
+<span class="row"><span class="kw">🔁 Хэш стало:  </span><span class="val">2cbf25894019…</span></span>
+<span class="row"><span class="kw">📅 Время:      </span><span class="val">2026.08.11 13:49:18</span></span></pre>
+</div>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:49</span></div>
+    </div>
+  </div>
+
+  <!-- 2: boxed accent-bar header (visually groups the 2 lines) -->
+  <div class="card">
+    <h2><span class="num">2</span>Те же 2 строки с акцентной полосой слева</h2>
+    <p class="desc">Полоса слева визуально объединяет сервер/хост и событие в один блок-«шапку», а не две случайные строки подряд.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="hdr boxed">
+<span class="srvline">📝 Сайт KZ · <code>chatapp24.kz</code></span>
+<span class="event">Контент изменился</span>
+</span>
+
+<div class="pin">📌 <span class="txt">Содержимое страницы изменилось</span></div>
+
+<div class="codeblock">
+  <div class="bar"><span>java</span><span class="copy">⧉</span></div>
+  <pre><span class="row"><span class="kw">🌐 Где:        </span><span class="val">Основные сайты · Production</span></span>
+<span class="row"><span class="kw">📶 Ответ:      </span><span class="val">749 мс</span></span>
+<span class="row"><span class="kw">🔁 Хэш было:   </span><span class="val">144bb8783bac…</span></span>
+<span class="row"><span class="kw">🔁 Хэш стало:  </span><span class="val">2cbf25894019…</span></span>
+<span class="row"><span class="kw">📅 Время:      </span><span class="val">2026.08.11 13:49:18</span></span></pre>
+</div>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:49</span></div>
+    </div>
+  </div>
+
+  <!-- 3: event line larger/looser, more visual separation from srvline -->
+  <div class="card">
+    <h2><span class="num">3</span>Событие крупнее — сильнее отделено от сервера</h2>
+    <p class="desc">Строка сервера мельче и приглушённее, событие — заметно крупнее жирным. Больше контраста между «где» и «что случилось».</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="hdr">
+<span class="srvline" style="color:var(--muted); font-size:13.5px;">📝 Сайт KZ · <code>chatapp24.kz</code></span>
+<span class="event" style="font-size:17px; margin-top:4px;">Контент изменился</span>
+</span>
+
+<div class="pin">📌 <span class="txt">Содержимое страницы изменилось</span></div>
+
+<div class="codeblock">
+  <div class="bar"><span>java</span><span class="copy">⧉</span></div>
+  <pre><span class="row"><span class="kw">🌐 Где:        </span><span class="val">Основные сайты · Production</span></span>
+<span class="row"><span class="kw">📶 Ответ:      </span><span class="val">749 мс</span></span>
+<span class="row"><span class="kw">🔁 Хэш было:   </span><span class="val">144bb8783bac…</span></span>
+<span class="row"><span class="kw">🔁 Хэш стало:  </span><span class="val">2cbf25894019…</span></span>
+<span class="row"><span class="kw">📅 Время:      </span><span class="val">2026.08.11 13:49:18</span></span></pre>
+</div>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:49</span></div>
+    </div>
+  </div>
+
+  <!-- 4: reason without pin, just bold plain line -->
+  <div class="card">
+    <h2><span class="num">4</span>Причина без 📌 — просто жирная строка</h2>
+    <p class="desc">Без булавки — чуть спокойнее, если 📌 кажется избыточным (у нас и так эмодзи сверху). Причина всё равно выделена жирным, отдельной строкой.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="hdr">
+<span class="srvline">📝 Сайт KZ · <code>chatapp24.kz</code></span>
+<span class="event">Контент изменился</span>
+</span>
+
+<div class="pin plain">Содержимое страницы изменилось</div>
+
+<div class="codeblock">
+  <div class="bar"><span>java</span><span class="copy">⧉</span></div>
+  <pre><span class="row"><span class="kw">🌐 Где:        </span><span class="val">Основные сайты · Production</span></span>
+<span class="row"><span class="kw">📶 Ответ:      </span><span class="val">749 мс</span></span>
+<span class="row"><span class="kw">🔁 Хэш было:   </span><span class="val">144bb8783bac…</span></span>
+<span class="row"><span class="kw">🔁 Хэш стало:  </span><span class="val">2cbf25894019…</span></span>
+<span class="row"><span class="kw">📅 Время:      </span><span class="val">2026.08.11 13:49:18</span></span></pre>
+</div>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:49</span></div>
+    </div>
+  </div>
+
+  <!-- 5: reason as italic, softer -->
+  <div class="card">
+    <h2><span class="num">5</span>Причина курсивом (мягче, как подзаголовок)</h2>
+    <p class="desc">Курсив вместо булавки/жирного — причина читается как поясняющий подзаголовок к событию сверху, не конкурирует с ним по весу.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="hdr">
+<span class="srvline">📝 Сайт KZ · <code>chatapp24.kz</code></span>
+<span class="event">Контент изменился</span>
+</span>
+
+<div class="pin italic">📌 <span class="txt">Содержимое страницы изменилось</span></div>
+
+<div class="codeblock">
+  <div class="bar"><span>java</span><span class="copy">⧉</span></div>
+  <pre><span class="row"><span class="kw">🌐 Где:        </span><span class="val">Основные сайты · Production</span></span>
+<span class="row"><span class="kw">📶 Ответ:      </span><span class="val">749 мс</span></span>
+<span class="row"><span class="kw">🔁 Хэш было:   </span><span class="val">144bb8783bac…</span></span>
+<span class="row"><span class="kw">🔁 Хэш стало:  </span><span class="val">2cbf25894019…</span></span>
+<span class="row"><span class="kw">📅 Время:      </span><span class="val">2026.08.11 13:49:18</span></span></pre>
+</div>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:49</span></div>
+    </div>
+  </div>
+
+  <!-- 6: on a "down" example, to check how the header reads for critical alerts -->
+  <div class="card">
+    <h2><span class="num">6</span>Проверка на примере сбоя (не content-change)</h2>
+    <p class="desc">Та же шапка на другом типе события — сервер·IP сверху, «Сбой» жирным ниже — чтобы увидеть, как это смотрится не только для «контент изменился», но и для обычного падения сервера.</p>
+    <div class="tg-wrap">
+      <div class="msg"><span class="hdr">
+<span class="srvline">🔴 api-node04 · <code>158.160.60.150</code></span>
+<span class="event">Сбой</span>
+</span>
+
+<div class="pin">📌 <span class="txt">Health-эндпоинт не отвечает</span></div>
+
+<div class="codeblock">
+  <div class="bar"><span>java</span><span class="copy">⧉</span></div>
+  <pre><span class="row"><span class="kw">🌐 Где:        </span><span class="val">API · Production</span></span>
+<span class="row"><span class="kw">🔄 Статус:     </span><span class="val status-problem">PROBLEM</span></span>
+<span class="row"><span class="kw">⏱ Длится уже: </span><span class="val">0 с</span></span>
+<span class="row"><span class="kw">💬 Ошибка:     </span><span class="val">timed out</span></span>
+<span class="row"><span class="kw">📅 Время:      </span><span class="val">2026.08.11 13:02:21</span></span></pre>
+</div>
+🔗 <a href="#">Открыть статус-страницу</a><span class="time">16:02</span></div>
+    </div>
+  </div>
+
+</div>
+
+<footer>
+  Код-блок технически — <code>&lt;pre&gt;&lt;code class="language-java"&gt;…&lt;/code&gt;&lt;/pre&gt;</code>, классический Bot API HTML,
+  без риска. Заголовок (2 строки) и причина — обычный текст с <code>&lt;b&gt;</code>/переносами строк, тоже без риска.<br>
+  Скажи номер понравившегося варианта шапки+причины — соберу финальную версию и перепишу
+  <code>_build_messages()</code> в <code>backend/app/alerts/dispatcher.py</code>.
+</footer>
+
+</body>
+</html>
