@@ -198,6 +198,16 @@ export function Pages() {
           <div className="card" style={{ marginTop: 0 }}>
             <div className="table-scroll">
             <table className="table">
+              <thead>
+                <tr>
+                  <th>{t("pages.title")}</th>
+                  <th>{t("pages.slug")}</th>
+                  <th>{t("pages.published")}</th>
+                  <th>{t("pages.health")}</th>
+                  <th className="text-right">{t("pages.uptime24h")}</th>
+                  <th></th>
+                </tr>
+              </thead>
               <tbody>
                 {items.map((p) => (
                   <tr key={p.id}>
@@ -213,6 +223,20 @@ export function Pages() {
                       </a>
                     </td>
                     <td>{p.is_published ? t("pages.yes") : t("pages.no")}</td>
+                    <td className="muted small tabular-nums">
+                      {p.health_ok + p.health_warn + p.health_bad === 0
+                        ? "—"
+                        : [
+                            p.health_ok > 0 && `${p.health_ok} ✓`,
+                            p.health_warn > 0 && `${p.health_warn} !`,
+                            p.health_bad > 0 && `${p.health_bad} ✕`,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                    </td>
+                    <td className="text-right tabular-nums">
+                      {p.uptime_pct_24h != null ? `${p.uptime_pct_24h}%` : "—"}
+                    </td>
                     <td>
                       <div className="row-actions" style={{ justifyContent: "flex-end" }}>
                         <Link

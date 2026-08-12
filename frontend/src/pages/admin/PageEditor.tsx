@@ -665,7 +665,7 @@ export function PageEditor() {
                                     </span>
                                   );
                                 })()}
-                                <span className="muted small">
+                                <span className="muted small probe-meta">
                                   {probeSummary(probe)} · {t("probe.every", { n: probe.interval_sec })}
                                   {probe.last_checked_at && !live.stale && (
                                     <> · {probe.last_latency_ms != null ? `${probe.last_latency_ms.toFixed(0)} ${t("dash.ms")}` : ""} · {relativeShort(probe.last_checked_at, lang)}</>

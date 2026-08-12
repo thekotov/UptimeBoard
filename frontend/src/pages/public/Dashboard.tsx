@@ -5,7 +5,7 @@ import { LangSwitch } from "../../components/LangSwitch";
 import { SkeletonDashboard } from "../../components/Skeleton";
 import { StatusBadge, StatusDot } from "../../components/StatusBadge";
 import { Timeline } from "../../components/Timeline";
-import { pickRecoveredHeadline, pickUpHeadline, relativeShort, relativeTime, useI18n } from "../../i18n";
+import { type Lang, pickRecoveredHeadline, pickUpHeadline, relativeShort, relativeTime, useI18n } from "../../i18n";
 import { ThemeSwitch } from "../../theme";
 import { useStatusTab } from "../../useStatusTab";
 import { Incidents } from "./Incidents";
@@ -106,6 +106,18 @@ function latClass(latency: number | null, points: { latency_ms: number | null }[
   return "";
 }
 
+/** "updated N ago" text that re-renders itself every second, in isolation —
+ *  so the tick doesn't force a re-render of the whole services/servers/probes
+ *  tree above it just to keep this one label fresh. */
+function UpdatedAgo({ generatedAt, lang }: { generatedAt: string; lang: Lang }) {
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 1000);
+    return () => clearInterval(id);
+  }, []);
+  return <>{relativeTime(generatedAt, lang)}</>;
+}
+
 export function Dashboard() {
   const { slug } = useParams<{ slug: string }>();
   const { t, lang } = useI18n();
@@ -149,10 +161,8 @@ export function Dashboard() {
             return { id: pr.id, name: pr.name, certExpiresAt: pr.cert_expires_at, certIssuer: pr.cert_issuer };
     return null;
   }, [selectedProbeId, page]);
-  const [statusFilter, setStatusFilter] = useState<Status | null>(null);
   const [flashIds, setFlashIds] = useState<Set<number>>(new Set());
   const [liveMsg, setLiveMsg] = useState("");
-  const [, setTick] = useState(0);
   // phones get a denser, collapsed-by-default layout (matches the 640px CSS breakpoint)
   const [isMobile, setIsMobile] = useState(
     () => typeof window !== "undefined" && window.matchMedia(MOBILE_QUERY).matches
@@ -161,12 +171,6 @@ export function Dashboard() {
   const didInitCollapse = useRef(false);
 
   useStatusTab(page?.status ?? null, page?.title ?? null);
-
-  // Tick once a second so "updated N ago" stays fresh without a reload.
-  useEffect(() => {
-    const id = setInterval(() => setTick((n) => n + 1), 1000);
-    return () => clearInterval(id);
-  }, []);
 
   // Flash probe rows whose status changed between snapshots; auto-collapse healthy
   // services on first load when there are many.
@@ -249,11 +253,24 @@ export function Dashboard() {
     });
   }, [slug]);
 
-  // Timeline / uptime for the selected range.
+  // Keep the latest SSE update sequence readable from the timeline effect below
+  // without making it re-run (and reset its poll timer) on every single update.
+  const updateSeqRef = useRef(updateSeq);
+  useEffect(() => {
+    updateSeqRef.current = updateSeq;
+  }, [updateSeq]);
+
+  // Timeline / uptime for the selected range. Polls on a fixed cadence as a
+  // safety net, but skips the request when no SSE update has arrived since the
+  // last fetch — an idle page (nothing changing) stops generating traffic
+  // instead of re-fetching the same aggregate every 30s forever.
   useEffect(() => {
     if (!slug) return;
     let active = true;
-    const load = () => {
+    let lastFetchedSeq = -1;
+    const load = (force: boolean) => {
+      if (!force && lastFetchedSeq === updateSeqRef.current) return;
+      lastFetchedSeq = updateSeqRef.current;
       api
         .get<UptimeEntry[]>(`/public/pages/${slug}/timeline?range=${range}`)
         .then(({ data }) => {
@@ -264,16 +281,13 @@ export function Dashboard() {
         })
         .catch(() => undefined);
     };
-    load();
-    const id = setInterval(load, 30000);
+    load(true);
+    const id = setInterval(() => load(false), 30000);
     return () => {
       active = false;
       clearInterval(id);
     };
   }, [slug, range]);
-
-  // Not memoised on purpose — recomputes each 1s tick to stay fresh.
-  const updated = page ? relativeTime(page.generated_at, lang) : "";
 
   const counts = useMemo(() => {
     const c: Record<Status, number> = { up: 0, recovered: 0, degraded: 0, down: 0, unknown: 0, paused: 0 };
@@ -301,7 +315,6 @@ export function Dashboard() {
 
     return page.services
       .filter((service) => (onlyProblems ? isProblem(service.status) : true))
-      .filter((service) => (statusFilter ? service.status === statusFilter : true))
       .map((service) => {
         const serviceHit = matches(service.name);
         const servers = service.servers
@@ -319,7 +332,7 @@ export function Dashboard() {
       })
       .filter((s): s is ServiceStatus => s !== null);
     // Order is preserved as configured in admin (backend returns admin order).
-  }, [page, q, onlyProblems, statusFilter]);
+  }, [page, q, onlyProblems]);
 
   const activeProblems = useMemo(
     () => (page ? page.services.filter((s) => isProblem(s.status)) : []),
@@ -435,14 +448,16 @@ export function Dashboard() {
                   n: counts.down + counts.degraded,
                   total: page.services.length,
                 })}
+            {overallUptime != null && <> · {t("dash.overallUptime", { range: t(`range.${range}`) })}</>}
+            {" · "}
+            {(() => {
+              const [prefix, suffix] = t("dash.updated").split("{time}");
+              return <>{prefix}<UpdatedAgo generatedAt={page.generated_at} lang={lang} />{suffix}</>;
+            })()}
           </span>
         </div>
-      </div>
-
-      {activeProblems.length > 0 && (
-        <div className="active-problems">
-          <strong>{t("dash.activeProblems", { n: activeProblems.length })}</strong>
-          <div className="ap-list">
+        {activeProblems.length > 0 && (
+          <div className="overall-chips" aria-label={t("dash.activeProblems", { n: activeProblems.length })}>
             {activeProblems.map((s) => (
               <button
                 key={s.id}
@@ -455,47 +470,7 @@ export function Dashboard() {
               </button>
             ))}
           </div>
-        </div>
-      )}
-
-      <div className="summary">
-        <button
-          className={`item item-btn ${statusFilter === "up" ? "active" : ""}`}
-          onClick={() => setStatusFilter((f) => (f === "up" ? null : "up"))}
-        >
-          <StatusDot status="up" /> <b>{counts.up}</b> {t("summary.up")}
-        </button>
-        {counts.recovered > 0 && (
-          <button
-            className={`item item-btn ${statusFilter === "recovered" ? "active" : ""}`}
-            onClick={() => setStatusFilter((f) => (f === "recovered" ? null : "recovered"))}
-          >
-            <StatusDot status="recovered" /> <b>{counts.recovered}</b> {t("summary.recovered")}
-          </button>
         )}
-        {counts.degraded > 0 && (
-          <button
-            className={`item item-btn ${statusFilter === "degraded" ? "active" : ""}`}
-            onClick={() => setStatusFilter((f) => (f === "degraded" ? null : "degraded"))}
-          >
-            <StatusDot status="degraded" /> <b>{counts.degraded}</b> {t("summary.degraded")}
-          </button>
-        )}
-        {counts.down > 0 && (
-          <button
-            className={`item item-btn ${statusFilter === "down" ? "active" : ""}`}
-            onClick={() => setStatusFilter((f) => (f === "down" ? null : "down"))}
-          >
-            <StatusDot status="down" /> <b>{counts.down}</b> {t("summary.down")}
-          </button>
-        )}
-        {overallUptime != null && (
-          <div className="item">
-            <b>{overallUptime}%</b> {t("dash.overallUptime", { range: t(`range.${range}`) })}
-          </div>
-        )}
-        <span className="spacer" />
-        <div className="item">{t("dash.updated", { time: updated })}</div>
       </div>
 
       <div className="toolbar sticky-toolbar">

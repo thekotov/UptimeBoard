@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
-from sqlalchemy import or_, text
+from sqlalchemy import case, func, or_, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -105,7 +105,60 @@ def _notify_schedule_changed() -> None:
 
 @router.get("/pages", response_model=list[PageOut])
 def list_pages(db: Session = Depends(get_db)):
-    return db.query(Page).order_by(Page.id).all()
+    pages = db.query(Page).order_by(Page.id).all()
+    out = [PageOut.model_validate(p) for p in pages]
+    by_id = {p.id: o for p, o in zip(pages, out)}
+
+    # Health: one pass over every probe's denormalised last-known state, bucketed
+    # the same way the editor's liveStatus()/healthOf() do on the frontend — a
+    # stale probe (no check within interval*3 + 30s) counts as neither ok/warn/bad.
+    now = datetime.now(timezone.utc)
+    probe_rows = (
+        db.query(Service.page_id, Probe.enabled, Probe.last_status, Probe.last_checked_at, Probe.interval_sec)
+        .join(Server, Probe.server_id == Server.id)
+        .join(Service, Server.service_id == Service.id)
+        .filter(Service.page_id.in_(by_id.keys()))
+        .all()
+    )
+    for page_id, enabled, last_status, last_checked_at, interval_sec in probe_rows:
+        if not enabled:
+            continue
+        if last_checked_at is None or (now - last_checked_at).total_seconds() > interval_sec * 3 + 30:
+            continue
+        if last_status in ("down",):
+            by_id[page_id].health_bad += 1
+        elif last_status in ("degraded",):
+            by_id[page_id].health_warn += 1
+        elif last_status in ("up", "recovered"):
+            by_id[page_id].health_ok += 1
+
+    # Uptime 24h: aggregate raw probe_results (no rollups exist yet for a 24h
+    # window — see public.py get_timeline), same exclusion rule as everywhere
+    # else: "maintenance" (planned) and "unknown" (no-confidence) aren't outages.
+    since = now - timedelta(hours=24)
+    uptime_rows = (
+        db.query(
+            Service.page_id,
+            func.count(ProbeResult.id),
+            func.sum(case((ProbeResult.status == "up", 1), else_=0)),
+        )
+        .select_from(ProbeResult)
+        .join(Probe, ProbeResult.probe_id == Probe.id)
+        .join(Server, Probe.server_id == Server.id)
+        .join(Service, Server.service_id == Service.id)
+        .filter(
+            Service.page_id.in_(by_id.keys()),
+            ProbeResult.checked_at >= since,
+            ProbeResult.status.notin_(["maintenance", "unknown"]),
+        )
+        .group_by(Service.page_id)
+        .all()
+    )
+    for page_id, total, up in uptime_rows:
+        if total:
+            by_id[page_id].uptime_pct_24h = round(up / total * 100, 2)
+
+    return out
 
 
 @router.get("/slug-available")

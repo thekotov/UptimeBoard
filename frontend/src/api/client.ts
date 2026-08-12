@@ -108,6 +108,10 @@ export interface Page {
   default_collapsed: boolean;
   default_tolerance_checks: number;
   mask_ip: boolean;
+  health_ok: number;
+  health_warn: number;
+  health_bad: number;
+  uptime_pct_24h: number | null;
 }
 export type ProbeType = "icmp" | "tcp" | "http" | "tls" | "heartbeat";
 

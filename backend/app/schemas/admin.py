@@ -198,6 +198,12 @@ class PageUpdate(BaseModel):
 
 class PageOut(PageBase):
     id: int
+    # Live health snapshot across all of this page's probes, and 24h uptime —
+    # computed by list_pages() for the admin pages list (not stored columns).
+    health_ok: int = 0
+    health_warn: int = 0
+    health_bad: int = 0
+    uptime_pct_24h: float | None = None
 
     model_config = {"from_attributes": True}
 

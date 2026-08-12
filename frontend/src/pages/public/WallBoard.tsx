@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { type PageStatus, type Status } from "../../api/client";
-import { relativeTime, useI18n } from "../../i18n";
+import { getIncidents, type PageStatus, type Status } from "../../api/client";
+import { formatDuration, relativeTime, useI18n } from "../../i18n";
 import { ThemeSwitch } from "../../theme";
 import { useStatusTab } from "../../useStatusTab";
 
 const isProblem = (s: Status) => s === "down" || s === "degraded";
-const GLYPH: Record<Status, string> = {
-  up: "✓", recovered: "🎉", degraded: "!", down: "✕", unknown: "?", paused: "⏸",
-};
 // Sort weight so alarms surface worst-first.
 const SEV: Record<Status, number> = { down: 5, degraded: 4, unknown: 3, paused: 2, recovered: 1, up: 0 };
 
@@ -30,6 +27,7 @@ interface Tile {
   server: string;
   host: string;
   type: string;
+  error: string | null;
 }
 
 /** Flatten a page snapshot into one tile per probe, carrying its service/server. */
@@ -41,7 +39,7 @@ function flatten(page: PageStatus | null): Tile[] {
       for (const p of srv.probes)
         out.push({
           id: p.id, name: p.name, status: p.status, latency: p.latency_ms,
-          service: svc.name, server: srv.name, host: srv.host, type: p.type,
+          service: svc.name, server: srv.name, host: srv.host, type: p.type, error: p.error,
         });
   return out;
 }
@@ -103,6 +101,30 @@ export function WallBoard() {
     return () => lock?.release?.();
   }, []);
 
+  // "Недоступен · 18м" needs an incident start time, which the live snapshot
+  // doesn't carry — pull it from the same incidents endpoint the dashboard uses.
+  const [incidentStart, setIncidentStart] = useState<Record<number, string>>({});
+  useEffect(() => {
+    if (!slug) return;
+    let active = true;
+    const load = () => {
+      getIncidents(slug, 100)
+        .then((items) => {
+          if (!active) return;
+          const map: Record<number, string> = {};
+          for (const inc of items) if (inc.ongoing) map[inc.probe_id] = inc.started_at;
+          setIncidentStart(map);
+        })
+        .catch(() => undefined);
+    };
+    load();
+    const id = setInterval(load, 20000);
+    return () => {
+      active = false;
+      clearInterval(id);
+    };
+  }, [slug]);
+
   const tiles = useMemo(() => flatten(page), [page]);
 
   // Flash tiles whose status changed since the last snapshot.
@@ -134,12 +156,12 @@ export function WallBoard() {
     return c;
   }, [tiles]);
 
-  const alarms = useMemo(
-    () => tiles.filter((tl) => isProblem(tl.status)).sort((a, b) => SEV[b.status] - SEV[a.status]),
-    [tiles]
+  // Problem tiles float to the front of the grid instead of living in a
+  // separate compact alarm strip — the tile itself carries the alarm styling.
+  const shown = useMemo(
+    () => (onlyProblems ? tiles.filter((tl) => isProblem(tl.status)) : tiles).slice().sort((a, b) => SEV[b.status] - SEV[a.status]),
+    [tiles, onlyProblems]
   );
-
-  const shown = onlyProblems ? tiles.filter((tl) => isProblem(tl.status)) : tiles;
 
   const toggleFullscreen = () => {
     const el = boardRef.current;
@@ -155,28 +177,10 @@ export function WallBoard() {
   return (
     <div className={`wallboard ${status}`} ref={boardRef}>
       <div className="wb-top">
-        <div className="wb-title">
-          <span className="wb-glyph" aria-hidden>{GLYPH[status]}</span>
-          <div className="wb-stack">
-            <h1>{page?.title ?? slug}</h1>
-            <span className="wb-headline">
-              {status === "up"
-                ? t("overall.subAllUp", { total: counts.total })
-                : status === "unknown"
-                ? "—"
-                : t("overall.subProblems", { n: counts.down + counts.degraded, total: counts.total })}
-            </span>
-          </div>
-        </div>
-
-        <div className="wb-metrics">
-          <span className="wb-metric up"><b>{counts.up}</b> {t("status.up")}</span>
-          <span className={`wb-metric degraded ${counts.degraded ? "active" : "zero"}`}>
-            <b>{counts.degraded}</b> {t("status.degraded")}
-          </span>
-          <span className={`wb-metric down ${counts.down ? "active" : "zero"}`}>
-            <b>{counts.down}</b> {t("status.down")}
-          </span>
+        <div className="wb-counter">
+          <span className="wb-counter-label">{t(`status.${status}`)}</span>
+          <span className="wb-counter-num">{counts.down + counts.degraded} / {counts.total}</span>
+          <span className="wb-counter-sub">{t("wall.problemProbes")} · {page?.title ?? slug}</span>
         </div>
 
         <div className="wb-controls">
@@ -197,19 +201,6 @@ export function WallBoard() {
         <div className="wb-maint">{t("maintenance.banner", { title: page.maintenance.title })}</div>
       )}
 
-      {alarms.length > 0 && (
-        <div className="wb-alarms">
-          <div className="wb-alarms-head">🔴 {t("dash.activeProblems", { n: alarms.length })}</div>
-          <div className="wb-alarms-list">
-            {alarms.map((a) => (
-              <span key={a.id} className={`wb-alarm ${a.status}`}>
-                <b>{a.service}</b> · {a.server} · {a.name}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
       {shown.length === 0 ? (
         <div className="wb-empty">{onlyProblems ? "🟢 " + t("overall.up") : "—"}</div>
       ) : (
@@ -220,15 +211,25 @@ export function WallBoard() {
             const generic = tl.name.trim().toLowerCase() === tl.type.toLowerCase();
             const primary = generic ? tl.server : tl.name;
             const secondary = generic ? tl.service : `${tl.service} · ${tl.server}`;
+            const problem = isProblem(tl.status);
+            const startedAt = incidentStart[tl.id];
+            const duration = problem && startedAt
+              ? formatDuration(Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 1000)), lang)
+              : null;
             return (
               <div key={tl.id} className={`wb-tile ${tl.status} ${flash.has(tl.id) ? "flash" : ""}`}>
-                <div className="wb-tile-head">
-                  <span className={`wb-dot ${tl.status}`} aria-hidden />
-                  <span className="wb-tile-name">{primary}</span>
-                </div>
+                <span className={`wb-tile-eyebrow ${tl.status}`}>
+                  {t(`status.${tl.status}`)}
+                  {duration && <> · {duration}</>}
+                </span>
+                <span className="wb-tile-name">{primary}</span>
                 <div className="wb-tile-sub">{secondary}</div>
                 <div className="wb-tile-foot">
-                  <span className="wb-tile-type">{tl.type.toUpperCase()}</span>
+                  {problem && tl.error ? (
+                    <span className="wb-tile-err" title={tl.error}>{tl.error}</span>
+                  ) : (
+                    <span className="wb-tile-type">{tl.type.toUpperCase()}</span>
+                  )}
                   {tl.latency != null && (
                     <span className={`wb-tile-lat ${latClass(tl.latency)}`}>{tl.latency.toFixed(0)} {t("dash.ms")}</span>
                   )}

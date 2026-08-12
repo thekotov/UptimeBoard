@@ -124,15 +124,17 @@ code {
 .dot.unknown { background: var(--unknown); }
 .dot.paused { background: var(--unknown); opacity: .6; }
 
-/* ---- overall banner ---- */
+/* ---- overall banner (status + active-problem chips + uptime/updated, merged) ---- */
 .overall {
-  display: flex; align-items: center; gap: 16px;
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap; row-gap: 10px;
   padding: 18px 22px; border-radius: var(--radius);
   background: var(--panel); border: 1px solid var(--border);
   box-shadow: var(--shadow); margin-bottom: 16px;
 }
+.overall .stack { min-width: 0; flex: 1 1 240px; }
 .overall .title { font-size: 20px; font-weight: 700; letter-spacing: -0.015em; line-height: 1.2; }
 .overall .sub { color: var(--muted); font-size: 13.5px; }
+.overall-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; flex: 0 1 auto; }
 
 /* round status icon with glyph */
 .status-icon {
@@ -192,13 +194,7 @@ input.invalid, textarea.invalid { border-color: var(--down); box-shadow: 0 0 0 3
 .field-msg.err { color: var(--down-text); }
 .field-msg.ok { color: var(--up-text); }
 
-/* active problems strip */
-.active-problems {
-  display: flex; flex-direction: column; gap: 8px;
-  background: var(--down-soft); border: 1px solid var(--down); color: var(--down-text);
-  border-radius: var(--radius); padding: 12px 16px; margin-bottom: 14px;
-}
-.ap-list { display: flex; flex-wrap: wrap; gap: 8px; }
+/* active-problem chip, in the merged .overall banner */
 .ap-chip {
   display: inline-flex; align-items: center; gap: 7px;
   background: var(--panel); border: 1px solid var(--border); color: var(--text);
@@ -250,13 +246,6 @@ input.invalid, textarea.invalid { border-color: var(--down); box-shadow: 0 0 0 3
 .container.compact .probe-list { padding: 2px 12px 3px 24px; }
 .container.compact .probe-row { padding: 4px 0; }
 .container.compact .overall { padding: 12px 16px; }
-.container.compact .summary { margin-bottom: 14px; }
-.item-btn {
-  background: transparent; border: 1px solid transparent; border-radius: 999px;
-  padding: 3px 10px; cursor: pointer; font: inherit; color: var(--muted);
-}
-.item-btn:hover { background: var(--panel-2); }
-.item-btn.active { background: var(--accent-soft); border-color: var(--accent); color: var(--text); }
 
 /* flash a probe row when its status changes (live) */
 @keyframes rowflash {
@@ -270,8 +259,6 @@ input.invalid, textarea.invalid { border-color: var(--down); box-shadow: 0 0 0 3
 .probe-spark { width: 190px; overflow: hidden; }
 .probe-spark .timeline { gap: 1px; justify-content: flex-end; }
 .probe-spark .tl-cell { flex: 0 0 auto; width: 4px; height: 18px; }
-.summary .item { display: flex; align-items: center; gap: 7px; font-size: 13px; color: var(--muted); }
-.summary .item b { color: var(--text); font-size: 14px; font-weight: 650; }
 
 /* ---- cards ---- */
 .card {
@@ -327,6 +314,16 @@ input.invalid, textarea.invalid { border-color: var(--down); box-shadow: 0 0 0 3
 }
 .probe-row:first-of-type { border-top: none; }
 .probe-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; flex: 1; min-width: 0; }
+.probe-name .probe-meta { margin-left: auto; }
+
+/* editor row actions (check/pause/edit/⋯) stay hidden until the row is hovered
+   or one of its controls has focus — keeps the dense probe list from mockup 02
+   readable, without losing the actions on keyboard focus or touch devices. */
+.probe-row .row-actions { opacity: 0; pointer-events: none; transition: opacity .12s ease; }
+.probe-row:hover .row-actions, .probe-row:focus-within .row-actions { opacity: 1; pointer-events: auto; }
+@media (hover: none) {
+  .probe-row .row-actions { opacity: 1; pointer-events: auto; }
+}
 .probe-main { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
 .probe-main .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .probe-err {
@@ -792,6 +789,7 @@ summary:focus:not(:focus-visible) { outline: none; }
   .overall { padding: 14px 16px; gap: 12px; }
   .overall .title { font-size: 16px; }
   .overall .sub { font-size: 12.5px; }
+  .overall-chips { flex: 1 1 100%; margin-left: 0; }
   .status-icon { width: 34px; height: 34px; font-size: 17px; }
   .summary { gap: 8px 16px; margin-bottom: 14px; }
   .card { padding: 12px 14px; }
@@ -873,34 +871,22 @@ summary:focus:not(:focus-visible) { outline: none; }
   position: sticky; top: -18px; z-index: 2;
   background: var(--bg); padding: 4px 0 12px; border-bottom: 1px solid var(--border);
 }
-.wb-title { display: flex; align-items: center; gap: 14px; min-width: 0; }
-.wb-glyph {
-  display: grid; place-items: center; flex: none;
-  width: 48px; height: 48px; border-radius: 12px;
-  font-size: 26px; font-weight: 800; color: #fff; background: var(--unknown);
+/* one big counter: problem-probes / total, captioned by status and page title —
+   replaces the three separate up/degraded/down pill counters. */
+.wb-counter { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.wb-counter-label {
+  font-size: 11.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--muted);
 }
-.wallboard.up .wb-glyph, .wallboard.recovered .wb-glyph { background: var(--up); }
-.wallboard.degraded .wb-glyph { background: var(--degraded); }
-.wallboard.down .wb-glyph { background: var(--down); animation: wb-pulse 1.6s ease-in-out infinite; }
-.wb-stack { display: flex; flex-direction: column; min-width: 0; }
-.wb-title h1 { font-size: clamp(19px, 1.9vw, 30px); margin: 0; line-height: 1.15; }
-.wb-headline { color: var(--muted); font-size: 0.9em; }
-
-/* Summary chips: healthy count stays calm; degraded/down light up only when non-zero. */
-.wb-metrics { display: flex; gap: 10px; flex-wrap: wrap; }
-.wb-metric {
-  display: inline-flex; align-items: baseline; gap: 7px;
-  padding: 7px 14px; border-radius: 999px; border: 1px solid var(--border);
-  background: var(--panel); font-size: 0.82em; color: var(--muted); white-space: nowrap;
+.wallboard.degraded .wb-counter-label { color: var(--degraded-text); }
+.wallboard.down .wb-counter-label { color: var(--down-text); }
+.wb-counter-num {
+  font-size: clamp(32px, 4vw, 44px); font-weight: 800; letter-spacing: -0.03em;
+  line-height: 1; font-variant-numeric: tabular-nums;
 }
-.wb-metric b { font-size: 1.55em; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
-.wb-metric.up b { color: var(--up-text); }
-.wb-metric.zero { opacity: 0.5; }
-.wb-metric.zero b { color: var(--muted); }
-.wb-metric.degraded.active { background: var(--degraded-soft); border-color: var(--degraded); color: var(--degraded-text); }
-.wb-metric.degraded.active b { color: var(--degraded-text); }
-.wb-metric.down.active { background: var(--down-soft); border-color: var(--down); color: var(--down-text); }
-.wb-metric.down.active b { color: var(--down-text); }
+.wallboard.degraded .wb-counter-num { color: var(--degraded-text); }
+.wallboard.down .wb-counter-num { color: var(--down-text); animation: wb-pulse 1.6s ease-in-out infinite; }
+.wb-counter-sub { color: var(--muted); font-size: 0.9em; }
 
 .wb-controls { display: flex; align-items: center; gap: 10px; }
 .wb-clock { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 1.25em; letter-spacing: 0.02em; }
@@ -929,19 +915,6 @@ summary:focus:not(:focus-visible) { outline: none; }
   border: 1px solid var(--degraded); font-weight: 600;
 }
 
-.wb-alarms {
-  border: 1px solid var(--down); border-radius: var(--radius);
-  background: var(--down-soft); padding: 12px 14px;
-}
-.wb-alarms-head { font-weight: 800; color: var(--down-text); margin-bottom: 8px; font-size: 1.05em; }
-.wb-alarms-list { display: flex; flex-wrap: wrap; gap: 8px; }
-.wb-alarm {
-  padding: 5px 11px; border-radius: 999px; font-size: 0.9em;
-  background: var(--panel); border: 1px solid var(--border);
-}
-.wb-alarm.down { border-color: var(--down); color: var(--down-text); }
-.wb-alarm.degraded { border-color: var(--degraded); color: var(--degraded-text); }
-
 /* auto-fit so tiles stretch to fill each row — no ragged empty columns. */
 .wb-grid {
   display: grid; gap: 12px;
@@ -959,15 +932,17 @@ summary:focus:not(:focus-visible) { outline: none; }
   background: var(--down); border-color: var(--down); color: #fff;
   animation: wb-pulse 1.6s ease-in-out infinite;
 }
-.wb-tile.down .wb-tile-sub, .wb-tile.down .wb-tile-type, .wb-tile.down .wb-tile-lat { color: rgba(255,255,255,0.85); }
+.wb-tile.down .wb-tile-sub, .wb-tile.down .wb-tile-type, .wb-tile.down .wb-tile-lat, .wb-tile.down .wb-tile-err {
+  color: rgba(255,255,255,0.85);
+}
 .wb-tile.flash { animation: wb-flash 1.8s ease-out; }
 
-/* one quiet status signal on healthy tiles: a dot, not a repeated filled glyph */
-.wb-tile-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.wb-dot { flex: none; width: 12px; height: 12px; border-radius: 50%; background: var(--unknown); }
-.wb-dot.up, .wb-dot.recovered { background: var(--up); }
-.wb-dot.degraded { background: var(--degraded); }
-.wb-dot.down { background: #fff; }
+/* status + (for problems) duration since it started — replaces the old dot+name head */
+.wb-tile-eyebrow { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.wb-tile-eyebrow.up, .wb-tile-eyebrow.recovered { color: var(--up-text); }
+.wb-tile-eyebrow.degraded { color: var(--degraded-text); }
+.wb-tile-eyebrow.down { color: rgba(255,255,255,0.92); }
+.wb-tile-eyebrow.unknown, .wb-tile-eyebrow.paused { color: var(--muted); }
 .wb-tile-name {
   font-weight: 700; font-size: 1.05em; line-height: 1.2;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
@@ -978,7 +953,11 @@ summary:focus:not(:focus-visible) { outline: none; }
 }
 .wb-tile-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; padding-top: 4px; }
 .wb-tile-type { font-size: 0.68em; letter-spacing: 0.05em; color: var(--muted); }
-.wb-tile-lat { font-variant-numeric: tabular-nums; font-size: 0.9em; font-weight: 600; color: var(--muted); }
+.wb-tile-err {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.75em;
+  color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0;
+}
+.wb-tile-lat { font-variant-numeric: tabular-nums; font-size: 0.9em; font-weight: 600; color: var(--muted); flex: none; }
 .wb-tile-lat.warn { color: var(--degraded-text); }
 .wb-tile-lat.bad { color: var(--down-text); }
 
@@ -994,7 +973,7 @@ summary:focus:not(:focus-visible) { outline: none; }
   100% { box-shadow: none; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .wallboard.down .wb-glyph, .wb-tile.down, .wb-tile.flash { animation: none; }
+  .wallboard.down .wb-counter-num, .wb-tile.down, .wb-tile.flash { animation: none; }
 }
 
 /* ===== Admin dashboards: activity feed, cert board, monitoring, heatmap ===== */
