@@ -14,6 +14,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     changes: [
       "Telegram-канал: отправка в тему (topic) группы — поле «Тема (topic id)», config.thread_id → message_thread_id",
       "Адрес Bot API настраивается: TELEGRAM_API_BASE в .env или «Адрес Bot API» у канала — для серверов, где api.telegram.org недоступен (прокси Bot API)",
+      "Безопасность: токен бота вырезается из логов (в т.ч. логов httpx и трейсбеков) и из текста ошибок доставки, который показывается в админке — раньше любая ошибка Telegram писала токен в лог контейнера",
     ],
   },
   {

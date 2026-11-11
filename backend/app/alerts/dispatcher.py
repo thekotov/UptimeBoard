@@ -20,6 +20,9 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.redact import install_log_redaction, scrub
+
+install_log_redaction()
 from app.db import SessionLocal
 from app.models.alert import AlertChannel, AppSettings
 from app.realtime import get_sync_redis
@@ -563,7 +566,7 @@ def test_telegram(token: str, proxy: str | None, api_base: str | None = None) ->
             return True, "@" + data["result"].get("username", "bot")
         return False, data.get("description", f"HTTP {resp.status_code}")
     except Exception as exc:  # noqa: BLE001
-        return False, str(exc)
+        return False, scrub(exc)
 
 
 def list_telegram_chats(token: str | None, proxy: str | None,
@@ -598,7 +601,7 @@ def list_telegram_chats(token: str | None, proxy: str | None,
                 chats[chat["id"]] = {"id": chat["id"], "title": title, "type": chat.get("type", "")}
         return True, list(chats.values())
     except Exception as exc:  # noqa: BLE001
-        return False, str(exc)
+        return False, scrub(exc)
 
 
 def _sample_ctx() -> dict:
@@ -659,7 +662,7 @@ def send_test_telegram(config: dict) -> tuple[bool, str]:
                                                        occurred_at=datetime.now(timezone.utc)))
             return True, "Тестовая Rich Message-таблица отправлена в Telegram"
         except Exception as exc:  # noqa: BLE001
-            return False, f"sendRichMessage не сработал ({exc}); в реальных алертах сработает откат на обычный HTML"
+            return False, f"sendRichMessage не сработал ({scrub(exc)}); в реальных алертах сработает откат на обычный HTML"
     if style == "compact":
         _, compact_html = _compact_message(sample_ctx)
         _, compact_html_enhanced = _compact_message(sample_ctx, enhanced=True)
@@ -684,7 +687,7 @@ def send_test_telegram(config: dict) -> tuple[bool, str]:
         _send_telegram(config, text, parse_mode="HTML")
         return True, "Тестовый алерт отправлен (обычное форматирование — <mark>/<aside>/<pre> Telegram не принял)"
     except Exception as exc:  # noqa: BLE001
-        return False, str(exc)
+        return False, scrub(exc)
 
 
 WEBHOOK_FORMATS = ("generic", "slack", "discord", "mattermost")
@@ -726,7 +729,7 @@ def test_webhook(config: dict) -> tuple[bool, str]:
     except httpx.HTTPStatusError as exc:
         return False, f"HTTP {exc.response.status_code}"
     except Exception as exc:  # noqa: BLE001
-        return False, str(exc)
+        return False, scrub(exc)
 
 
 def send_test_webhook(config: dict) -> tuple[bool, str]:
@@ -749,7 +752,7 @@ def send_test_webhook(config: dict) -> tuple[bool, str]:
     except httpx.HTTPStatusError as exc:
         return False, f"HTTP {exc.response.status_code}"
     except Exception as exc:  # noqa: BLE001
-        return False, str(exc)
+        return False, scrub(exc)
 
 
 def _smtp_connect(config: dict):
@@ -780,7 +783,7 @@ def test_email(config: dict) -> tuple[bool, str]:
             smtp.quit()
         return True, f"SMTP {config['smtp_host']}:{config.get('smtp_port', 587)} OK"
     except Exception as exc:  # noqa: BLE001
-        return False, str(exc)
+        return False, scrub(exc)
 
 
 def send_test_email(config: dict) -> tuple[bool, str]:
@@ -797,7 +800,7 @@ def send_test_email(config: dict) -> tuple[bool, str]:
         _send_email(config, subject="🧪 ТЕСТ: мониторинг", text="🧪 ТЕСТ\n\n" + plain)
         return True, "Тестовое письмо отправлено"
     except Exception as exc:  # noqa: BLE001
-        return False, str(exc)
+        return False, scrub(exc)
 
 
 def _send_email(config: dict, subject: str, text: str) -> None:
@@ -1043,7 +1046,7 @@ def dispatch_group(channels: list[AlertChannel], *, records: list[dict], occurre
                 _deliver(lambda cfg=cfg: _send_email(
                     cfg, subject=f"🔴 Сбой: {len(records)} серверов", text=text_plain))
         except Exception as exc:  # noqa: BLE001
-            ok, err = False, str(exc)
+            ok, err = False, scrub(exc)
             logger.warning("group alert channel %s (%s) failed: %s", ch.id, ch.type, exc)
         outcomes.append((ch.id, ok, err))
     record_deliveries(outcomes)
@@ -1148,7 +1151,7 @@ def dispatch(channels: list[AlertChannel], *, event: str, probe_name: str, serve
             elif ch.type == "email":
                 _deliver(lambda cfg=cfg, text=text: _send_email(cfg, subject=f"{verb}: {probe_name}", text=text))
         except Exception as exc:  # noqa: BLE001
-            ok, err = False, str(exc)
+            ok, err = False, scrub(exc)
             logger.warning("alert channel %s (%s) failed after %s attempt(s): %s",
                            ch.id, ch.type, max(1, settings.alert_retry_attempts), exc)
         outcomes.append((ch.id, ok, err))

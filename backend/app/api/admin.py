@@ -55,6 +55,7 @@ from app.schemas.admin import (
 )
 from app.realtime import get_sync_redis, get_worker_heartbeat_age
 from app.config import settings
+from app.redact import scrub
 from app.alerts import (
     delete_telegram_webhook,
     get_alert_storm_window_sec,
@@ -1104,7 +1105,7 @@ def toggle_alert_channel_menu(channel_id: int, payload: AlertChannelMenuToggle, 
         try:
             set_telegram_webhook(cfg, url)
         except Exception as exc:  # noqa: BLE001
-            raise HTTPException(status_code=502, detail=f"setWebhook failed: {exc}")
+            raise HTTPException(status_code=502, detail=f"setWebhook failed: {scrub(exc)}")
         cfg["menu_enabled"] = True
         cfg["webhook_secret"] = secret
     else:
