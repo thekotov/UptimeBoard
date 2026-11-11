@@ -76,6 +76,52 @@ function binCells(points: { checked_at: string; status: string }[], range: TimeR
   return cells;
 }
 
+/** «Что проверяется»: человекочитаемые строки из безопасной выжимки настроек пробы. */
+function CheckCard({ type, host, check }: { type: string; host: string; check: Record<string, any> }) {
+  const { t } = useI18n();
+  const rows: [string, string][] = [];
+  if (type === "http") {
+    rows.push([t("pc.request"), `${check.method} ${check.url}`]);
+    let exp = t("pc.expectStatus", { code: check.expected_status });
+    if (check.expected_body_substr) exp += " " + t("pc.andText", { s: check.expected_body_substr });
+    if (check.expected_body_regex) exp += " " + t("pc.andRegex", { s: check.expected_body_regex });
+    if (check.json_path)
+      exp += " " + (check.json_expected != null && check.json_expected !== ""
+        ? t("pc.andJson", { p: check.json_path, v: String(check.json_expected) })
+        : t("pc.andJsonPath", { p: check.json_path }));
+    rows.push([t("pc.expect"), exp]);
+    const extra = [check.follow_redirects ? t("pc.redirectsFollow") : t("pc.redirectsNo")];
+    if (check.check_cert) extra.push(t("pc.certWarn", { d: check.warn_days }));
+    if (check.has_auth) extra.push(t("pc.withAuth"));
+    if (check.has_body) extra.push(t("pc.withBody"));
+    rows.push([t("pc.options"), extra.join(" · ")]);
+  } else if (type === "tcp") {
+    rows.push([t("pc.port"), t("pc.portVal", { h: host, p: check.port })]);
+  } else if (type === "icmp") {
+    rows.push([t("pc.ping"), t("pc.pingVal", { h: host, n: check.count, l: Math.round((check.loss_threshold || 0) * 100) })]);
+  } else if (type === "tls") {
+    rows.push([t("pc.tls"), t("pc.tlsVal", { h: host, p: check.port, d: check.warn_days })]);
+  } else if (type === "heartbeat") {
+    rows.push([t("pc.heartbeat"), t("pc.heartbeatVal", { s: check.interval_sec })]);
+  }
+  rows.push([t("pc.schedule"), t("pc.scheduleVal", { i: check.interval_sec, to: check.timeout_sec, r: check.retries })]);
+  rows.push([t("pc.failure"), t("pc.failureVal", { n: check.failure_threshold })]);
+  if (check.latency_degraded_ms) rows.push([t("pc.slow"), t("pc.slowVal", { ms: check.latency_degraded_ms })]);
+  return (
+    <div className="pc-card">
+      <span className="pc-title">{t("pc.title")}</span>
+      <div className="pc-grid">
+        {rows.map(([k, v]) => (
+          <div className="pc-row" key={k}>
+            <span className="muted small">{k}</span>
+            <span className="pc-val">{v}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Inline coloured "expires in N days / expired" text for the cert card. */
 function CertCountdown({ expiresAt }: { expiresAt: string }) {
   const { t } = useI18n();
@@ -162,6 +208,8 @@ export function ProbeModal({
           ))}
         </div>
       </div>
+
+      {data?.check && <CheckCard type={data.type} host={data.host} check={data.check} />}
 
       {certExpiresAt && (
         <div className="cert-card">

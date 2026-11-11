@@ -222,6 +222,8 @@ export interface ProbeHistory {
   points: HistoryPoint[];
   recent: HistoryPoint[];
   latency: LatencyStats | null;
+  /** Что проверяется (безопасная выжимка настроек пробы). */
+  check?: Record<string, any> | null;
 }
 export interface Incident {
   id: number;

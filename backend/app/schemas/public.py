@@ -113,3 +113,6 @@ class ProbeHistory(BaseModel):
     points: list[dict]  # bucketed [{checked_at, status, latency_ms}]
     recent: list[dict]  # last raw checks [{checked_at, status, latency_ms, error}]
     latency: LatencyStats | None = None
+    # «Что проверяется»: безопасная выжимка настроек пробы (без заголовков,
+    # логинов/паролей/токенов и тела запроса; значения query в URL скрыты).
+    check: dict | None = None

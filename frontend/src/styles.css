@@ -1316,3 +1316,14 @@ a.feed-row:hover { border-color: var(--accent); background: var(--panel-3); colo
 .hm-probe-row .hm-c { height: 14px; }
 .hm-group.open .hm-group-row { margin-bottom: 2px; }
 @media (max-width: 640px) { .hm-label { flex-basis: 130px; } .hm-probe-row .hm-label { padding-left: 8px; } }
+
+/* ---- окно пробы: «Что проверяется» ---- */
+.pc-card {
+  margin: 0 0 12px; padding: 10px 14px;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--panel-2);
+}
+.pc-title { display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+.pc-grid { display: flex; flex-direction: column; gap: 4px; }
+.pc-row { display: grid; grid-template-columns: 96px 1fr; gap: 10px; align-items: baseline; }
+.pc-val { font-size: 13px; overflow-wrap: anywhere; }
+@media (max-width: 640px) { .pc-row { grid-template-columns: 1fr; gap: 0; } }

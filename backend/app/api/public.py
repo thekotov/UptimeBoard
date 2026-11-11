@@ -1,5 +1,6 @@
 import asyncio
 import json
+from urllib.parse import parse_qsl, urlsplit, urlunsplit
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -299,6 +300,55 @@ def get_incidents(
     return items
 
 
+def _safe_url(url: str, mask: bool) -> str:
+    """URL для публичного показа: без user:pass@, значения query-параметров
+    заменены на «…» (там бывают токены), IP-адрес маскируется при mask_ip."""
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return ""
+    host = parts.hostname or ""
+    if mask:
+        host = mask_host(host)
+    netloc = host + (f":{parts.port}" if parts.port else "")
+    query = "&".join(f"{k}=…" for k, _ in parse_qsl(parts.query, keep_blank_values=True))
+    return urlunsplit((parts.scheme, netloc, parts.path, query, ""))
+
+
+def _public_check(probe: Probe, host: str, mask: bool) -> dict:
+    """Что именно проверяет проба — только неопасные поля конфигурации."""
+    cfg = probe.config or {}
+    out: dict = {
+        "interval_sec": probe.interval_sec,
+        "timeout_sec": probe.timeout_sec,
+        "retries": probe.retries,
+        "failure_threshold": probe.failure_threshold,
+        "latency_degraded_ms": probe.latency_degraded_ms,
+    }
+    if probe.type == "http":
+        out.update(
+            method=(cfg.get("method") or "GET").upper(),
+            url=_safe_url(cfg.get("url") or f"http://{host}", mask),
+            expected_status=int(cfg.get("expected_status", 200)),
+            expected_body_substr=cfg.get("expected_body_substr") or None,
+            expected_body_regex=cfg.get("expected_body_regex") or None,
+            json_path=cfg.get("json_path") or None,
+            json_expected=cfg.get("json_expected"),
+            follow_redirects=bool(cfg.get("follow_redirects", True)),
+            check_cert=bool(cfg.get("check_cert")),
+            warn_days=int(cfg.get("warn_days", 14)),
+            has_auth=bool(cfg.get("headers") or cfg.get("basic_user") or cfg.get("bearer_token")),
+            has_body=bool(cfg.get("body")),
+        )
+    elif probe.type == "tcp":
+        out.update(port=cfg.get("port"))
+    elif probe.type == "icmp":
+        out.update(count=int(cfg.get("count", 3)), loss_threshold=float(cfg.get("loss_threshold", 0) or 0))
+    elif probe.type == "tls":
+        out.update(port=int(cfg.get("port", 443)), warn_days=int(cfg.get("warn_days", 14)))
+    return out
+
+
 @router.get("/pages/{slug}/probes/{probe_id}/history", response_model=ProbeHistory)
 def get_probe_history(
     slug: str,
@@ -364,12 +414,14 @@ def get_probe_history(
         for r in recent_rows
     ]
 
+    shown_host = mask_host(probe.server.host) if page.mask_ip else probe.server.host
     return ProbeHistory(
+        check=_public_check(probe, shown_host, page.mask_ip),
         probe_id=probe.id,
         name=probe.name,
         type=probe.type,
         server_name=probe.server.name,
-        host=mask_host(probe.server.host) if page.mask_ip else probe.server.host,
+        host=shown_host,
         uptime_pct=round(uptime_pct, 2),
         total=total,
         points=points,
