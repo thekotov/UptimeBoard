@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { getIncidents, type PageStatus, type Status } from "../../api/client";
+import { type PageStatus, type ProbeStatus, type Status } from "../../api/client";
 import { formatDuration, relativeTime, useI18n } from "../../i18n";
 import { ThemeSwitch } from "../../theme";
 import { useStatusTab } from "../../useStatusTab";
@@ -9,13 +9,36 @@ const isProblem = (s: Status) => s === "down" || s === "degraded";
 // Sort weight so alarms surface worst-first.
 const SEV: Record<Status, number> = { down: 5, degraded: 4, unknown: 3, paused: 2, recovered: 1, up: 0 };
 
-// Absolute latency hint (no per-probe history in the live snapshot): a subtle cue
-// that one endpoint is much slower than the wall's typical sub-300ms readings.
-function latClass(ms: number | null): string {
-  if (ms == null) return "";
-  if (ms >= 1200) return "bad";
-  if (ms >= 500) return "warn";
-  return "";
+/** Сервер на стене: плитка с точками его проб. */
+interface SrvTile {
+  id: number;
+  name: string;
+  note: string | null;
+  status: Status;
+  group: string;
+  probes: ProbeStatus[];
+}
+interface Group {
+  id: number;
+  name: string;
+  servers: SrvTile[];
+}
+
+function groupsOf(page: PageStatus | null): Group[] {
+  if (!page) return [];
+  return page.services.map((svc) => ({
+    id: svc.id,
+    name: svc.name,
+    servers: svc.servers.map((srv) => ({
+      id: srv.id, name: srv.name, note: srv.note ?? null, status: srv.status, group: svc.name, probes: srv.probes,
+    })),
+  }));
+}
+
+/** Самый ранний down_since среди проблемных проб сервера — «лежит N». */
+function downSince(srv: SrvTile): string | null {
+  const ts = srv.probes.filter((p) => isProblem(p.status) && p.down_since).map((p) => p.down_since as string);
+  return ts.length ? ts.sort()[0] : null;
 }
 
 interface Tile {
@@ -101,41 +124,47 @@ export function WallBoard() {
     return () => lock?.release?.();
   }, []);
 
-  // "Недоступен · 18м" needs an incident start time, which the live snapshot
-  // doesn't carry — pull it from the same incidents endpoint the dashboard uses.
-  const [incidentStart, setIncidentStart] = useState<Record<number, string>>({});
-  useEffect(() => {
-    if (!slug) return;
-    let active = true;
-    const load = () => {
-      getIncidents(slug, 100)
-        .then((items) => {
-          if (!active) return;
-          const map: Record<number, string> = {};
-          for (const inc of items) if (inc.ongoing) map[inc.probe_id] = inc.started_at;
-          setIncidentStart(map);
-        })
-        .catch(() => undefined);
-    };
-    load();
-    const id = setInterval(load, 20000);
-    return () => {
-      active = false;
-      clearInterval(id);
-    };
-  }, [slug]);
-
   const tiles = useMemo(() => flatten(page), [page]);
+  const groups = useMemo(() => groupsOf(page), [page]);
+  const alarms = useMemo(
+    () => groups.flatMap((g) => g.servers).filter((sv) => isProblem(sv.status)).sort((a, b) => SEV[b.status] - SEV[a.status]),
+    [groups]
+  );
+
+  // Автомасштаб: подбираем размер шрифта (всё на стене в em) так, чтобы экран
+  // помещался без прокрутки. Пересчёт при смене данных и размера окна.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
+  const [vp, setVp] = useState(0);
+  useEffect(() => {
+    const on = () => setVp((n) => n + 1);
+    window.addEventListener("resize", on);
+    document.addEventListener("fullscreenchange", on);
+    return () => { window.removeEventListener("resize", on); document.removeEventListener("fullscreenchange", on); };
+  }, []);
+  const layoutKey = `${groups.map((g) => g.servers.length).join(",")}|${alarms.map((a) => a.id).join(",")}|${onlyProblems}`;
+  useLayoutEffect(() => {
+    const el = bodyRef.current;
+    if (!el) return;
+    let sc = 1.7;
+    el.style.fontSize = `${sc}em`;
+    while (sc > 0.55 && el.scrollHeight > el.clientHeight + 1) {
+      sc = Math.round((sc - 0.05) * 100) / 100;
+      el.style.fontSize = `${sc}em`;
+    }
+    setScale(sc);
+  }, [layoutKey, vp]);
 
   // Flash tiles whose status changed since the last snapshot.
   useEffect(() => {
     if (!page) return;
     const changed = new Set<number>();
     const seen = new Map<number, Status>();
-    for (const tl of tiles) {
-      seen.set(tl.id, tl.status);
-      const prev = prevStatus.current.get(tl.id);
-      if (prev !== undefined && prev !== tl.status) changed.add(tl.id);
+    // мигаем плиткой сервера, если сменился его статус
+    for (const sv of groups.flatMap((g) => g.servers)) {
+      seen.set(sv.id, sv.status);
+      const prev = prevStatus.current.get(sv.id);
+      if (prev !== undefined && prev !== sv.status) changed.add(sv.id);
     }
     prevStatus.current = seen;
     if (changed.size) {
@@ -156,13 +185,6 @@ export function WallBoard() {
     return c;
   }, [tiles]);
 
-  // Problem tiles float to the front of the grid instead of living in a
-  // separate compact alarm strip — the tile itself carries the alarm styling.
-  const shown = useMemo(
-    () => (onlyProblems ? tiles.filter((tl) => isProblem(tl.status)) : tiles).slice().sort((a, b) => SEV[b.status] - SEV[a.status]),
-    [tiles, onlyProblems]
-  );
-
   const toggleFullscreen = () => {
     const el = boardRef.current;
     if (!document.fullscreenElement) el?.requestFullscreen?.().catch(() => undefined);
@@ -172,6 +194,7 @@ export function WallBoard() {
   const status = page?.status ?? "unknown";
   const updated = page ? relativeTime(page.generated_at, lang) : "";
 
+  // ?columns=N — фиксированное число плиток в ряду внутри группы
   const gridStyle = forcedCols > 0 ? { gridTemplateColumns: `repeat(${forcedCols}, minmax(0, 1fr))` } : undefined;
 
   return (
@@ -201,44 +224,67 @@ export function WallBoard() {
         <div className="wb-maint">{t("maintenance.banner", { title: page.maintenance.title })}</div>
       )}
 
-      {shown.length === 0 ? (
-        <div className="wb-empty">{onlyProblems ? "🟢 " + t("overall.up") : "—"}</div>
-      ) : (
-        <div className="wb-grid" style={gridStyle}>
-          {shown.map((tl) => {
-            // When the probe name is just its type ("HTTP"), it can't tell duplicate
-            // tiles apart — lead with the server instead so each tile is identifiable.
-            const generic = tl.name.trim().toLowerCase() === tl.type.toLowerCase();
-            const primary = generic ? tl.server : tl.name;
-            const secondary = generic ? tl.service : `${tl.service} · ${tl.server}`;
-            const problem = isProblem(tl.status);
-            const startedAt = incidentStart[tl.id];
-            const duration = problem && startedAt
-              ? formatDuration(Math.max(0, Math.round((Date.now() - new Date(startedAt).getTime()) / 1000)), lang)
-              : null;
-            return (
-              <div key={tl.id} className={`wb-tile ${tl.status} ${flash.has(tl.id) ? "flash" : ""}`}>
-                <span className={`wb-tile-eyebrow ${tl.status}`}>
-                  {t(`status.${tl.status}`)}
-                  {duration && <> · {duration}</>}
-                </span>
-                <span className="wb-tile-name">{primary}</span>
-                <div className="wb-tile-sub">{secondary}</div>
-                <div className="wb-tile-foot">
-                  {problem && tl.error ? (
-                    <span className="wb-tile-err" title={tl.error}>{tl.error}</span>
-                  ) : (
-                    <span className="wb-tile-type">{tl.type.toUpperCase()}</span>
-                  )}
-                  {tl.latency != null && (
-                    <span className={`wb-tile-lat ${latClass(tl.latency)}`}>{tl.latency.toFixed(0)} {t("dash.ms")}</span>
-                  )}
+      <div className="wb-body" ref={bodyRef} style={{ fontSize: `${scale}em` }}>
+        {alarms.length > 0 && (
+          <div className="wb-alarms">
+            {alarms.map((sv) => {
+              const since = downSince(sv);
+              const bad = sv.probes.filter((p) => isProblem(p.status));
+              return (
+                <div key={sv.id} className={`wb-alarm ${sv.status} ${flash.has(sv.id) ? "flash" : ""}`}>
+                  <span className="wb-alarm-eyebrow">
+                    {t(`status.${sv.status}`)}
+                    {since && <> · {formatDuration(Math.max(0, Math.round((Date.now() - new Date(since).getTime()) / 1000)), lang)}</>}
+                  </span>
+                  <span className="wb-alarm-name">{sv.name}</span>
+                  <span className="wb-alarm-group">{sv.group}</span>
+                  <ul className="wb-alarm-probes">
+                    {bad.slice(0, 3).map((p) => (
+                      <li key={p.id}>
+                        <b>{p.name}</b>
+                        {p.error && <span className="wb-alarm-err"> — {p.error}</span>}
+                      </li>
+                    ))}
+                    {bad.length > 3 && <li className="muted">+{bad.length - 3}</li>}
+                  </ul>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
+
+        {onlyProblems ? (
+          alarms.length === 0 && <div className="wb-empty">{t("overall.up")}</div>
+        ) : (
+          <div className="wb-groups">
+            {groups.map((g) => (
+              <section
+                key={g.id}
+                className="wb-group"
+                style={{ flex: `${g.servers.length} 1 ${Math.min(g.servers.length, 6) * 8}em` }}
+              >
+                <h3 className="wb-group-name">{g.name}</h3>
+                <div className="wb-srv-grid" style={gridStyle}>
+                  {g.servers.map((sv) => (
+                    <div
+                      key={sv.id}
+                      className={`wb-srv ${sv.status} ${flash.has(sv.id) ? "flash" : ""}`}
+                      title={sv.note ?? undefined}
+                    >
+                      <span className="wb-srv-name">{sv.name}</span>
+                      <span className="wb-srv-dots" aria-label={t(`status.${sv.status}`)}>
+                        {sv.probes.map((p) => (
+                          <span key={p.id} className={`wb-dot ${p.status}`} title={`${p.name} — ${t(`status.${p.status}`)}`} />
+                        ))}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+        )}
+      </div>
 
       <div className="wb-footer">
         {page && <span>{t("dash.updated", { time: updated })}</span>}
