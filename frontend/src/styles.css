@@ -1299,3 +1299,20 @@ a.feed-row:hover { border-color: var(--accent); background: var(--panel-3); colo
 .wb-dot.unknown, .wb-dot.paused { background: var(--unknown); }
 .wb-dot.recovered { background: var(--recovered); }
 @media (prefers-reduced-motion: reduce) { .wb-alarm.down, .wb-alarm.flash, .wb-srv.flash { animation: none; } }
+
+/* ---- тепловая карта по группам: сводная строка сервиса, по клику — пробы ---- */
+.hm-label { flex-basis: 280px; }
+.hm-group + .hm-group { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--border-soft); }
+.hm-group-row {
+  all: unset; box-sizing: border-box; width: 100%;
+  display: flex; align-items: center; gap: 10px; cursor: pointer; border-radius: 6px;
+}
+.hm-group-row:hover { background: var(--panel-3); }
+.hm-group-row:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hm-group-row .hm-name { font-size: 0.95em; white-space: normal; }
+.hm-group-row .hm-c { height: 24px; }
+.hm-probe-row .hm-label { padding-left: 20px; }
+.hm-probe-row .hm-name { white-space: normal; }
+.hm-probe-row .hm-c { height: 14px; }
+.hm-group.open .hm-group-row { margin-bottom: 2px; }
+@media (max-width: 640px) { .hm-label { flex-basis: 130px; } .hm-probe-row .hm-label { padding-left: 8px; } }

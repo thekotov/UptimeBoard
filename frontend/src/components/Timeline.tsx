@@ -1,3 +1,5 @@
+import { useI18n } from "../i18n";
+
 interface Point {
   checked_at: string;
   status: string;
@@ -8,6 +10,7 @@ interface Point {
  *  Status is conveyed by colour AND texture (stripes for degraded, hatch for down)
  *  so it stays readable for colour-blind users; each cell also has a title. */
 export function Timeline({ points, count = 40 }: { points: Point[]; count?: number }) {
+  const { lang } = useI18n();
   const recent = points.slice(-count);
   return (
     <div className="timeline" role="img" aria-label="uptime history">
@@ -15,7 +18,7 @@ export function Timeline({ points, count = 40 }: { points: Point[]; count?: numb
         <div
           key={i}
           className={`tl-cell ${p.status}`}
-          title={`${new Date(p.checked_at).toLocaleString()} — ${p.status}`}
+          title={`${new Date(p.checked_at).toLocaleString(lang)} — ${p.status}`}
         />
       ))}
     </div>

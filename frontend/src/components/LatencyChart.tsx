@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 import type { HistoryPoint } from "../api/client";
+import { useI18n } from "../i18n";
 
 const W = 600;
 const H = 150;
@@ -8,6 +9,7 @@ const PAD = { top: 12, right: 8, bottom: 22, left: 40 };
 /** Lightweight dependency-free SVG area+line chart of response time over time,
  *  with hover tooltip, time-axis labels and incident markers (down/degraded). */
 export function LatencyChart({ points, emptyText }: { points: HistoryPoint[]; emptyText: string }) {
+  const { lang } = useI18n();
   const [hover, setHover] = useState<number | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
 
@@ -35,7 +37,7 @@ export function LatencyChart({ points, emptyText }: { points: HistoryPoint[]; em
 
   const ticks = [0, maxV / 2, maxV];
   const markers = all.filter((d) => d.s === "down" || d.s === "degraded");
-  const fmtTime = (t: number) => new Date(t).toLocaleString();
+  const fmtTime = (t: number) => new Date(t).toLocaleString(lang);
 
   const onMove = (e: React.MouseEvent) => {
     const rect = wrapRef.current?.getBoundingClientRect();
@@ -84,8 +86,8 @@ export function LatencyChart({ points, emptyText }: { points: HistoryPoint[]; em
         )}
       </svg>
       <div className="chart-axis-x">
-        <span>{new Date(minX).toLocaleString()}</span>
-        <span>{new Date(maxX).toLocaleString()}</span>
+        <span>{new Date(minX).toLocaleString(lang)}</span>
+        <span>{new Date(maxX).toLocaleString(lang)}</span>
       </div>
       {hp && (
         <div className="chart-tip" style={{ left: `${((hp.t - minX) / (maxX - minX || 1)) * 100}%` }}>

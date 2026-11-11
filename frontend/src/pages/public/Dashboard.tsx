@@ -63,7 +63,7 @@ function certDaysLeft(expiresAt: string): number {
 
 /** Small "🔒 expires in N days" badge for TLS probes, coloured by urgency. */
 function CertBadge({ expiresAt }: { expiresAt: string }) {
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const days = certDaysLeft(expiresAt);
   let cls = "cert-ok";
   let label: string;
@@ -84,7 +84,7 @@ function CertBadge({ expiresAt }: { expiresAt: string }) {
   return (
     <span
       className={`cert-pill ${cls}`}
-      title={t("cert.validUntil", { date: new Date(expiresAt).toLocaleString() })}
+      title={t("cert.validUntil", { date: new Date(expiresAt).toLocaleString(lang) })}
     >
       🔒 {label}
     </span>
@@ -128,7 +128,7 @@ function DownFor({ since, status }: { since: string; status: Status }) {
   }, []);
   const sec = Math.max(0, Math.round((Date.now() - new Date(since).getTime()) / 1000));
   return (
-    <span className={`down-for ${status}`} title={new Date(since).toLocaleString()}>
+    <span className={`down-for ${status}`} title={new Date(since).toLocaleString(lang)}>
       {t(status === "down" ? "dash.downFor" : "dash.degradedFor", { d: formatDuration(sec, lang) })}
     </span>
   );

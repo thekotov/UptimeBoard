@@ -53,7 +53,7 @@ function Feed({ items, slug }: { items: Incident[]; slug: string }) {
     <ol className="inc-feed">
       {items.map((inc) => (
         <li key={inc.id} className={`inc-item ${inc.ongoing ? `ongoing ${inc.last_status}` : "resolved"}`}>
-          <time className="inc-time" dateTime={inc.started_at} title={new Date(inc.started_at).toLocaleString()}>
+          <time className="inc-time" dateTime={inc.started_at} title={new Date(inc.started_at).toLocaleString(lang)}>
             {feedTime(inc.started_at, lang, t("inc.yesterday"))}
           </time>
           <span className="inc-dot" aria-hidden />
@@ -101,7 +101,7 @@ export function Incidents({ slug, items, active }: { slug: string; items: Incide
             key={d.day.toISOString()}
             className={`inc-bar ${d.n ? "has" : ""}`}
             style={{ height: d.n ? `${30 + (70 * d.n) / max}%` : undefined }}
-            title={`${d.day.toLocaleDateString()} — ${d.n}`}
+            title={`${d.day.toLocaleDateString(lang)} — ${d.n}`}
           />
         ))}
       </span>

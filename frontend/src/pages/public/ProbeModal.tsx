@@ -169,7 +169,7 @@ export function ProbeModal({
           <div className="cert-grid">
             <span className="muted small">{t("cert.expiresAt")}</span>
             <span>
-              {new Date(certExpiresAt).toLocaleString()} ·{" "}
+              {new Date(certExpiresAt).toLocaleString(lang)} ·{" "}
               <CertCountdown expiresAt={certExpiresAt} />
             </span>
             {certIssuer && (
@@ -194,8 +194,8 @@ export function ProbeModal({
                   className={`tl-cell ${c.empty ? "none" : c.status}`}
                   title={
                     c.empty
-                      ? `${new Date(c.at).toLocaleString()} — ${t("modal.noData")}`
-                      : `${new Date(c.at).toLocaleString()} — ${t(`status.${c.status}`)}`
+                      ? `${new Date(c.at).toLocaleString(lang)} — ${t("modal.noData")}`
+                      : `${new Date(c.at).toLocaleString(lang)} — ${t(`status.${c.status}`)}`
                   }
                 />
               ))}

@@ -214,8 +214,13 @@ export function WallBoard() {
       <div className="wb-top">
         <div className="wb-counter">
           <span className="wb-counter-label">{t(`status.${status}`)}</span>
-          <span className="wb-counter-num">{counts.down + counts.degraded} / {counts.total}</span>
-          <span className="wb-counter-sub">{t("wall.problemProbes")} · {page?.title ?? slug}</span>
+          {/* плитки — серверы, поэтому и крупный счётчик по серверам; пробы — мелкой подписью */}
+          <span className="wb-counter-num">{alarms.length} / {groups.reduce((n, g) => n + g.servers.length, 0)}</span>
+          <span className="wb-counter-sub">
+            {t("wall.problemServers")}
+            {counts.down + counts.degraded > 0 && <> · {t("wall.failingProbes", { n: counts.down + counts.degraded, total: counts.total })}</>}
+            {" · "}{page?.title ?? slug}
+          </span>
         </div>
 
         <div className="wb-controls">
