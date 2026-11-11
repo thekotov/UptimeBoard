@@ -90,6 +90,10 @@ class Settings(BaseSettings):
     # to build clickable links in alerts. Empty = omit links.
     public_base_url: str = ""
 
+    # Telegram Bot API base URL. Override when api.telegram.org is unreachable
+    # from the server (e.g. a Bot API proxy). A channel may also set config.api_base.
+    telegram_api_base: str = "https://api.telegram.org"
+
 
 @lru_cache
 def get_settings() -> Settings:

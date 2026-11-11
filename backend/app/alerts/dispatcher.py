@@ -373,6 +373,19 @@ def _deliver(fn):
         raise last
 
 
+def _tg_url(token: str, method: str, config: dict | None = None) -> str:
+    """Bot API URL: channel config.api_base > TELEGRAM_API_BASE > api.telegram.org."""
+    base = ((config or {}).get("api_base") or settings.telegram_api_base or "https://api.telegram.org").rstrip("/")
+    return f"{base}/bot{token}/{method}"
+
+
+def _tg_thread(config: dict, body: dict) -> None:
+    """Forum topic: config.thread_id → message_thread_id (alerts go to one topic of a group)."""
+    tid = config.get("thread_id")
+    if tid not in (None, ""):
+        body["message_thread_id"] = int(tid)
+
+
 def _send_telegram(config: dict, text: str, parse_mode: str | None = None,
                     reply_to: int | None = None, reply_markup: dict | None = None) -> int | None:
     token, chat_id = config.get("bot_token"), config.get("chat_id")
@@ -381,6 +394,7 @@ def _send_telegram(config: dict, text: str, parse_mode: str | None = None,
         return None
     proxy = config.get("proxy") or None
     body: dict = {"chat_id": chat_id, "text": text, "disable_web_page_preview": True}
+    _tg_thread(config, body)
     if parse_mode:
         body["parse_mode"] = parse_mode
     if reply_to:
@@ -390,7 +404,7 @@ def _send_telegram(config: dict, text: str, parse_mode: str | None = None,
     if reply_markup is not None:
         body["reply_markup"] = reply_markup
     with httpx.Client(timeout=_TIMEOUT, proxy=proxy) as client:
-        resp = client.post(f"https://api.telegram.org/bot{token}/sendMessage", json=body)
+        resp = client.post(_tg_url(token, "sendMessage", config), json=body)
         resp.raise_for_status()
         return resp.json().get("result", {}).get("message_id")
 
@@ -416,7 +430,7 @@ def edit_telegram_message(config: dict, message_id: int, text: str,
     if reply_markup is not None:
         body["reply_markup"] = reply_markup
     with httpx.Client(timeout=_TIMEOUT, proxy=proxy) as client:
-        resp = client.post(f"https://api.telegram.org/bot{token}/editMessageText", json=body)
+        resp = client.post(_tg_url(token, "editMessageText", config), json=body)
         resp.raise_for_status()
 
 
@@ -432,7 +446,7 @@ def answer_telegram_callback(config: dict, callback_query_id: str, text: str | N
         body["text"] = text
     try:
         with httpx.Client(timeout=_TIMEOUT, proxy=proxy) as client:
-            client.post(f"https://api.telegram.org/bot{token}/answerCallbackQuery", json=body)
+            client.post(_tg_url(token, "answerCallbackQuery", config), json=body)
     except Exception as exc:  # noqa: BLE001
         logger.warning("answerCallbackQuery failed: %s", exc)
 
@@ -447,7 +461,7 @@ def set_telegram_webhook(config: dict, url: str) -> None:
     proxy = config.get("proxy") or None
     body = {"url": url, "allowed_updates": ["message", "callback_query"]}
     with httpx.Client(timeout=_TIMEOUT, proxy=proxy) as client:
-        resp = client.post(f"https://api.telegram.org/bot{token}/setWebhook", json=body)
+        resp = client.post(_tg_url(token, "setWebhook", config), json=body)
         data = resp.json()
         if not data.get("ok"):
             raise RuntimeError(data.get("description") or f"HTTP {resp.status_code}")
@@ -462,7 +476,7 @@ def delete_telegram_webhook(config: dict) -> None:
     proxy = config.get("proxy") or None
     try:
         with httpx.Client(timeout=_TIMEOUT, proxy=proxy) as client:
-            client.post(f"https://api.telegram.org/bot{token}/deleteWebhook", json={})
+            client.post(_tg_url(token, "deleteWebhook", config), json={})
     except Exception as exc:  # noqa: BLE001
         logger.warning("deleteWebhook failed: %s", exc)
 
@@ -477,10 +491,11 @@ def _send_telegram_rich(config: dict, blocks: list[dict], reply_to: int | None =
         return None
     proxy = config.get("proxy") or None
     body: dict = {"chat_id": chat_id, "rich_message": {"blocks": blocks}}
+    _tg_thread(config, body)
     if reply_to:
         body["reply_parameters"] = {"message_id": reply_to, "allow_sending_without_reply": True}
     with httpx.Client(timeout=_TIMEOUT, proxy=proxy) as client:
-        resp = client.post(f"https://api.telegram.org/bot{token}/sendRichMessage", json=body)
+        resp = client.post(_tg_url(token, "sendRichMessage", config), json=body)
         if resp.status_code >= 400:
             # Telegram puts the real reason in the JSON body ("description"), not
             # in the HTTP status line — surface it so failures are diagnosable
@@ -535,14 +550,14 @@ def _thread_clear(channel_id: int, server_id: int) -> None:
         logger.warning("telegram reply-thread clear failed: %s", exc)
 
 
-def test_telegram(token: str, proxy: str | None) -> tuple[bool, str]:
+def test_telegram(token: str, proxy: str | None, api_base: str | None = None) -> tuple[bool, str]:
     """Validate a Telegram bot token and reachability (optionally via a SOCKS5
     proxy) by calling getMe. Returns (ok, detail)."""
     if not token:
         return False, "bot_token required"
     try:
         with httpx.Client(timeout=_TIMEOUT, proxy=proxy or None) as client:
-            resp = client.get(f"https://api.telegram.org/bot{token}/getMe")
+            resp = client.get(_tg_url(token, "getMe", {"api_base": api_base}))
         data = resp.json()
         if resp.status_code == 200 and data.get("ok"):
             return True, "@" + data["result"].get("username", "bot")
@@ -551,7 +566,8 @@ def test_telegram(token: str, proxy: str | None) -> tuple[bool, str]:
         return False, str(exc)
 
 
-def list_telegram_chats(token: str | None, proxy: str | None) -> tuple[bool, list[dict] | str]:
+def list_telegram_chats(token: str | None, proxy: str | None,
+                        api_base: str | None = None) -> tuple[bool, list[dict] | str]:
     """Discover chats the bot can see via getUpdates, so the operator can pick a
     chat_id instead of hunting for it. Returns (ok, chats) or (False, error).
     A chat appears only after someone has messaged the bot / added it to a group."""
@@ -560,7 +576,7 @@ def list_telegram_chats(token: str | None, proxy: str | None) -> tuple[bool, lis
     try:
         with httpx.Client(timeout=_TIMEOUT, proxy=proxy or None) as client:
             resp = client.get(
-                f"https://api.telegram.org/bot{token}/getUpdates",
+                _tg_url(token, "getUpdates", {"api_base": api_base}),
                 params={"limit": 100, "timeout": 0},
             )
         data = resp.json()

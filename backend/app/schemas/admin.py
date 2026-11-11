@@ -29,6 +29,12 @@ def _validate_channel_config(config: dict | None) -> dict | None:
     fmt = config.get("format")
     if fmt is not None and fmt not in WEBHOOK_FORMATS:
         raise ValueError(f"config.format must be one of {list(WEBHOOK_FORMATS)}")
+    tid = config.get("thread_id")
+    if tid not in (None, "") and not str(tid).lstrip("-").isdigit():
+        raise ValueError("config.thread_id must be an integer (forum topic id)")
+    api_base = config.get("api_base")
+    if api_base not in (None, "") and not str(api_base).startswith(("http://", "https://")):
+        raise ValueError("config.api_base must be an http(s) URL")
     style = config.get("message_style")
     if style is not None and style not in TELEGRAM_MESSAGE_STYLES:
         raise ValueError(f"config.message_style must be one of {list(TELEGRAM_MESSAGE_STYLES)}")

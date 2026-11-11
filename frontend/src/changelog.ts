@@ -9,6 +9,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "1.18.0",
+    date: "2026-11-11",
+    changes: [
+      "Telegram-канал: отправка в тему (topic) группы — поле «Тема (topic id)», config.thread_id → message_thread_id",
+      "Адрес Bot API настраивается: TELEGRAM_API_BASE в .env или «Адрес Bot API» у канала — для серверов, где api.telegram.org недоступен (прокси Bot API)",
+    ],
+  },
+  {
     version: "1.17.0",
     date: "2026-11-11",
     changes: [

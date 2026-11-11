@@ -1137,7 +1137,7 @@ def test_alert_channel(payload: AlertChannelTest, db: Session = Depends(get_db))
     handshake + login."""
     cfg = _resolve_test_config(payload, db)
     if payload.type == "telegram":
-        ok, detail = test_telegram(cfg.get("bot_token"), cfg.get("proxy"))
+        ok, detail = test_telegram(cfg.get("bot_token"), cfg.get("proxy"), cfg.get("api_base"))
     elif payload.type == "webhook":
         ok, detail = test_webhook(cfg)
     elif payload.type == "email":
@@ -1178,7 +1178,7 @@ def telegram_chats(payload: AlertChannelTest, db: Session = Depends(get_db)):
     """List chats the Telegram bot can see (via getUpdates) so the operator can
     pick a chat_id instead of looking it up manually."""
     cfg = _resolve_test_config(payload, db)
-    ok, result = list_telegram_chats(cfg.get("bot_token"), cfg.get("proxy"))
+    ok, result = list_telegram_chats(cfg.get("bot_token"), cfg.get("proxy"), cfg.get("api_base"))
     if ok:
         return {"ok": True, "chats": result}
     return {"ok": False, "detail": result}

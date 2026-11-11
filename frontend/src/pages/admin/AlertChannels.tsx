@@ -321,6 +321,8 @@ function ChannelForm({
   const [botToken, setBotToken] = useState("");
   const [chatId, setChatId] = useState<string>(cfg.chat_id ?? "");
   const [proxy, setProxy] = useState<string>(cfg.proxy ?? "");
+  const [threadId, setThreadId] = useState<string>(cfg.thread_id != null ? String(cfg.thread_id) : "");
+  const [apiBase, setApiBase] = useState<string>(cfg.api_base ?? "");
   const [messageStyle, setMessageStyle] = useState<string>(cfg.message_style ?? "default");
   const [menuEnabled, setMenuEnabled] = useState<boolean>(!!cfg.menu_enabled);
   const [menuBusy, setMenuBusy] = useState(false);
@@ -372,6 +374,10 @@ function ChannelForm({
       base.chat_id = chatId;
       if (proxy.trim()) base.proxy = proxy.trim();
       else delete base.proxy;
+      if (threadId.trim()) base.thread_id = Number(threadId.trim());
+      else delete base.thread_id;
+      if (apiBase.trim()) base.api_base = apiBase.trim();
+      else delete base.api_base;
       if (messageStyle && messageStyle !== "default") base.message_style = messageStyle;
       else delete base.message_style;
     } else if (type === "webhook") {
@@ -556,6 +562,19 @@ function ChannelForm({
             >
               {pickingChat ? t("alerts.pickingChat") : t("alerts.pickChat")}
             </button>
+          </div>
+          <div>
+            <label>{t("alerts.threadId")}</label>
+            <input
+              value={threadId}
+              onChange={(e) => setThreadId(e.target.value.replace(/[^\d-]/g, ""))}
+              placeholder="2"
+              inputMode="numeric"
+            />
+          </div>
+          <div>
+            <label>{t("alerts.apiBase")}</label>
+            <input value={apiBase} onChange={(e) => setApiBase(e.target.value)} placeholder="https://api.telegram.org" />
           </div>
           <div className="full">
             <label>{t("alerts.proxy")}</label>
