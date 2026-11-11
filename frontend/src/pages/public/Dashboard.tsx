@@ -8,7 +8,7 @@ import { Timeline } from "../../components/Timeline";
 import { type Lang, formatDuration, pickRecoveredHeadline, pickUpHeadline, relativeShort, relativeTime, useI18n } from "../../i18n";
 import { ThemeSwitch } from "../../theme";
 import { useStatusTab } from "../../useStatusTab";
-import { Incidents } from "./Incidents";
+import { Incidents, useIncidents } from "./Incidents";
 import { ProbeModal } from "./ProbeModal";
 
 interface UptimeEntry {
@@ -196,6 +196,9 @@ export function Dashboard() {
   const didInitCollapse = useRef(false);
 
   useStatusTab(page?.status ?? null, page?.title ?? null);
+  // Инциденты грузим один раз: блок встаёт под шапку, пока есть незакрытый сбой.
+  const incidents = useIncidents(slug, updateSeq);
+  const incActive = !!incidents?.some((i) => i.ongoing);
 
   // Flash probe rows whose status changed between snapshots; auto-collapse healthy
   // services on first load when there are many.
@@ -516,6 +519,8 @@ export function Dashboard() {
         )}
       </div>
 
+      {incidents && incActive && <Incidents slug={slug!} items={incidents} active />}
+
       <div className="toolbar sticky-toolbar">
         {manyServices && (
           <div className="search">
@@ -718,7 +723,7 @@ export function Dashboard() {
         );
       })}
 
-      <Incidents slug={slug!} refreshKey={updateSeq} />
+      {incidents && !incActive && <Incidents slug={slug!} items={incidents} active={false} />}
 
       {selectedProbe && (
         <ProbeModal

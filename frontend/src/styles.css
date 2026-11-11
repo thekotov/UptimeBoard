@@ -1187,3 +1187,59 @@ a.feed-row:hover { border-color: var(--accent); background: var(--panel-3); colo
 .server.deeplink { animation: srv-deeplink 3s ease-out; border-radius: var(--radius-sm); }
 @media (prefers-reduced-motion: reduce) { .server.deeplink { animation: none; box-shadow: 0 0 0 3px var(--accent); } }
 @media (max-width: 640px) { .svc-problems { margin-left: 0; flex-basis: 100%; } .srv-err { max-width: 220px; } }
+
+/* ---- «Последние сбои»: журнал, а не ещё одна группа серверов ----
+   Без рамки карточки, отделён линией сверху; лента с вертикальной шкалой времени.
+   .active — идёт сбой: блок под шапкой, красная полоса слева. */
+.inc-block { margin: 28px 0 8px; padding-top: 16px; border-top: 1px solid var(--border); }
+.inc-block.active {
+  margin: 0 0 16px; padding: 12px 16px 10px; border-top: none;
+  border-left: 4px solid var(--down); border-radius: var(--radius-sm);
+  background: var(--down-soft);
+}
+.inc-title { margin: 0 0 8px; font-size: 13px; font-weight: 600; color: var(--muted); }
+.inc-block.active .inc-title { color: var(--down-text); font-size: 15px; }
+
+.inc-summary { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 13.5px; }
+.inc-spark { display: inline-flex; align-items: flex-end; gap: 3px; height: 18px; }
+.inc-bar { width: 6px; height: 3px; border-radius: 1px; background: var(--border); }
+.inc-bar.has { background: var(--degraded); }
+.inc-toggle {
+  font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer;
+  padding: 3px 10px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--panel); color: var(--text);
+}
+.inc-toggle:hover { background: var(--panel-3); }
+
+.inc-feed { list-style: none; margin: 10px 0 4px; padding: 0; }
+.inc-item {
+  display: grid; grid-template-columns: 92px 14px 1fr auto; column-gap: 12px; align-items: start;
+  position: relative; padding: 6px 0;
+}
+/* вертикальная шкала через точки */
+.inc-item::before {
+  content: ""; position: absolute; left: calc(92px + 12px + 6px); top: 0; bottom: 0;
+  width: 2px; background: var(--border);
+}
+.inc-item:first-child::before { top: 12px; }
+.inc-item:last-child::before { bottom: calc(100% - 12px); }
+.inc-time { font-size: 12.5px; color: var(--muted); text-align: right; padding-top: 1px; white-space: nowrap; }
+.inc-dot {
+  position: relative; z-index: 1; width: 14px; height: 14px; margin-top: 2px; border-radius: 50%;
+  box-sizing: border-box; border: 3px solid var(--up); background: var(--bg);
+}
+.inc-block.active .inc-dot { background: var(--down-soft); }
+.inc-item.ongoing .inc-dot { border-color: var(--down); background: var(--down); }
+.inc-item.ongoing.degraded .inc-dot { border-color: var(--degraded); background: var(--degraded); }
+.inc-what { min-width: 0; }
+.inc-who { font-weight: 600; color: var(--text); }
+.inc-who:hover { color: var(--accent); }
+.inc-state { display: flex; flex-direction: column; align-items: flex-end; font-size: 12.5px; white-space: nowrap; }
+.inc-live { color: var(--down-text); font-weight: 600; }
+.inc-dur { color: var(--muted); }
+
+@media (max-width: 640px) {
+  .inc-item { grid-template-columns: 14px 1fr auto; }
+  .inc-time { grid-column: 2; grid-row: 2; text-align: left; }
+  .inc-item::before { left: 6px; }
+}
