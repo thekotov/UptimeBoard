@@ -35,6 +35,18 @@ function groupsOf(page: PageStatus | null): Group[] {
   }));
 }
 
+/** «db-01 (основная БД)» → ["db-01", "основная БД"]: пояснение в скобках — второй строкой. */
+function splitName(name: string): [string, string | null] {
+  const m = name.match(/^(.*\S)\s*\(([^()]+)\)$/);
+  return m ? [m[1], m[2]] : [name, null];
+}
+
+/** Перенос длинных имён только по точкам/дефисам/пробелам, а не посреди слова. */
+function breakable(text: string) {
+  const parts = text.split(/(?<=[.\-_/])/);
+  return parts.map((p, i) => (i < parts.length - 1 ? [p, <wbr key={i} />] : p));
+}
+
 /** Самый ранний down_since среди проблемных проб сервера — «лежит N». */
 function downSince(srv: SrvTile): string | null {
   const ts = srv.probes.filter((p) => isProblem(p.status) && p.down_since).map((p) => p.down_since as string);
@@ -261,24 +273,32 @@ export function WallBoard() {
               <section
                 key={g.id}
                 className="wb-group"
-                style={{ flex: `${g.servers.length} 1 ${Math.min(g.servers.length, 6) * 8}em` }}
+                style={{ flex: `${g.servers.length} 1 ${Math.min(g.servers.length, 6) * 10}em` }}
               >
                 <h3 className="wb-group-name">{g.name}</h3>
                 <div className="wb-srv-grid" style={gridStyle}>
-                  {g.servers.map((sv) => (
-                    <div
-                      key={sv.id}
-                      className={`wb-srv ${sv.status} ${flash.has(sv.id) ? "flash" : ""}`}
-                      title={sv.note ?? undefined}
-                    >
-                      <span className="wb-srv-name">{sv.name}</span>
-                      <span className="wb-srv-dots" aria-label={t(`status.${sv.status}`)}>
-                        {sv.probes.map((p) => (
-                          <span key={p.id} className={`wb-dot ${p.status}`} title={`${p.name} — ${t(`status.${p.status}`)}`} />
-                        ))}
-                      </span>
-                    </div>
-                  ))}
+                  {g.servers.map((sv) => {
+                    const [main, sub] = splitName(sv.name);
+                    const bad = sv.probes.filter((p) => isProblem(p.status)).length;
+                    return (
+                      <div
+                        key={sv.id}
+                        className={`wb-srv ${sv.status} ${flash.has(sv.id) ? "flash" : ""}`}
+                        title={[sv.name, sv.note].filter(Boolean).join(" — ")}
+                      >
+                        <span className="wb-srv-head">
+                          <span className={`wb-dot ${sv.status}`} aria-label={t(`status.${sv.status}`)} />
+                          <span className="wb-srv-name">{breakable(main)}</span>
+                        </span>
+                        {sub && <span className="wb-srv-sub">{sub}</span>}
+                        <span className="wb-srv-checks">
+                          {bad > 0
+                            ? t("wall.checksBad", { bad, n: sv.probes.length })
+                            : t("wall.checks", { n: sv.probes.length })}
+                        </span>
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
             ))}
