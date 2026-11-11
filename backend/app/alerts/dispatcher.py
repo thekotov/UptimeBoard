@@ -942,7 +942,8 @@ def _send_storm_group(records: list[dict]) -> None:
                 channels, records=records, occurred_at=occurred_at,
                 service_name=records[0].get("service_name", ""),
                 page_title=records[0].get("page_title", ""),
-                page_url=records[0].get("page_url", ""),
+                # сводный алерт по нескольким серверам — ссылка на страницу целиком, без ?server=
+                page_url=records[0].get("page_url", "").split("?", 1)[0],
             )
 
 

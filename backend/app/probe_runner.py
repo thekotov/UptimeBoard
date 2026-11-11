@@ -200,7 +200,8 @@ def _alert_common(probe: Probe, host: str, outcome: ProbeOutcome, now: datetime)
     service = getattr(server, "service", None)
     page = getattr(service, "page", None) if service is not None else None
     page_url = (
-        f"{settings.public_base_url.rstrip('/')}/status/{page.slug}"
+        # ?server=<id> — дашборд раскроет и подсветит этот сервер (ссылка из алерта ведёт прямо к нему)
+        f"{settings.public_base_url.rstrip('/')}/status/{page.slug}?server={server.id}"
         if page is not None and settings.public_base_url
         else ""
     )

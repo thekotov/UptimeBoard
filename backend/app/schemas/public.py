@@ -15,6 +15,8 @@ class ProbeStatus(BaseModel):
     # TLS probes only: certificate expiry + issuer, for the "expires in N days" hint.
     cert_expires_at: datetime | None = None
     cert_issuer: str | None = None
+    # Start of the probe's currently open incident (down/degraded) — "down for N min".
+    down_since: datetime | None = None
 
 
 class MaintenanceInfo(BaseModel):

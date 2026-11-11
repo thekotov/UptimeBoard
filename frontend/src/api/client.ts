@@ -45,6 +45,8 @@ export interface ProbeStatus {
   stale: boolean;
   cert_expires_at?: string | null;
   cert_issuer?: string | null;
+  /** Start of the currently open incident (down/degraded only). */
+  down_since?: string | null;
 }
 
 export interface MaintenanceInfo {

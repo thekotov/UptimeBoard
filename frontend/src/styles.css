@@ -1166,3 +1166,24 @@ a.feed-row:hover { border-color: var(--accent); background: var(--panel-3); colo
 .health-chip .hc.up { color: var(--up-text); }
 .health-chip .hc.degraded { color: var(--degraded-text); }
 .health-chip .hc.down { color: var(--down-text); font-weight: 700; }
+
+/* ---- сводка проблем в свёрнутых заголовках, «лежит N», подсветка по ссылке из алерта ---- */
+.svc-problems { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; margin-left: 10px; font-size: 13px; font-weight: 500; min-width: 0; }
+.svc-problem { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.svc-problem b { font-weight: 600; }
+.svc-problem.down { color: var(--down-text); }
+.svc-problem.degraded { color: var(--degraded-text); }
+.svc-problem-err { font-weight: 400; overflow: hidden; text-overflow: ellipsis; }
+.srv-err { max-width: 520px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.srv-err.down { color: var(--down-text); }
+.srv-err.degraded { color: var(--degraded-text); }
+.down-for { font-size: 12px; font-weight: 600; white-space: nowrap; }
+.down-for.down { color: var(--down-text); }
+.down-for.degraded { color: var(--degraded-text); }
+@keyframes srv-deeplink {
+  0%, 60% { box-shadow: 0 0 0 3px var(--accent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+.server.deeplink { animation: srv-deeplink 3s ease-out; border-radius: var(--radius-sm); }
+@media (prefers-reduced-motion: reduce) { .server.deeplink { animation: none; box-shadow: 0 0 0 3px var(--accent); } }
+@media (max-width: 640px) { .svc-problems { margin-left: 0; flex-basis: 100%; } .srv-err { max-width: 220px; } }

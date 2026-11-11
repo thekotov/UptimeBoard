@@ -242,6 +242,9 @@ const ru: Dict = {
 
   // staleness / maintenance
   "dash.stale": "данные устарели",
+  "dash.downFor": "лежит {d}",
+  "dash.degradedFor": "сбоит {d}",
+  "dash.moreProblems": "и ещё {n}",
   "dash.showProbes": "Показать пробы сервера",
   "dash.hideProbes": "Свернуть пробы сервера",
   "dash.showService": "Нажмите, чтобы развернуть",
@@ -773,6 +776,9 @@ const en: Dict = {
   "alerts.templateHint": "Placeholders: {probe} {type} {host} {server} {service} {page} {status} {error} {latency} {duration} {url} {time} {verb} {event}. Empty = detailed default message (HTML-formatted on Telegram).",
 
   "dash.stale": "data is stale",
+  "dash.downFor": "down for {d}",
+  "dash.degradedFor": "degraded for {d}",
+  "dash.moreProblems": "+{n} more",
   "dash.showProbes": "Show server probes",
   "dash.hideProbes": "Collapse server probes",
   "dash.showService": "Tap to expand",

@@ -5,7 +5,7 @@ import { LangSwitch } from "../../components/LangSwitch";
 import { SkeletonDashboard } from "../../components/Skeleton";
 import { StatusBadge, StatusDot } from "../../components/StatusBadge";
 import { Timeline } from "../../components/Timeline";
-import { type Lang, pickRecoveredHeadline, pickUpHeadline, relativeShort, relativeTime, useI18n } from "../../i18n";
+import { type Lang, formatDuration, pickRecoveredHeadline, pickUpHeadline, relativeShort, relativeTime, useI18n } from "../../i18n";
 import { ThemeSwitch } from "../../theme";
 import { useStatusTab } from "../../useStatusTab";
 import { Incidents } from "./Incidents";
@@ -118,6 +118,27 @@ function UpdatedAgo({ generatedAt, lang }: { generatedAt: string; lang: Lang }) 
   return <>{relativeTime(generatedAt, lang)}</>;
 }
 
+/** «лежит 14м» — сколько длится текущий сбой пробы; сам обновляется раз в 15 с. */
+function DownFor({ since, status }: { since: string; status: Status }) {
+  const { t, lang } = useI18n();
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((n) => n + 1), 15000);
+    return () => clearInterval(id);
+  }, []);
+  const sec = Math.max(0, Math.round((Date.now() - new Date(since).getTime()) / 1000));
+  return (
+    <span className={`down-for ${status}`} title={new Date(since).toLocaleString()}>
+      {t(status === "down" ? "dash.downFor" : "dash.degradedFor", { d: formatDuration(sec, lang) })}
+    </span>
+  );
+}
+
+/** Первая проблемная проба сервера (для строки-сводки в свёрнутом заголовке). */
+function firstProblem(server: ServiceStatus["servers"][number]) {
+  return server.probes.find((p) => isProblem(p.status));
+}
+
 export function Dashboard() {
   const { slug } = useParams<{ slug: string }>();
   const { t, lang } = useI18n();
@@ -145,6 +166,10 @@ export function Dashboard() {
     }, { replace: true });
   };
   const selectedProbeId = searchParams.get("probe") ? Number(searchParams.get("probe")) : null;
+  // ?server=<id> — ссылка из алерта: раскрыть сервис и сервер, прокрутить и подсветить.
+  const deepServerId = searchParams.get("server") ? Number(searchParams.get("server")) : null;
+  const [deepFlash, setDeepFlash] = useState<number | null>(null);
+  const deepDone = useRef<number | null>(null);
   const openProbe = (id: number) =>
     setSearchParams((prev) => { const n = new URLSearchParams(prev); n.set("probe", String(id)); return n; });
   const closeProbe = () =>
@@ -217,6 +242,24 @@ export function Dashboard() {
       }
     }
   }, [page]);
+
+  // Deep link ?server=<id>: runs after the initial auto-collapse above (same commit,
+  // functional updates apply in order), once per distinct id.
+  useEffect(() => {
+    if (!page || deepServerId == null || deepDone.current === deepServerId) return;
+    const svc = page.services.find((s) => s.servers.some((sv) => sv.id === deepServerId));
+    if (!svc) return;
+    deepDone.current = deepServerId;
+    setCollapsed((c) => { const n = new Set(c); n.delete(svc.id); return n; });
+    setCollapsedSrv((c) => { const n = new Set(c); n.delete(deepServerId); return n; });
+    setDeepFlash(deepServerId);
+    const scroll = setTimeout(
+      () => document.getElementById(`srv-${deepServerId}`)?.scrollIntoView({ behavior: "smooth", block: "center" }),
+      120
+    );
+    const unflash = setTimeout(() => setDeepFlash(null), 3000);
+    return () => { clearTimeout(scroll); clearTimeout(unflash); };
+  }, [page, deepServerId]);
 
   // Track viewport so collapsibility/affordances react to rotation & resize.
   useEffect(() => {
@@ -529,6 +572,25 @@ export function Dashboard() {
                 {collapsible && isCollapsed && (
                   <span className="count-pill svc-count">{service.servers.length}</span>
                 )}
+                {isCollapsed && isProblem(service.status) && (() => {
+                  // свёрнутая проблемная группа: кто именно лежит и почему — без раскрытия
+                  const bad = service.servers.filter((sv) => isProblem(sv.status));
+                  return (
+                    <span className="svc-problems">
+                      {bad.slice(0, 2).map((sv) => {
+                        const p = firstProblem(sv);
+                        return (
+                          <span key={sv.id} className={`svc-problem ${sv.status}`}>
+                            <StatusDot status={sv.status} /> <b>{sv.name}</b>
+                            {p?.error && <span className="svc-problem-err"> — {p.error}</span>}
+                            {p?.down_since && <> · <DownFor since={p.down_since} status={p.status} /></>}
+                          </span>
+                        );
+                      })}
+                      {bad.length > 2 && <span className="muted">{t("dash.moreProblems", { n: bad.length - 2 })}</span>}
+                    </span>
+                  );
+                })()}
               </h3>
               <div className="inline">
                 {svcBar.some((p) => p.status !== "none") && (
@@ -551,7 +613,11 @@ export function Dashboard() {
                   range
                 );
                 return (
-                <div className={`server srv-${server.status}`} key={server.id}>
+                <div
+                  className={`server srv-${server.status} ${deepFlash === server.id ? "deeplink" : ""}`}
+                  key={server.id}
+                  id={`srv-${server.id}`}
+                >
                   <div
                     className="server-head collapse-head"
                     onClick={() => toggleSrv(server.id)}
@@ -561,7 +627,19 @@ export function Dashboard() {
                       <span className={`chev ${srvCollapsed ? "" : "open"}`}>▶</span>
                       <StatusDot status={server.status} />
                       <strong>{server.name}</strong>
-                      {server.note ? (
+                      {srvCollapsed && isProblem(server.status) && firstProblem(server)?.error ? (
+                        (() => {
+                          const p = firstProblem(server)!;
+                          return (
+                            <>
+                              <span className={`small srv-err ${server.status}`} title={`${p.name}: ${p.error}`}>
+                                {p.error}
+                              </span>
+                              {p.down_since && <DownFor since={p.down_since} status={p.status} />}
+                            </>
+                          );
+                        })()
+                      ) : server.note ? (
                         <span className="muted small srv-note" title={server.note}>{server.note}</span>
                       ) : (
                         <span className="muted small">{server.host}</span>
@@ -599,6 +677,9 @@ export function Dashboard() {
                           )}
                           {probe.status === "paused" && <span className="pill">{t("status.paused")}</span>}
                           {probe.stale && <span className="pill stale-pill">{t("dash.stale")}</span>}
+                          {probe.down_since && isProblem(probe.status) && (
+                            <DownFor since={probe.down_since} status={probe.status} />
+                          )}
                           {probe.error && probe.status !== "up" && (
                             <span className="probe-err" title={probe.error}>
                               {probe.error}
